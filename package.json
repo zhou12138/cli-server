@@ -3,6 +3,7 @@
   "productName": "CLI Server",
   "version": "0.1.0",
   "description": "Local CLI execution gateway for web-based agents",
+  "author": "CLI Server",
   "main": ".vite/build/index.js",
   "scripts": {
     "start": "electron-forge start",

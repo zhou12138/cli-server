@@ -11,7 +11,7 @@ const config: ForgeConfig = {
     name: 'CLI Server',
   },
   makers: [
-    new MakerSquirrel({ name: 'cli-server' }),
+    new MakerSquirrel({ name: 'cli-server', authors: 'CLI Server' }),
     new MakerDMG({ format: 'ULFO' }),
     new MakerDeb({ options: { name: 'cli-server' } }),
     new MakerRpm({ options: { name: 'cli-server' } }),
