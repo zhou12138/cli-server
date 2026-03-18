@@ -5,6 +5,7 @@ import type { ClientMessage, ServerMessage, AuditEntry } from './types';
 import { auditLogger } from '../audit/logger';
 
 const MAX_AUDIT_OUTPUT = 10_000; // max chars stored per stream in audit
+const PING_INTERVAL_MS = 30_000; // ping every 30s to keep connection alive
 
 function send(ws: WebSocket, msg: ServerMessage): void {
   if (ws.readyState === ws.OPEN) {
@@ -15,6 +16,13 @@ function send(ws: WebSocket, msg: ServerMessage): void {
 export function handleWebSocketConnection(ws: WebSocket, clientIp: string): void {
   let childProcess: ChildProcess | null = null;
   let executed = false;
+
+  // Ping/pong heartbeat to prevent idle disconnects
+  const pingTimer = setInterval(() => {
+    if (ws.readyState === ws.OPEN) {
+      ws.ping();
+    }
+  }, PING_INTERVAL_MS);
 
   // Buffers for audit log
   let stdoutBuf = '';
@@ -44,13 +52,11 @@ export function handleWebSocketConnection(ws: WebSocket, clientIp: string): void
         startTime = Date.now();
 
         try {
-          const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
-          const shellArgs = process.platform === 'win32' ? ['/c', msg.command] : ['-c', msg.command];
-
-          childProcess = spawn(shell, shellArgs, {
+          childProcess = spawn(msg.command, [], {
             cwd,
             env: process.env,
             stdio: ['pipe', 'pipe', 'pipe'],
+            shell: true,
           });
         } catch (err) {
           send(ws, { type: 'error', message: `Failed to spawn: ${err}` });
@@ -59,6 +65,12 @@ export function handleWebSocketConnection(ws: WebSocket, clientIp: string): void
         }
 
         send(ws, { type: 'started', pid: childProcess.pid! });
+
+        // Close stdin immediately unless the client declares interactive mode.
+        // Some CLIs (e.g. workiq) block waiting for stdin EOF when stdout is a pipe.
+        if (!msg.interactive) {
+          childProcess.stdin?.end();
+        }
 
         childProcess.stdout?.on('data', (data: Buffer) => {
           const text = data.toString('utf-8');
@@ -123,6 +135,7 @@ export function handleWebSocketConnection(ws: WebSocket, clientIp: string): void
   });
 
   ws.on('close', () => {
+    clearInterval(pingTimer);
     // Clean up: kill spawned process if still running
     if (childProcess) {
       childProcess.kill('SIGTERM');

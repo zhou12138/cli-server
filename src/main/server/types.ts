@@ -4,6 +4,7 @@ export interface ExecuteMessage {
   type: 'execute';
   command: string;
   cwd?: string;
+  interactive?: boolean;
 }
 
 export interface StdinMessage {
