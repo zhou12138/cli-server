@@ -24,10 +24,10 @@ export default function CommandCard({ command, timestamp, exitCode, durationMs, 
         <code className="text-sm text-slate-200 font-mono truncate flex-1">{command}</code>
         <span
           className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium ${isError
-              ? 'bg-red-500/20 text-red-400'
-              : exitCode === null
-                ? 'bg-yellow-500/20 text-yellow-400'
-                : 'bg-green-500/20 text-green-400'
+            ? 'bg-red-500/20 text-red-400'
+            : exitCode === null
+              ? 'bg-yellow-500/20 text-yellow-400'
+              : 'bg-green-500/20 text-green-400'
             }`}
         >
           {exitCode === null ? t('dashboard.killed') : t('dashboard.exit', { code: exitCode })}

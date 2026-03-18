@@ -48,11 +48,10 @@ export default function Settings() {
               <button
                 key={loc}
                 onClick={() => setLocale(loc as Locale)}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                  locale === loc
+                className={`px-3 py-1.5 text-sm rounded transition-colors ${locale === loc
                     ? 'bg-blue-600 text-white'
                     : 'bg-surface-950 border border-surface-700 text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 {label}
               </button>

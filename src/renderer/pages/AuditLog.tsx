@@ -92,10 +92,10 @@ export default function AuditLog() {
                       </span>
                       <span
                         className={`w-[60px] shrink-0 text-xs text-right ${entry.exitCode === 0
-                            ? 'text-green-400'
-                            : entry.exitCode === null
-                              ? 'text-yellow-400'
-                              : 'text-red-400'
+                          ? 'text-green-400'
+                          : entry.exitCode === null
+                            ? 'text-yellow-400'
+                            : 'text-red-400'
                           }`}
                       >
                         {entry.exitCode === null ? t('dashboard.killed') : entry.exitCode}

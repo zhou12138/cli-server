@@ -1,13 +1,18 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron';
 import * as path from 'node:path';
+import { spawn } from 'node:child_process';
 import { startServer } from './server';
 import { registerIpcHandlers, getPort } from './ipc/handlers';
 import { auditLogger } from './audit/logger';
 import { createT, type Locale } from '../i18n';
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (require('electron-squirrel-startup')) {
-  app.quit();
+// Handle Squirrel.Windows install/uninstall events inline
+// (replaces electron-squirrel-startup to avoid bundling issues)
+if (process.platform === 'win32') {
+  const cmd = process.argv[1];
+  if (cmd === '--squirrel-install' || cmd === '--squirrel-updated' || cmd === '--squirrel-uninstall' || cmd === '--squirrel-obsolete') {
+    app.quit();
+  }
 }
 
 let mainWindow: BrowserWindow | null = null;
