@@ -1,8 +1,13 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      // ws optional native deps — not needed, must stay external
+      external: ['bufferutil', 'utf-8-validate'],
+    },
+  },
   resolve: {
-    // Ensure Node.js built-in modules are treated as external
     conditions: ['node'],
   },
 });

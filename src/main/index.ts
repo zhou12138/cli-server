@@ -50,6 +50,9 @@ function createWindow(): void {
     mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 
+  // Enable DevTools in all builds
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
+
   mainWindow.on('close', (e) => {
     // Minimize to tray instead of quitting
     if (tray) {
