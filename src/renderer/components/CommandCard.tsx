@@ -1,3 +1,5 @@
+import { useI18n } from '../hooks/useI18n';
+
 interface CommandCardProps {
   command: string;
   timestamp: string;
@@ -8,6 +10,7 @@ interface CommandCardProps {
 }
 
 export default function CommandCard({ command, timestamp, exitCode, durationMs, clientIp, onClick }: CommandCardProps) {
+  const { t } = useI18n();
   const isError = exitCode !== null && exitCode !== 0;
   const time = new Date(timestamp).toLocaleTimeString();
   const date = new Date(timestamp).toLocaleDateString();
@@ -27,7 +30,7 @@ export default function CommandCard({ command, timestamp, exitCode, durationMs, 
                 : 'bg-green-500/20 text-green-400'
             }`}
         >
-          {exitCode === null ? 'killed' : `exit ${exitCode}`}
+          {exitCode === null ? t('dashboard.killed') : t('dashboard.exit', { code: exitCode })}
         </span>
       </div>
       <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-500">

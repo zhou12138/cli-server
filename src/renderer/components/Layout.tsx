@@ -1,14 +1,17 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import StatusBadge from './StatusBadge';
-
-const navItems = [
-  { to: '/', label: 'Dashboard', icon: '⊞' },
-  { to: '/audit', label: 'Audit Log', icon: '⊟' },
-  { to: '/settings', label: 'Settings', icon: '⊠' },
-];
+import { useI18n } from '../hooks/useI18n';
 
 export default function Layout() {
+  const { t } = useI18n();
+
+  const navItems = [
+    { to: '/', label: t('nav.dashboard'), icon: '⊞' },
+    { to: '/audit', label: t('nav.auditLog'), icon: '⊟' },
+    { to: '/settings', label: t('nav.settings'), icon: '⊠' },
+  ];
+
   const [status, setStatus] = useState<{ running: boolean; port: number; activeConnections: number }>({
     running: false,
     port: 19876,
@@ -32,7 +35,7 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="w-56 bg-surface-900 border-r border-surface-700 flex flex-col">
         <div className="p-4 border-b border-surface-700">
-          <h1 className="text-lg font-bold text-white tracking-tight">CLI Server</h1>
+          <h1 className="text-lg font-bold text-white tracking-tight">{t('app.title')}</h1>
           <div className="mt-2">
             <StatusBadge running={status.running} port={status.port} />
           </div>
@@ -58,7 +61,7 @@ export default function Layout() {
         </nav>
 
         <div className="p-4 border-t border-surface-700 text-xs text-slate-500">
-          {status.activeConnections} active connection{status.activeConnections !== 1 ? 's' : ''}
+          {t('status.activeConnections', { count: status.activeConnections })}
         </div>
       </aside>
 

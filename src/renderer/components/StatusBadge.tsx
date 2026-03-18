@@ -1,9 +1,12 @@
+import { useI18n } from '../hooks/useI18n';
+
 interface StatusBadgeProps {
   running: boolean;
   port: number;
 }
 
 export default function StatusBadge({ running, port }: StatusBadgeProps) {
+  const { t } = useI18n();
   return (
     <div className="flex items-center gap-2">
       <span
@@ -11,7 +14,7 @@ export default function StatusBadge({ running, port }: StatusBadgeProps) {
           }`}
       />
       <span className="text-xs text-slate-400">
-        {running ? `Running on :${port}` : 'Stopped'}
+        {running ? t('status.runningOnPort', { port }) : t('status.stopped')}
       </span>
     </div>
   );

@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { startServer } from './server';
 import { registerIpcHandlers, getPort } from './ipc/handlers';
 import { auditLogger } from './audit/logger';
+import { createT, type Locale } from '../i18n';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -11,6 +12,15 @@ if (require('electron-squirrel-startup')) {
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+
+// Detect system locale for main process
+function getMainLocale(): Locale {
+  const lang = app.getLocale();
+  if (lang.startsWith('zh')) return 'zh-CN';
+  return 'en';
+}
+
+const t = createT(getMainLocale());
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -21,7 +31,7 @@ function createWindow(): void {
     height: 700,
     minWidth: 800,
     minHeight: 500,
-    title: 'CLI Server',
+    title: t('app.title'),
     webPreferences: {
       preload: path.join(__dirname, `preload.js`),
       contextIsolation: true,
@@ -52,11 +62,11 @@ function createTray(): void {
   // Create a simple 16x16 tray icon
   const icon = nativeImage.createEmpty();
   tray = new Tray(icon);
-  tray.setToolTip('CLI Server');
+  tray.setToolTip(t('app.title'));
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Show',
+      label: t('tray.show'),
       click: () => {
         mainWindow?.show();
         mainWindow?.focus();
@@ -64,12 +74,12 @@ function createTray(): void {
     },
     { type: 'separator' },
     {
-      label: `Server running on port ${getPort()}`,
+      label: t('tray.serverRunning', { port: getPort() }),
       enabled: false,
     },
     { type: 'separator' },
     {
-      label: 'Quit',
+      label: t('tray.quit'),
       click: () => {
         tray?.destroy();
         tray = null;

@@ -1,0 +1,76 @@
+{
+  "app": {
+    "title": "CLI Server"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "auditLog": "Audit Log",
+    "settings": "Settings"
+  },
+  "tray": {
+    "show": "Show",
+    "quit": "Quit",
+    "serverRunning": "Server running on port {port}"
+  },
+  "status": {
+    "running": "Running",
+    "stopped": "Stopped",
+    "runningOnPort": "Running on :{port}",
+    "activeConnections": "{count} active connection(s)"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "serverStatus": "Server Status",
+    "port": "Port {port}",
+    "totalCommands": "Total Commands",
+    "inAuditLog": "in audit log",
+    "activeConnections": "Active Connections",
+    "errorsRecently": "{count} error(s) recently",
+    "noRecentErrors": "No recent errors",
+    "recentCommands": "Recent Commands",
+    "noCommands": "No commands executed yet. Connect via WebSocket to",
+    "killed": "killed",
+    "exit": "exit {code}"
+  },
+  "audit": {
+    "title": "Audit Log",
+    "totalEntries": "{total} total entries",
+    "searchPlaceholder": "Search commands, output...",
+    "colTime": "Time",
+    "colCommand": "Command",
+    "colExit": "Exit",
+    "colDuration": "Duration",
+    "colClient": "Client",
+    "noMatching": "No matching entries",
+    "noEntries": "No audit entries yet",
+    "workingDirectory": "Working Directory",
+    "stdout": "stdout",
+    "stderr": "stderr",
+    "noOutput": "No output captured"
+  },
+  "settings": {
+    "title": "Settings",
+    "serverConfig": "Server Configuration",
+    "portNumber": "Port Number",
+    "applyRestart": "Apply & Restart",
+    "restarting": "Restarting...",
+    "portValidation": "Port must be between 1024 and 65535",
+    "restartSuccess": "Server restarted on port {port}",
+    "restartFailed": "Failed to restart: {error}",
+    "securityGuardrails": "Security Guardrails",
+    "comingSoon": "Coming Soon",
+    "authToken": "Authentication Token",
+    "authTokenPlaceholder": "Bearer token for API access",
+    "corsOrigins": "Allowed CORS Origins",
+    "corsPlaceholder": "* (all origins)",
+    "commandBlocklist": "Command Blocklist",
+    "rateLimiting": "Rate Limiting",
+    "rateLimitPlaceholder": "Max 10 commands per minute",
+    "securityNotice": "Security guardrails will be available in a future release. For now, the server accepts all connections and commands without restriction. Use with caution.",
+    "about": "About",
+    "aboutDescription": "CLI Server provides a local WebSocket + HTTP gateway for web-based AI agents to execute CLI commands on your machine. It runs a persistent background service on the configured port and logs all command executions for audit purposes.",
+    "version": "Version 0.1.0 (MVP)",
+    "language": "Language",
+    "languageDescription": "Interface language (requires restart for tray menu)"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "app": {
+    "title": "Agent 安全卫士"
+  },
+  "nav": {
+    "dashboard": "仪表盘",
+    "auditLog": "审计日志",
+    "settings": "设置"
+  },
+  "tray": {
+    "show": "显示窗口",
+    "quit": "退出",
+    "serverRunning": "服务运行在端口 {port}"
+  },
+  "status": {
+    "running": "运行中",
+    "stopped": "已停止",
+    "runningOnPort": "运行在 :{port}",
+    "activeConnections": "{count} 个活跃连接"
+  },
+  "dashboard": {
+    "title": "仪表盘",
+    "serverStatus": "服务器状态",
+    "port": "端口 {port}",
+    "totalCommands": "命令总数",
+    "inAuditLog": "审计日志中",
+    "activeConnections": "活跃连接",
+    "errorsRecently": "近期 {count} 个错误",
+    "noRecentErrors": "无近期错误",
+    "recentCommands": "最近执行的命令",
+    "noCommands": "暂无命令执行记录。请通过 WebSocket 连接",
+    "killed": "已终止",
+    "exit": "退出码 {code}"
+  },
+  "audit": {
+    "title": "审计日志",
+    "totalEntries": "共 {total} 条记录",
+    "searchPlaceholder": "搜索命令、输出内容...",
+    "colTime": "时间",
+    "colCommand": "命令",
+    "colExit": "退出码",
+    "colDuration": "耗时",
+    "colClient": "客户端",
+    "noMatching": "无匹配记录",
+    "noEntries": "暂无审计记录",
+    "workingDirectory": "工作目录",
+    "stdout": "标准输出",
+    "stderr": "标准错误",
+    "noOutput": "无输出内容"
+  },
+  "settings": {
+    "title": "设置",
+    "serverConfig": "服务器配置",
+    "portNumber": "端口号",
+    "applyRestart": "应用并重启",
+    "restarting": "重启中...",
+    "portValidation": "端口号必须在 1024 到 65535 之间",
+    "restartSuccess": "服务已在端口 {port} 上重启",
+    "restartFailed": "重启失败：{error}",
+    "securityGuardrails": "安全护栏",
+    "comingSoon": "即将推出",
+    "authToken": "认证令牌",
+    "authTokenPlaceholder": "用于 API 访问的 Bearer 令牌",
+    "corsOrigins": "允许的 CORS 来源",
+    "corsPlaceholder": "* (所有来源)",
+    "commandBlocklist": "命令黑名单",
+    "rateLimiting": "速率限制",
+    "rateLimitPlaceholder": "每分钟最多 10 条命令",
+    "securityNotice": "安全护栏功能将在未来版本中推出。当前版本接受所有连接和命令，无任何限制。请谨慎使用。",
+    "about": "关于",
+    "aboutDescription": "Agent 安全卫士为基于 Web 的 AI Agent 提供本地 WebSocket + HTTP 网关，用于在您的计算机上执行 CLI 命令。它在配置的端口上运行持久后台服务，并记录所有命令执行以供审计。",
+    "version": "版本 0.1.0 (MVP)",
+    "language": "语言",
+    "languageDescription": "界面语言（托盘菜单需重启生效）"
+  }
+}

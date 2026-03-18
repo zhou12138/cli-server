@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '../hooks/useI18n';
+import type { Locale } from '../../i18n';
 
 export default function Settings() {
+  const { t, locale, setLocale } = useI18n();
   const [port, setPort] = useState(19876);
   const [savedPort, setSavedPort] = useState(19876);
   const [restarting, setRestarting] = useState(false);
@@ -15,7 +18,7 @@ export default function Settings() {
 
   const handleRestart = async () => {
     if (port < 1024 || port > 65535) {
-      setMessage('Port must be between 1024 and 65535');
+      setMessage(t('settings.portValidation'));
       return;
     }
     setRestarting(true);
@@ -23,9 +26,9 @@ export default function Settings() {
     try {
       const result = await window.electronAPI.restartServer(port);
       setSavedPort(result.port);
-      setMessage(`Server restarted on port ${result.port}`);
+      setMessage(t('settings.restartSuccess', { port: result.port }));
     } catch (err) {
-      setMessage(`Failed to restart: ${err}`);
+      setMessage(t('settings.restartFailed', { error: String(err) }));
     } finally {
       setRestarting(false);
     }
@@ -33,14 +36,37 @@ export default function Settings() {
 
   return (
     <div className="space-y-8 max-w-2xl">
-      <h2 className="text-xl font-semibold text-white">Settings</h2>
+      <h2 className="text-xl font-semibold text-white">{t('settings.title')}</h2>
+
+      {/* Language */}
+      <section className="bg-surface-900 border border-surface-700 rounded-lg p-5 space-y-4">
+        <h3 className="text-sm font-medium text-slate-300">{t('settings.language')}</h3>
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500">{t('settings.languageDescription')}</p>
+          <div className="flex gap-2">
+            {([['en', 'English'], ['zh-CN', '中文']] as const).map(([loc, label]) => (
+              <button
+                key={loc}
+                onClick={() => setLocale(loc as Locale)}
+                className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                  locale === loc
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-surface-950 border border-surface-700 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Port Configuration */}
       <section className="bg-surface-900 border border-surface-700 rounded-lg p-5 space-y-4">
-        <h3 className="text-sm font-medium text-slate-300">Server Configuration</h3>
+        <h3 className="text-sm font-medium text-slate-300">{t('settings.serverConfig')}</h3>
 
         <div className="space-y-2">
-          <label className="block text-xs text-slate-500">Port Number</label>
+          <label className="block text-xs text-slate-500">{t('settings.portNumber')}</label>
           <div className="flex gap-2">
             <input
               type="number"
@@ -55,11 +81,11 @@ export default function Settings() {
               disabled={restarting || port === savedPort}
               className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {restarting ? 'Restarting...' : 'Apply & Restart'}
+              {restarting ? t('settings.restarting') : t('settings.applyRestart')}
             </button>
           </div>
           {message && (
-            <div className={`text-xs ${message.includes('Failed') ? 'text-red-400' : 'text-green-400'}`}>
+            <div className={`text-xs ${message.includes('Failed') || message.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>
               {message}
             </div>
           )}
@@ -69,33 +95,33 @@ export default function Settings() {
       {/* Security Guardrails (placeholder) */}
       <section className="bg-surface-900 border border-surface-700 rounded-lg p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-slate-300">Security Guardrails</h3>
-          <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded">Coming Soon</span>
+          <h3 className="text-sm font-medium text-slate-300">{t('settings.securityGuardrails')}</h3>
+          <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded">{t('settings.comingSoon')}</span>
         </div>
 
         <div className="space-y-3 opacity-50">
           <div className="space-y-1">
-            <label className="block text-xs text-slate-500">Authentication Token</label>
+            <label className="block text-xs text-slate-500">{t('settings.authToken')}</label>
             <input
               type="text"
               disabled
-              placeholder="Bearer token for API access"
+              placeholder={t('settings.authTokenPlaceholder')}
               className="w-full bg-surface-950 border border-surface-700 rounded px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="block text-xs text-slate-500">Allowed CORS Origins</label>
+            <label className="block text-xs text-slate-500">{t('settings.corsOrigins')}</label>
             <input
               type="text"
               disabled
-              placeholder="* (all origins)"
+              placeholder={t('settings.corsPlaceholder')}
               className="w-full bg-surface-950 border border-surface-700 rounded px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="block text-xs text-slate-500">Command Blocklist</label>
+            <label className="block text-xs text-slate-500">{t('settings.commandBlocklist')}</label>
             <textarea
               disabled
               placeholder="rm -rf /&#10;format c:&#10;..."
@@ -105,31 +131,28 @@ export default function Settings() {
           </div>
 
           <div className="space-y-1">
-            <label className="block text-xs text-slate-500">Rate Limiting</label>
+            <label className="block text-xs text-slate-500">{t('settings.rateLimiting')}</label>
             <input
               type="text"
               disabled
-              placeholder="Max 10 commands per minute"
+              placeholder={t('settings.rateLimitPlaceholder')}
               className="w-full bg-surface-950 border border-surface-700 rounded px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed"
             />
           </div>
         </div>
 
         <p className="text-xs text-slate-600">
-          Security guardrails will be available in a future release. For now, the server accepts all
-          connections and commands without restriction. Use with caution.
+          {t('settings.securityNotice')}
         </p>
       </section>
 
       {/* About */}
       <section className="bg-surface-900 border border-surface-700 rounded-lg p-5 space-y-2">
-        <h3 className="text-sm font-medium text-slate-300">About</h3>
+        <h3 className="text-sm font-medium text-slate-300">{t('settings.about')}</h3>
         <p className="text-xs text-slate-500">
-          CLI Server provides a local WebSocket + HTTP gateway for web-based AI agents to execute
-          CLI commands on your machine. It runs a persistent background service on the configured
-          port and logs all command executions for audit purposes.
+          {t('settings.aboutDescription')}
         </p>
-        <div className="text-xs text-slate-600">Version 0.1.0 (MVP)</div>
+        <div className="text-xs text-slate-600">{t('settings.version')}</div>
       </section>
     </div>
   );
