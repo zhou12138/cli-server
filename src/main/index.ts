@@ -1,0 +1,128 @@
+import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron';
+import * as path from 'node:path';
+import { startServer } from './server';
+import { registerIpcHandlers, getPort } from './ipc/handlers';
+import { auditLogger } from './audit/logger';
+
+// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+if (require('electron-squirrel-startup')) {
+  app.quit();
+}
+
+let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+
+declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
+declare const MAIN_WINDOW_VITE_NAME: string;
+
+function createWindow(): void {
+  mainWindow = new BrowserWindow({
+    width: 1000,
+    height: 700,
+    minWidth: 800,
+    minHeight: 500,
+    title: 'CLI Server',
+    webPreferences: {
+      preload: path.join(__dirname, `preload.js`),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  } else {
+    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  }
+
+  mainWindow.on('close', (e) => {
+    // Minimize to tray instead of quitting
+    if (tray) {
+      e.preventDefault();
+      mainWindow?.hide();
+    }
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+}
+
+function createTray(): void {
+  // Create a simple 16x16 tray icon
+  const icon = nativeImage.createEmpty();
+  tray = new Tray(icon);
+  tray.setToolTip('CLI Server');
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show',
+      click: () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+      },
+    },
+    { type: 'separator' },
+    {
+      label: `Server running on port ${getPort()}`,
+      enabled: false,
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        tray?.destroy();
+        tray = null;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+  tray.on('double-click', () => {
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
+}
+
+app.whenReady().then(async () => {
+  // Initialize audit logger
+  auditLogger.init();
+
+  // Create the browser window
+  createWindow();
+
+  // Register IPC handlers
+  if (mainWindow) {
+    registerIpcHandlers(mainWindow);
+  }
+
+  // Start the embedded server
+  try {
+    await startServer(getPort());
+    console.log(`Server started on port ${getPort()}`);
+  } catch (err) {
+    console.error('Failed to start server:', err);
+  }
+
+  // Create system tray
+  createTray();
+});
+
+// Quit when all windows are closed, except on macOS
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    // Don't quit — server should keep running (tray icon)
+  }
+});
+
+app.on('activate', () => {
+  if (mainWindow === null) {
+    createWindow();
+    if (mainWindow) {
+      registerIpcHandlers(mainWindow);
+    }
+  } else {
+    mainWindow.show();
+  }
+});
