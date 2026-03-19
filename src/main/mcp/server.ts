@@ -26,7 +26,13 @@ function createMcpServer(sessionManager: SessionManager, clientIp: string): McpS
   // ── Tool: session_create ──
   server.tool(
     'session_create',
-    `Create a new session and run a shell command. Commands are executed via ${sessionShell} on ${os.platform()} (${os.arch()}). Use ${sessionShell} syntax for pipes, redirects, and quoting.`,
+    `Create a new session and run a shell command. Commands are executed via ${sessionShell} on ${os.platform()} (${os.arch()}). Use ${sessionShell} syntax for pipes, redirects, and quoting.
+
+After creating a session, use session_wait with idleMs (e.g. 5000-15000) to poll for output. This is the recommended pattern for commands that may take a while (e.g. network calls, API queries). Do NOT rely solely on exited — some commands produce output incrementally. Typical workflow:
+1. session_create → get sessionId
+2. session_wait(sessionId, idleMs=10000) → wait until output stabilizes
+3. session_read_output → read the result
+4. If still running and more output expected, repeat step 2-3`,
     {
       command: z.string().describe(`Shell command to execute (${sessionShell} syntax)`),
       cwd: z.string().optional().describe('Working directory'),
@@ -99,7 +105,14 @@ function createMcpServer(sessionManager: SessionManager, clientIp: string): McpS
   // ── Tool: session_wait ──
   server.tool(
     'session_wait',
-    'Wait for a session to meet one of several conditions (OR semantics). Returns when the first condition is met. A safety timeout of 5 minutes is always applied.',
+    `Wait for a session to meet one of several conditions (OR semantics). Returns when the first condition is met. A safety timeout of 5 minutes is always applied.
+
+Recommended usage patterns:
+- Fast commands (ls, cat, echo): use exited=true, timeoutMs=10000
+- Slow commands (network/API calls like workiq, curl): use idleMs=10000 to detect when output stops, then read output. Repeat if the process is still running.
+- Long-running processes: combine idleMs + exited for incremental output reading
+
+The idleMs condition triggers when no new stdout/stderr output has been produced for N milliseconds, which is ideal for detecting that a command has finished producing its response even if the process hasn't exited yet.`,
     {
       sessionId: z.string().describe('Session ID'),
       exited: z.boolean().optional().describe('Wait until the session exits'),
