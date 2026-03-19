@@ -32,6 +32,7 @@
     "noSessions": "暂无会话记录。请通过 MCP 工具或 WebSocket 执行命令。",
     "killed": "已终止",
     "running": "运行中",
+    "kill": "终止会话",
     "exit": "退出码 {code}"
   },
   "audit": {

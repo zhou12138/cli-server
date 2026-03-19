@@ -3,7 +3,7 @@ import { useI18n } from '../hooks/useI18n';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
-import { Activity, Clock } from 'lucide-react';
+import { Activity, Clock, XCircle } from 'lucide-react';
 
 interface SessionInfo {
   sessionId: string;
@@ -127,6 +127,7 @@ export default function Dashboard() {
                   <TableHead className="w-[80px]">{t('audit.colExit')}</TableHead>
                   <TableHead className="w-[100px]">{t('audit.colDuration')}</TableHead>
                   <TableHead className="w-[120px]">{t('audit.colClient')}</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -140,6 +141,15 @@ export default function Dashboard() {
                     </TableCell>
                     <TableCell className="text-xs text-slate-500">{s.durationMs}ms</TableCell>
                     <TableCell className="text-xs text-slate-500">{s.clientIp}</TableCell>
+                    <TableCell>
+                      <button
+                        onClick={() => window.electronAPI.killSession(s.sessionId).then(refresh)}
+                        className="p-1 rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
+                        title={t('dashboard.kill')}
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

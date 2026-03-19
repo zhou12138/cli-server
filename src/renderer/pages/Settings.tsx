@@ -56,7 +56,7 @@ export default function Settings() {
                 className={`px-3 py-1.5 text-sm rounded transition-colors ${locale === loc
                   ? 'bg-blue-600 text-white'
                   : 'bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 {label}
               </button>

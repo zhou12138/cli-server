@@ -100,22 +100,24 @@ function createMcpServer(sessionManager: SessionManager, clientIp: string): McpS
   // ── Tool: session_wait ──
   server.tool(
     'session_wait',
-    'Wait for a session to meet one of several conditions (OR semantics). Returns when the first condition is met.',
+    'Wait for a session to meet one of several conditions (OR semantics). Returns when the first condition is met. A safety timeout of 5 minutes is always applied.',
     {
       sessionId: z.string().describe('Session ID'),
       exited: z.boolean().optional().describe('Wait until the session exits'),
-      timeout: z.number().optional().describe('Max milliseconds to wait'),
-      idle: z.number().optional().describe('Trigger after no output for N ms'),
+      timeoutMs: z.number().optional().describe('Max milliseconds to wait (default: 300000 = 5 min)'),
+      idleMs: z.number().optional().describe('Trigger after no output for N ms'),
       tailLength: z.number().optional().describe('Include last N chars of stdout/stderr in result'),
     },
-    async ({ sessionId, exited, timeout, idle, tailLength }) => {
-      if (!exited && !timeout && !idle) {
-        return error('At least one condition required (exited, timeout, or idle)');
+    async ({ sessionId, exited, timeoutMs, idleMs, tailLength }) => {
+      if (!exited && !timeoutMs && !idleMs) {
+        return error('At least one condition required (exited, timeoutMs, or idleMs)');
       }
+      // Always enforce a max timeout to prevent indefinite waits
+      const safeTimeout = Math.min(timeoutMs ?? 300_000, 300_000);
       try {
         const result = await sessionManager.wait(
           sessionId,
-          { exited, timeout, idle },
+          { exited, timeout: safeTimeout, idle: idleMs },
           tailLength ?? 0,
         );
         return json(result);

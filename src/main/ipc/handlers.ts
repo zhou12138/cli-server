@@ -52,6 +52,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow, sessionManager: S
       options?.limit ?? 50,
     );
   });
+
+  ipcMain.handle('session:kill', (_event, sessionId: string) => {
+    return sessionMgr.kill(sessionId);
+  });
 }
 
 export function getPort(): number {

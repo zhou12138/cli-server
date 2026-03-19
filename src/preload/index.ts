@@ -39,6 +39,7 @@ export interface ElectronAPI {
       stdoutLength: number; stderrLength: number; clientIp: string;
     }>;
   }>;
+  killSession: (sessionId: string) => Promise<{ success: boolean }>;
   onServerEvent: (callback: (event: { type: string; data?: unknown }) => void) => () => void;
 }
 
@@ -48,6 +49,7 @@ const api: ElectronAPI = {
   getServerStatus: () => ipcRenderer.invoke('server:getStatus'),
   restartServer: (port) => ipcRenderer.invoke('server:restart', port),
   getSessions: (options) => ipcRenderer.invoke('session:list', options),
+  killSession: (sessionId) => ipcRenderer.invoke('session:kill', sessionId),
   onServerEvent: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { type: string; data?: unknown }) => callback(data);
     ipcRenderer.on('server:event', handler);

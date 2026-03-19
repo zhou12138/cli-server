@@ -32,6 +32,7 @@
     "noSessions": "No sessions yet. Use MCP tools or WebSocket to execute commands.",
     "killed": "killed",
     "running": "running",
+    "kill": "Kill session",
     "exit": "exit {code}"
   },
   "audit": {
