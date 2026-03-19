@@ -43,7 +43,7 @@ export class SessionManager {
     const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
     const shellArgs =
       process.platform === 'win32'
-        ? ['-NoProfile', '-NonInteractive', '-Command', command]
+        ? ['-NoLogo', '-NoProfile', '-Command', command]
         : ['-c', command];
 
     const childProcess = spawn(shell, shellArgs, {
