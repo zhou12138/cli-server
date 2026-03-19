@@ -40,9 +40,11 @@ export class SessionManager {
   create(command: string, cwd?: string, clientIp = 'unknown'): SessionInfo {
     const sessionId = randomUUID();
     const resolvedCwd = cwd || process.cwd();
-    const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+    const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
     const shellArgs =
-      process.platform === 'win32' ? ['/c', command] : ['-c', command];
+      process.platform === 'win32'
+        ? ['-NoProfile', '-NonInteractive', '-Command', command]
+        : ['-c', command];
 
     const childProcess = spawn(shell, shellArgs, {
       cwd: resolvedCwd,

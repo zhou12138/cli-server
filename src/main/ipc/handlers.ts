@@ -44,6 +44,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow, sessionManager: S
     await startServer(currentPort, sessionMgr);
     return { running: true, port: currentPort };
   });
+
+  ipcMain.handle('session:list', (_event, options?: { state?: string; offset?: number; limit?: number }) => {
+    return sessionMgr.list(
+      (options?.state as 'running' | 'exited' | 'all') ?? 'all',
+      options?.offset ?? 0,
+      options?.limit ?? 50,
+    );
+  });
 }
 
 export function getPort(): number {

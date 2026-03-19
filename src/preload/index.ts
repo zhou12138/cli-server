@@ -30,6 +30,15 @@ export interface ElectronAPI {
   } | undefined>;
   getServerStatus: () => Promise<{ running: boolean; port: number; activeConnections: number }>;
   restartServer: (port?: number) => Promise<{ running: boolean; port: number }>;
+  getSessions: (options?: { state?: string; offset?: number; limit?: number }) => Promise<{
+    offset: number; limit: number; total: number; nextOffset: number | null;
+    data: Array<{
+      sessionId: string; command: string; cwd: string; pid: number;
+      state: string; exitCode: number | null; signal: string | null;
+      startedAt: string; endedAt: string | null; durationMs: number;
+      stdoutLength: number; stderrLength: number; clientIp: string;
+    }>;
+  }>;
   onServerEvent: (callback: (event: { type: string; data?: unknown }) => void) => () => void;
 }
 
@@ -38,6 +47,7 @@ const api: ElectronAPI = {
   getAuditEntry: (id) => ipcRenderer.invoke('audit:getEntry', id),
   getServerStatus: () => ipcRenderer.invoke('server:getStatus'),
   restartServer: (port) => ipcRenderer.invoke('server:restart', port),
+  getSessions: (options) => ipcRenderer.invoke('session:list', options),
   onServerEvent: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { type: string; data?: unknown }) => callback(data);
     ipcRenderer.on('server:event', handler);

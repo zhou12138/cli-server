@@ -13,6 +13,7 @@ export function createHttpRoutes(): Router {
       hostname: os.hostname(),
       homedir: os.homedir(),
       shell: process.env.SHELL || process.env.COMSPEC || '',
+      sessionShell: os.platform() === 'win32' ? 'powershell' : 'sh',
       path: process.env.PATH || '',
       uptime: os.uptime(),
       cpus: os.cpus().length,

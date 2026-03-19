@@ -44,8 +44,10 @@ export function handleWebSocketConnection(ws: WebSocket, clientIp: string): void
         startTime = Date.now();
 
         try {
-          const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
-          const shellArgs = process.platform === 'win32' ? ['/c', msg.command] : ['-c', msg.command];
+          const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
+          const shellArgs = process.platform === 'win32'
+            ? ['-NoProfile', '-NonInteractive', '-Command', msg.command]
+            : ['-c', msg.command];
 
           childProcess = spawn(shell, shellArgs, {
             cwd,

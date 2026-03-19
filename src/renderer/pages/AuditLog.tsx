@@ -1,5 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useI18n } from '../hooks/useI18n';
+import { Card, CardContent } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 interface AuditEntry {
   id: string;
@@ -40,105 +45,110 @@ export default function AuditLog() {
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
+  const exitVariant = (code: number | null) => {
+    if (code === null) return 'warning';
+    if (code === 0) return 'success';
+    return 'destructive';
+  };
+
+  const exitLabel = (code: number | null) => {
+    if (code === null) return t('dashboard.killed');
+    return String(code);
+  };
+
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4 max-w-5xl">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">{t('audit.title')}</h2>
         <span className="text-xs text-slate-500">{t('audit.totalEntries', { total })}</span>
       </div>
 
-      {/* Search */}
-      <input
+      <Input
         type="text"
         placeholder={t('audit.searchPlaceholder')}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-full bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500"
       />
 
-      {/* Table */}
-      <div className="border border-surface-700 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-900 text-slate-400">
-            <tr>
-              <th className="text-left px-3 py-2 font-medium">{t('audit.colTime')}</th>
-              <th className="text-left px-3 py-2 font-medium">{t('audit.colCommand')}</th>
-              <th className="text-left px-3 py-2 font-medium">{t('audit.colExit')}</th>
-              <th className="text-left px-3 py-2 font-medium">{t('audit.colDuration')}</th>
-              <th className="text-left px-3 py-2 font-medium">{t('audit.colClient')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-700">
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[30px]"></TableHead>
+              <TableHead className="w-[150px]">{t('audit.colTime')}</TableHead>
+              <TableHead>{t('audit.colCommand')}</TableHead>
+              <TableHead className="w-[70px]">{t('audit.colExit')}</TableHead>
+              <TableHead className="w-[90px]">{t('audit.colDuration')}</TableHead>
+              <TableHead className="w-[120px]">{t('audit.colClient')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {entries.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-slate-600">
+              <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center text-slate-600">
                   {search ? t('audit.noMatching') : t('audit.noEntries')}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : (
               entries.map((entry) => (
-                <tr key={entry.id} className="group">
-                  <td colSpan={5} className="p-0">
-                    {/* Row summary */}
-                    <button
-                      className="w-full text-left px-3 py-2 hover:bg-surface-900/50 transition-colors cursor-pointer flex"
-                      onClick={() => toggleExpand(entry.id)}
-                    >
-                      <span className="w-[140px] shrink-0 text-slate-500 text-xs">
-                        {new Date(entry.timestamp).toLocaleString()}
-                      </span>
-                      <span className="flex-1 font-mono text-slate-200 truncate text-xs">
-                        {entry.command}
-                      </span>
-                      <span
-                        className={`w-[60px] shrink-0 text-xs text-right ${entry.exitCode === 0
-                          ? 'text-green-400'
-                          : entry.exitCode === null
-                            ? 'text-yellow-400'
-                            : 'text-red-400'
-                          }`}
-                      >
-                        {entry.exitCode === null ? t('dashboard.killed') : entry.exitCode}
-                      </span>
-                      <span className="w-[80px] shrink-0 text-xs text-slate-500 text-right">
-                        {entry.durationMs}ms
-                      </span>
-                      <span className="w-[120px] shrink-0 text-xs text-slate-600 text-right">
-                        {entry.clientIp}
-                      </span>
-                    </button>
-
-                    {/* Expanded detail */}
-                    {expandedId === entry.id && (
-                      <div className="px-3 pb-3 space-y-2 border-t border-surface-700 bg-surface-900/30">
-                        <div className="pt-2">
-                          <div className="text-xs text-slate-500 mb-1">{t('audit.workingDirectory')}</div>
-                          <code className="text-xs text-slate-300">{entry.cwd}</code>
+                <>
+                  <TableRow
+                    key={entry.id}
+                    className="cursor-pointer hover:bg-slate-800/50"
+                    onClick={() => toggleExpand(entry.id)}
+                  >
+                    <TableCell className="px-2">
+                      {expandedId === entry.id
+                        ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                        : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-500">
+                      {new Date(entry.timestamp).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <code className="text-xs font-mono text-slate-200">{entry.command}</code>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={exitVariant(entry.exitCode)}>
+                        {exitLabel(entry.exitCode)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-500">{entry.durationMs}ms</TableCell>
+                    <TableCell className="text-xs text-slate-500">{entry.clientIp}</TableCell>
+                  </TableRow>
+                  {expandedId === entry.id && (
+                    <TableRow key={`${entry.id}-detail`}>
+                      <TableCell colSpan={6} className="bg-slate-900/40 px-6 py-3">
+                        <div className="space-y-2">
+                          <div>
+                            <span className="text-xs text-slate-500">{t('audit.workingDirectory')}: </span>
+                            <code className="text-xs text-slate-300">{entry.cwd}</code>
+                          </div>
+                          {entry.stdout && (
+                            <div>
+                              <div className="text-xs text-slate-500 mb-1">{t('audit.stdout')}</div>
+                              <pre className="output-pre">{entry.stdout}</pre>
+                            </div>
+                          )}
+                          {entry.stderr && (
+                            <div>
+                              <div className="text-xs text-red-400/70 mb-1">{t('audit.stderr')}</div>
+                              <pre className="output-pre !text-red-400">{entry.stderr}</pre>
+                            </div>
+                          )}
+                          {!entry.stdout && !entry.stderr && (
+                            <div className="text-xs text-slate-600 py-1">{t('audit.noOutput')}</div>
+                          )}
                         </div>
-                        {entry.stdout && (
-                          <div>
-                            <div className="text-xs text-slate-500 mb-1">{t('audit.stdout')}</div>
-                            <pre className="output-pre">{entry.stdout}</pre>
-                          </div>
-                        )}
-                        {entry.stderr && (
-                          <div>
-                            <div className="text-xs text-red-400/70 mb-1">{t('audit.stderr')}</div>
-                            <pre className="output-pre !text-red-400">{entry.stderr}</pre>
-                          </div>
-                        )}
-                        {!entry.stdout && !entry.stderr && (
-                          <div className="text-xs text-slate-600 py-2">{t('audit.noOutput')}</div>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
               ))
             )}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }

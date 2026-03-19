@@ -1,5 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Express, Request, Response } from 'express';
 import * as os from 'node:os';
@@ -13,23 +15,25 @@ function error(message: string) {
   return { content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }], isError: true as const };
 }
 
-function createMcpServer(sessionManager: SessionManager): McpServer {
+function createMcpServer(sessionManager: SessionManager, clientIp: string): McpServer {
   const server = new McpServer({
     name: 'cli-server',
     version: '0.1.0',
   });
 
+  const sessionShell = os.platform() === 'win32' ? 'powershell' : 'sh';
+
   // ── Tool: session_create ──
   server.tool(
     'session_create',
-    'Create a new session and run a shell command',
+    `Create a new session and run a shell command. Commands are executed via ${sessionShell} on ${os.platform()} (${os.arch()}). Use ${sessionShell} syntax for pipes, redirects, and quoting.`,
     {
-      command: z.string().describe('Shell command to execute'),
+      command: z.string().describe(`Shell command to execute (${sessionShell} syntax)`),
       cwd: z.string().optional().describe('Working directory'),
     },
     async ({ command, cwd }) => {
       try {
-        const info = sessionManager.create(command, cwd);
+        const info = sessionManager.create(command, cwd, clientIp);
         return json(info);
       } catch (err) {
         return error(String(err));
@@ -172,6 +176,7 @@ function createMcpServer(sessionManager: SessionManager): McpServer {
           hostname: os.hostname(),
           homedir: os.homedir(),
           shell: process.env.SHELL || process.env.COMSPEC || '',
+          sessionShell,
           uptime: os.uptime(),
           cpus: os.cpus().length,
           totalMemory: os.totalmem(),
@@ -184,33 +189,64 @@ function createMcpServer(sessionManager: SessionManager): McpServer {
   return server;
 }
 
-// ── Mount MCP SSE endpoints on Express ──
+// ── Mount MCP Streamable HTTP endpoint on Express ──
 
 export function mountMcpEndpoints(
   app: Express,
   sessionManager: SessionManager,
 ): void {
-  const transports = new Map<string, SSEServerTransport>();
+  const transports = new Map<string, StreamableHTTPServerTransport>();
 
-  app.get('/mcp/sse', async (_req: Request, res: Response) => {
-    const server = createMcpServer(sessionManager);
-    const transport = new SSEServerTransport('/mcp/messages', res);
-    transports.set(transport.sessionId, transport);
+  app.post('/mcp', async (req: Request, res: Response) => {
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
-    res.on('close', () => {
-      transports.delete(transport.sessionId);
+    if (sessionId && transports.has(sessionId)) {
+      // Existing session — reuse transport
+      await transports.get(sessionId)!.handleRequest(req, res, req.body);
+      return;
+    }
+
+    if (!sessionId && isInitializeRequest(req.body)) {
+      // New initialization request
+      const clientIp = req.socket.remoteAddress || 'unknown';
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        enableJsonResponse: true,
+        onsessioninitialized: (id) => {
+          transports.set(id, transport);
+        },
+      });
+
+      transport.onclose = () => {
+        if (transport.sessionId) {
+          transports.delete(transport.sessionId);
+        }
+      };
+
+      const server = createMcpServer(sessionManager, clientIp);
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+      return;
+    }
+
+    res.status(400).json({
+      jsonrpc: '2.0',
+      error: { code: -32000, message: 'Bad Request: No valid session ID' },
+      id: null,
     });
-
-    await server.connect(transport);
   });
 
-  app.post('/mcp/messages', async (req: Request, res: Response) => {
-    const transportSessionId = req.query.sessionId as string;
-    const transport = transports.get(transportSessionId);
-    if (transport) {
-      await transport.handlePostMessage(req, res, req.body);
+  app.get('/mcp', (_req: Request, res: Response) => {
+    res.status(405).set('Allow', 'POST').send('Method Not Allowed');
+  });
+
+  app.delete('/mcp', async (req: Request, res: Response) => {
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    if (sessionId && transports.has(sessionId)) {
+      await transports.get(sessionId)!.handleRequest(req, res);
+      transports.delete(sessionId);
     } else {
-      res.status(400).json({ error: 'No transport found for sessionId' });
+      res.status(404).send('Session not found');
     }
   });
 }

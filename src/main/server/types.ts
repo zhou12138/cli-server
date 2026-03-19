@@ -77,6 +77,7 @@ export interface MachineInfo {
   hostname: string;
   homedir: string;
   shell: string;
+  sessionShell: string;
   path: string;
   uptime: number;
   cpus: number;

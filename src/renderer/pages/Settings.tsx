@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useI18n } from '../hooks/useI18n';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
 import type { Locale } from '../../i18n';
 
 export default function Settings() {
@@ -35,13 +38,15 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="space-y-6 max-w-2xl">
       <h2 className="text-xl font-semibold text-white">{t('settings.title')}</h2>
 
       {/* Language */}
-      <section className="bg-surface-900 border border-surface-700 rounded-lg p-5 space-y-4">
-        <h3 className="text-sm font-medium text-slate-300">{t('settings.language')}</h3>
-        <div className="space-y-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('settings.language')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
           <p className="text-xs text-slate-500">{t('settings.languageDescription')}</p>
           <div className="flex gap-2">
             {([['en', 'English'], ['zh-CN', '中文']] as const).map(([loc, label]) => (
@@ -49,31 +54,32 @@ export default function Settings() {
                 key={loc}
                 onClick={() => setLocale(loc as Locale)}
                 className={`px-3 py-1.5 text-sm rounded transition-colors ${locale === loc
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-surface-950 border border-surface-700 text-slate-400 hover:text-slate-200'
-                  }`}
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200'
+                }`}
               >
                 {label}
               </button>
             ))}
           </div>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
       {/* Port Configuration */}
-      <section className="bg-surface-900 border border-surface-700 rounded-lg p-5 space-y-4">
-        <h3 className="text-sm font-medium text-slate-300">{t('settings.serverConfig')}</h3>
-
-        <div className="space-y-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('settings.serverConfig')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
           <label className="block text-xs text-slate-500">{t('settings.portNumber')}</label>
           <div className="flex gap-2">
-            <input
+            <Input
               type="number"
               min={1024}
               max={65535}
               value={port}
               onChange={(e) => setPort(Number(e.target.value))}
-              className="w-32 bg-surface-950 border border-surface-700 rounded px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+              className="w-32"
             />
             <button
               onClick={handleRestart}
@@ -88,71 +94,53 @@ export default function Settings() {
               {message}
             </div>
           )}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      {/* Security Guardrails (placeholder) */}
-      <section className="bg-surface-900 border border-surface-700 rounded-lg p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-slate-300">{t('settings.securityGuardrails')}</h3>
-          <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded">{t('settings.comingSoon')}</span>
-        </div>
-
-        <div className="space-y-3 opacity-50">
+      {/* Security Guardrails */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between w-full">
+            <CardTitle>{t('settings.securityGuardrails')}</CardTitle>
+            <Badge variant="warning">{t('settings.comingSoon')}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 opacity-50">
           <div className="space-y-1">
             <label className="block text-xs text-slate-500">{t('settings.authToken')}</label>
-            <input
-              type="text"
-              disabled
-              placeholder={t('settings.authTokenPlaceholder')}
-              className="w-full bg-surface-950 border border-surface-700 rounded px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed"
-            />
+            <Input type="text" disabled placeholder={t('settings.authTokenPlaceholder')} />
           </div>
-
           <div className="space-y-1">
             <label className="block text-xs text-slate-500">{t('settings.corsOrigins')}</label>
-            <input
-              type="text"
-              disabled
-              placeholder={t('settings.corsPlaceholder')}
-              className="w-full bg-surface-950 border border-surface-700 rounded px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed"
-            />
+            <Input type="text" disabled placeholder={t('settings.corsPlaceholder')} />
           </div>
-
           <div className="space-y-1">
             <label className="block text-xs text-slate-500">{t('settings.commandBlocklist')}</label>
             <textarea
               disabled
               placeholder="rm -rf /&#10;format c:&#10;..."
               rows={3}
-              className="w-full bg-surface-950 border border-surface-700 rounded px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed resize-none"
+              className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed resize-none focus:outline-none"
             />
           </div>
-
           <div className="space-y-1">
             <label className="block text-xs text-slate-500">{t('settings.rateLimiting')}</label>
-            <input
-              type="text"
-              disabled
-              placeholder={t('settings.rateLimitPlaceholder')}
-              className="w-full bg-surface-950 border border-surface-700 rounded px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed"
-            />
+            <Input type="text" disabled placeholder={t('settings.rateLimitPlaceholder')} />
           </div>
-        </div>
-
-        <p className="text-xs text-slate-600">
-          {t('settings.securityNotice')}
-        </p>
-      </section>
+          <p className="text-xs text-slate-600">{t('settings.securityNotice')}</p>
+        </CardContent>
+      </Card>
 
       {/* About */}
-      <section className="bg-surface-900 border border-surface-700 rounded-lg p-5 space-y-2">
-        <h3 className="text-sm font-medium text-slate-300">{t('settings.about')}</h3>
-        <p className="text-xs text-slate-500">
-          {t('settings.aboutDescription')}
-        </p>
-        <div className="text-xs text-slate-600">{t('settings.version')}</div>
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('settings.about')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-xs text-slate-500">{t('settings.aboutDescription')}</p>
+          <div className="text-xs text-slate-600">{t('settings.version')}</div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
