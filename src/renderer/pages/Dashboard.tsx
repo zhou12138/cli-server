@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useI18n } from '../hooks/useI18n';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Activity, Clock, XCircle, Trash2 } from 'lucide-react';
+import { Activity, Clock, XCircle, Trash2, Copy, Check } from 'lucide-react';
 
 interface IOEvent {
   stream: 'stdin' | 'stdout' | 'stderr';
@@ -195,6 +195,7 @@ export default function Dashboard() {
   const [liveSessions, setLiveSessions] = useState<SessionInfo[]>([]);
   const [recentEntries, setRecentEntries] = useState<AuditEntry[]>([]);
   const [totalAudit, setTotalAudit] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const toggleExpanded = useCallback((id: string) => {
@@ -302,6 +303,23 @@ export default function Dashboard() {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* MCP Endpoint */}
+      <div
+        className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 cursor-pointer hover:border-slate-600 transition-colors group"
+        onClick={() => {
+          navigator.clipboard.writeText(`http://localhost:${status.port}/mcp`);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }}
+        title={t('settings.clickToCopy')}
+      >
+        <span className="text-xs text-slate-500">{t('settings.mcpEndpoint')}:</span>
+        <code className="text-sm text-blue-400 font-mono select-all">{`http://localhost:${status.port}/mcp`}</code>
+        {copied
+          ? <Check className="w-3.5 h-3.5 text-green-400 shrink-0 ml-auto" />
+          : <Copy className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-400 shrink-0 ml-auto transition-colors" />}
       </div>
 
       {/* Unified Session List */}
