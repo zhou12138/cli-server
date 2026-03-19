@@ -62,14 +62,13 @@ function createMcpServer(sessionManager: SessionManager, clientIp: string): McpS
   // ── Tool: session_kill ──
   server.tool(
     'session_kill',
-    'Kill a running session',
+    'Kill a running session (kills entire process tree on Windows)',
     {
       sessionId: z.string().describe('Session ID'),
-      signal: z.string().optional().describe('Signal to send (default: SIGTERM)'),
     },
-    async ({ sessionId, signal }) => {
+    async ({ sessionId }) => {
       try {
-        sessionManager.kill(sessionId, (signal as NodeJS.Signals) || 'SIGTERM');
+        sessionManager.kill(sessionId);
         return json({ success: true });
       } catch (err) {
         return error(String(err));

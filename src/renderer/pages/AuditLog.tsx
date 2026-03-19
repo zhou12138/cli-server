@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useI18n } from '../hooks/useI18n';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -91,9 +91,8 @@ export default function AuditLog() {
               </TableRow>
             ) : (
               entries.map((entry) => (
-                <>
+                <React.Fragment key={entry.id}>
                   <TableRow
-                    key={entry.id}
                     className="cursor-pointer hover:bg-slate-800/50"
                     onClick={() => toggleExpand(entry.id)}
                   >
@@ -143,7 +142,7 @@ export default function AuditLog() {
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </React.Fragment>
               ))
             )}
           </TableBody>

@@ -54,7 +54,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow, sessionManager: S
   });
 
   ipcMain.handle('session:kill', (_event, sessionId: string) => {
-    return sessionMgr.kill(sessionId);
+    try {
+      sessionMgr.kill(sessionId);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
   });
 }
 

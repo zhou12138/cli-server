@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, execSync, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import type {
   SessionState,
@@ -126,12 +126,23 @@ export class SessionManager {
     session.process.stdin.write(data);
   }
 
-  kill(sessionId: string, signal: NodeJS.Signals = 'SIGTERM'): void {
+  kill(sessionId: string): void {
     const session = this.getSession(sessionId);
     if (session.state !== 'running' || !session.process) {
       throw new Error('Session is not running');
     }
-    session.process.kill(signal);
+    const pid = session.process.pid;
+    if (process.platform === 'win32' && pid) {
+      // Kill entire process tree on Windows
+      try {
+        execSync(`taskkill /T /F /PID ${pid}`, { stdio: 'ignore' });
+      } catch {
+        // taskkill may fail if process already exited
+        session.process.kill('SIGKILL');
+      }
+    } else {
+      session.process.kill('SIGTERM');
+    }
   }
 
   readOutput(
