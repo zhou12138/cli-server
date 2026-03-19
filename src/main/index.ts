@@ -1,10 +1,10 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron';
 import * as path from 'node:path';
-import { spawn } from 'node:child_process';
 import { startServer } from './server';
 import { registerIpcHandlers, getPort } from './ipc/handlers';
 import { auditLogger } from './audit/logger';
 import { createT, type Locale } from '../i18n';
+import { SessionManager } from './session/manager';
 
 // Handle Squirrel.Windows install/uninstall events inline
 // (replaces electron-squirrel-startup to avoid bundling issues)
@@ -103,6 +103,8 @@ function createTray(): void {
   });
 }
 
+const sessionManager = new SessionManager();
+
 app.whenReady().then(async () => {
   // Initialize audit logger
   auditLogger.init();
@@ -112,12 +114,12 @@ app.whenReady().then(async () => {
 
   // Register IPC handlers
   if (mainWindow) {
-    registerIpcHandlers(mainWindow);
+    registerIpcHandlers(mainWindow, sessionManager);
   }
 
   // Start the embedded server
   try {
-    await startServer(getPort());
+    await startServer(getPort(), sessionManager);
     console.log(`Server started on port ${getPort()}`);
   } catch (err) {
     console.error('Failed to start server:', err);
@@ -138,7 +140,7 @@ app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
     if (mainWindow) {
-      registerIpcHandlers(mainWindow);
+      registerIpcHandlers(mainWindow, sessionManager);
     }
   } else {
     mainWindow.show();

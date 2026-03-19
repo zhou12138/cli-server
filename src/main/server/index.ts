@@ -3,6 +3,8 @@ import { createServer, type Server } from 'node:http';
 import { WebSocketServer } from 'ws';
 import { createHttpRoutes } from './http-routes';
 import { handleWebSocketConnection } from './ws-handler';
+import { mountMcpEndpoints } from '../mcp/server';
+import type { SessionManager } from '../session/manager';
 
 let httpServer: Server | null = null;
 let wss: WebSocketServer | null = null;
@@ -23,7 +25,7 @@ export function getActiveConnections(): number {
   return activeConnections;
 }
 
-export function startServer(port: number): Promise<void> {
+export function startServer(port: number, sessionManager: SessionManager): Promise<void> {
   return new Promise((resolve, reject) => {
     if (httpServer) {
       reject(new Error('Server already running'));
@@ -36,11 +38,17 @@ export function startServer(port: number): Promise<void> {
     app.use((_req, res, next) => {
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       next();
     });
 
+    // JSON body parser for MCP POST endpoint
+    app.use(express.json());
+
     app.use(createHttpRoutes());
+
+    // Mount MCP SSE endpoints
+    mountMcpEndpoints(app, sessionManager);
 
     httpServer = createServer(app);
     wss = new WebSocketServer({ server: httpServer });

@@ -8,11 +8,15 @@ import {
   onServerEvent,
 } from '../server';
 import type { ServerStatus } from '../server/types';
+import type { SessionManager } from '../session/manager';
 
 const DEFAULT_PORT = 19876;
 let currentPort = DEFAULT_PORT;
+let sessionMgr: SessionManager;
 
-export function registerIpcHandlers(mainWindow: BrowserWindow): void {
+export function registerIpcHandlers(mainWindow: BrowserWindow, sessionManager: SessionManager): void {
+  sessionMgr = sessionManager;
+
   // Forward server events to renderer
   onServerEvent((event) => {
     mainWindow.webContents.send('server:event', event);
@@ -37,7 +41,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('server:restart', async (_event, port?: number) => {
     if (port) currentPort = port;
     await stopServer();
-    await startServer(currentPort);
+    await startServer(currentPort, sessionMgr);
     return { running: true, port: currentPort };
   });
 }
