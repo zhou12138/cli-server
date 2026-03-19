@@ -52,7 +52,8 @@
     "workingDirectory": "Working Directory",
     "stdout": "stdout",
     "stderr": "stderr",
-    "noOutput": "No output captured"
+    "noOutput": "No output captured",
+    "pageInfo": "Page {current} / {total}"
   },
   "settings": {
     "title": "Settings",

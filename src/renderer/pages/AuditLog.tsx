@@ -4,7 +4,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft } from 'lucide-react';
 
 interface AuditEntry {
   id: string;
@@ -19,27 +19,35 @@ interface AuditEntry {
   clientIp: string;
 }
 
+const PAGE_SIZE = 20;
+
 export default function AuditLog() {
   const { t } = useI18n();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchEntries = useCallback(() => {
     window.electronAPI
-      .getAuditEntries({ limit: 100, search: search || undefined })
+      .getAuditEntries({ offset: page * PAGE_SIZE, limit: PAGE_SIZE, search: search || undefined })
       .then(({ entries: data, total: t }) => {
         setEntries(data);
         setTotal(t);
       });
-  }, [search]);
+  }, [search, page]);
+
+  // Reset to first page when search changes
+  useEffect(() => { setPage(0); }, [search]);
 
   useEffect(() => {
     fetchEntries();
     const unsub = window.electronAPI.onServerEvent(() => fetchEntries());
     return unsub;
   }, [fetchEntries]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -57,7 +65,7 @@ export default function AuditLog() {
   };
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">{t('audit.title')}</h2>
         <span className="text-xs text-slate-500">{t('audit.totalEntries', { total })}</span>
@@ -148,6 +156,36 @@ export default function AuditLog() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between text-xs text-slate-500">
+          <span>{t('audit.pageInfo', { current: page + 1, total: totalPages })}</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(0)}
+              disabled={page === 0}
+              className="p-1.5 rounded hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="p-1.5 rounded hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="p-1.5 rounded hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

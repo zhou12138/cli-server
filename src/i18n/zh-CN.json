@@ -52,7 +52,8 @@
     "workingDirectory": "工作目录",
     "stdout": "标准输出",
     "stderr": "标准错误",
-    "noOutput": "无输出内容"
+    "noOutput": "无输出内容",
+    "pageInfo": "第 {current} / {total} 页"
   },
   "settings": {
     "title": "设置",

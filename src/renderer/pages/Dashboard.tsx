@@ -258,7 +258,7 @@ export default function Dashboard() {
         stdout: e.stdout,
         stderr: e.stderr,
       })),
-  ];
+  ].slice(0, 20);
 
   return (
     <div className="space-y-6">
