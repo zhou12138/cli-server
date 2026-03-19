@@ -118,12 +118,17 @@ export class SessionManager {
     return this.toInfo(session);
   }
 
-  writeStdin(sessionId: string, data: string): void {
+  writeStdin(sessionId: string, data: string, close = false): void {
     const session = this.getSession(sessionId);
     if (session.state !== 'running' || !session.process?.stdin?.writable) {
       throw new Error('Session stdin not available');
     }
-    session.process.stdin.write(data);
+    if (data) {
+      session.process.stdin.write(data);
+    }
+    if (close) {
+      session.process.stdin.end();
+    }
   }
 
   kill(sessionId: string): void {

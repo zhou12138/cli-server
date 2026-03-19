@@ -51,14 +51,15 @@ After creating a session, use session_wait with idleMs (e.g. 5000-15000) to poll
   // ── Tool: session_stdin ──
   server.tool(
     'session_stdin',
-    'Send stdin input to a running session',
+    'Send stdin input to a running session. Set close=true to send EOF (end of input) after writing — required for commands that read all stdin before processing (e.g. `workiq ask` interactive mode). Typical pattern: session_stdin(sessionId, data="my question\n", close=true)',
     {
       sessionId: z.string().describe('Session ID'),
-      data: z.string().describe('Data to write to stdin'),
+      data: z.string().optional().describe('Data to write to stdin (include \\n for newlines)'),
+      close: z.boolean().optional().describe('Close stdin after writing (sends EOF). Default: false'),
     },
-    async ({ sessionId, data }) => {
+    async ({ sessionId, data, close }) => {
       try {
-        sessionManager.writeStdin(sessionId, data);
+        sessionManager.writeStdin(sessionId, data ?? '', close ?? false);
         return json({ success: true });
       } catch (err) {
         return error(String(err));
