@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+export interface IOEvent {
+  stream: 'stdin' | 'stdout' | 'stderr';
+  time: number;
+  data: string;
+}
+
 export interface ElectronAPI {
   getAuditEntries: (options?: { offset?: number; limit?: number; search?: string }) => Promise<{
     entries: Array<{
@@ -11,6 +17,7 @@ export interface ElectronAPI {
       signal: string | null;
       stdout: string;
       stderr: string;
+      ioEvents?: IOEvent[];
       durationMs: number;
       clientIp: string;
     }>;
@@ -25,6 +32,7 @@ export interface ElectronAPI {
     signal: string | null;
     stdout: string;
     stderr: string;
+    ioEvents?: IOEvent[];
     durationMs: number;
     clientIp: string;
   } | undefined>;
@@ -40,6 +48,11 @@ export interface ElectronAPI {
     }>;
   }>;
   killSession: (sessionId: string) => Promise<{ success: boolean }>;
+  readSessionOutput: (sessionId: string, stream: 'stdout' | 'stderr', offset?: number, limit?: number) => Promise<{
+    offset: number; limit: number; total: number; nextOffset: number | null; data: string;
+  }>;
+  readSessionIOLog: (sessionId: string) => Promise<IOEvent[]>;
+  clearAuditLog: () => Promise<{ success: boolean }>;
   onServerEvent: (callback: (event: { type: string; data?: unknown }) => void) => () => void;
 }
 
@@ -50,6 +63,9 @@ const api: ElectronAPI = {
   restartServer: (port) => ipcRenderer.invoke('server:restart', port),
   getSessions: (options) => ipcRenderer.invoke('session:list', options),
   killSession: (sessionId) => ipcRenderer.invoke('session:kill', sessionId),
+  readSessionOutput: (sessionId, stream, offset, limit) => ipcRenderer.invoke('session:readOutput', sessionId, stream, offset, limit),
+  readSessionIOLog: (sessionId) => ipcRenderer.invoke('session:readIOLog', sessionId),
+  clearAuditLog: () => ipcRenderer.invoke('audit:clear'),
   onServerEvent: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { type: string; data?: unknown }) => callback(data);
     ipcRenderer.on('server:event', handler);

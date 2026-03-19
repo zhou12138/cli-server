@@ -61,6 +61,28 @@ export function registerIpcHandlers(mainWindow: BrowserWindow, sessionManager: S
       return { success: false, error: String(err) };
     }
   });
+
+  ipcMain.handle('session:readOutput', (_event, sessionId: string, stream: 'stdout' | 'stderr', offset?: number, limit?: number) => {
+    try {
+      return sessionMgr.readOutput(sessionId, stream, offset ?? 0, limit ?? 4096);
+    } catch (err) {
+      return { error: String(err) };
+    }
+  });
+
+  ipcMain.handle('session:readIOLog', (_event, sessionId: string) => {
+    try {
+      return sessionMgr.readIOLog(sessionId);
+    } catch (err) {
+      return { error: String(err) };
+    }
+  });
+
+  ipcMain.handle('audit:clear', () => {
+    auditLogger.clear();
+    sessionMgr.clearExited();
+    return { success: true };
+  });
 }
 
 export function getPort(): number {

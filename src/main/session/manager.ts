@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   SessionState,
   SessionInfo,
+  IOEvent,
   WaitConditions,
   WaitResult,
   WaitTrigger,
@@ -26,6 +27,7 @@ interface InternalSession {
   endedAt: string | null;
   stdout: string;
   stderr: string;
+  ioEvents: IOEvent[];
   clientIp: string;
   process: ChildProcess | null;
   emitter: EventEmitter;
@@ -67,6 +69,7 @@ export class SessionManager {
       endedAt: null,
       stdout: '',
       stderr: '',
+      ioEvents: [],
       clientIp,
       process: childProcess,
       emitter,
@@ -77,6 +80,7 @@ export class SessionManager {
       const text = data.toString('utf-8');
       session.stdout += text;
       session.lastOutputTime = Date.now();
+      session.ioEvents.push({ stream: 'stdout', time: session.lastOutputTime, data: text });
       emitter.emit('output', 'stdout', text);
     });
 
@@ -84,6 +88,7 @@ export class SessionManager {
       const text = data.toString('utf-8');
       session.stderr += text;
       session.lastOutputTime = Date.now();
+      session.ioEvents.push({ stream: 'stderr', time: session.lastOutputTime, data: text });
       emitter.emit('output', 'stderr', text);
     });
 
@@ -104,6 +109,7 @@ export class SessionManager {
         signal,
         stdout: session.stdout.slice(0, MAX_AUDIT_OUTPUT),
         stderr: session.stderr.slice(0, MAX_AUDIT_OUTPUT),
+        ioEvents: session.ioEvents,
         durationMs: Date.now() - now,
         clientIp: session.clientIp,
       };
@@ -125,6 +131,7 @@ export class SessionManager {
     }
     if (data) {
       session.process.stdin.write(data);
+      session.ioEvents.push({ stream: 'stdin', time: Date.now(), data });
     }
     if (close) {
       session.process.stdin.end();
@@ -253,6 +260,19 @@ export class SessionManager {
 
   getInfo(sessionId: string): SessionInfo {
     return this.toInfo(this.getSession(sessionId));
+  }
+
+  readIOLog(sessionId: string): IOEvent[] {
+    const session = this.getSession(sessionId);
+    return session.ioEvents;
+  }
+
+  clearExited(): void {
+    for (const [id, session] of this.sessions) {
+      if (session.state === 'exited') {
+        this.sessions.delete(id);
+      }
+    }
   }
 
   // ── Private helpers ──

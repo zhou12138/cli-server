@@ -73,6 +73,16 @@ class AuditLogger {
     this.init();
     return this.entries.find((e) => e.id === id);
   }
+
+  clear(): void {
+    this.init();
+    this.entries = [];
+    try {
+      fs.writeFileSync(this.filePath, '', 'utf-8');
+    } catch {
+      // Silently fail — memory is already cleared
+    }
+  }
 }
 
 export const auditLogger = new AuditLogger();

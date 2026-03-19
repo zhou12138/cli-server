@@ -55,6 +55,12 @@ export type ServerMessage =
 
 // ── Audit log entry ──
 
+export interface IOEventRecord {
+  stream: 'stdin' | 'stdout' | 'stderr';
+  time: number;
+  data: string;
+}
+
 export interface AuditEntry {
   id: string;
   timestamp: string;
@@ -64,6 +70,7 @@ export interface AuditEntry {
   signal: string | null;
   stdout: string;
   stderr: string;
+  ioEvents?: IOEventRecord[];
   durationMs: number;
   clientIp: string;
 }

@@ -1,3 +1,11 @@
+// ── IO event (timestamped stdin/stdout/stderr chunk) ──
+
+export interface IOEvent {
+  stream: 'stdin' | 'stdout' | 'stderr';
+  time: number; // epoch ms
+  data: string;
+}
+
 // ── Session state ──
 
 export type SessionState = 'running' | 'exited';

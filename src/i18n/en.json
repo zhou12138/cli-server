@@ -33,7 +33,8 @@
     "killed": "killed",
     "running": "running",
     "kill": "Kill session",
-    "exit": "exit {code}"
+    "exit": "exit {code}",
+    "clearHistory": "Clear history"
   },
   "audit": {
     "title": "Audit Log",
