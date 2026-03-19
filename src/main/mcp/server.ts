@@ -51,10 +51,23 @@ After creating a session, use session_wait with idleMs (e.g. 5000-15000) to poll
   // ── Tool: session_stdin ──
   server.tool(
     'session_stdin',
-    'Send stdin input to a running session. Set close=true to send EOF (end of input) after writing — required for commands that read all stdin before processing. Typical pattern: session_stdin(sessionId, data="my input\\n", close=true)',
+    `Write data to a session's stdin pipe (requires enableStdin=true at creation).
+
+Data encoding: The data string is written to stdin exactly as received after JSON decoding — no additional escape processing is performed. Standard JSON string escapes apply at the protocol level:
+- JSON "\\n" → newline (0x0A) — use to send line input or press Enter
+- JSON "\\t" → tab (0x09)
+- JSON "\\\\" → literal backslash
+
+Set close=true to close the stdin pipe (sends EOF) after writing. This is required for commands that read all of stdin before processing (e.g. piped input, heredocs).
+
+Common patterns:
+- Send a line of input: data="hello\\n"
+- Send input then EOF: data="my question\\n", close=true
+- Just send EOF (no data): close=true
+- Multi-line input: data="line1\\nline2\\nline3\\n"`,
     {
       sessionId: z.string().describe('Session ID'),
-      data: z.string().optional().describe('Data to write to stdin (include \\n for newlines)'),
+      data: z.string().optional().describe('Raw data to write to stdin. Use JSON string escapes for control characters: \\n for newline, \\t for tab, \\\\ for backslash. Data is written as-is after JSON decoding.'),
       close: z.boolean().optional().describe('Close stdin after writing (sends EOF). Default: false'),
     },
     async ({ sessionId, data, close }) => {
