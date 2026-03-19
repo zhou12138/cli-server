@@ -18,7 +18,6 @@ export interface SessionInfo {
   stdoutLength: number;
   stderrLength: number;
   clientIp: string;
-  usePty: boolean;
 }
 
 // ── Wait conditions (OR semantics — at least one required) ──

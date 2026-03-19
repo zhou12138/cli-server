@@ -1,7 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { spawn, execSync, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import type { IPty } from 'node-pty';
 import type {
   SessionState,
   SessionInfo,
@@ -14,16 +13,6 @@ import { auditLogger } from '../audit/logger';
 import type { AuditEntry } from '../server/types';
 
 const MAX_AUDIT_OUTPUT = 10_000;
-
-// Lazy-load node-pty — it's a native addon that may not be available
-let ptyModule: typeof import('node-pty') | null = null;
-let ptyLoadError: string | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ptyModule = require('node-pty');
-} catch (err) {
-  ptyLoadError = `node-pty not available: ${err instanceof Error ? err.message : String(err)}`;
-}
 
 interface InternalSession {
   sessionId: string;
@@ -38,10 +27,7 @@ interface InternalSession {
   stdout: string;
   stderr: string;
   clientIp: string;
-  usePty: boolean;
-  // Exactly one of these is set, depending on mode
   process: ChildProcess | null;
-  ptyProcess: IPty | null;
   emitter: EventEmitter;
   lastOutputTime: number;
 }
@@ -51,7 +37,7 @@ export class SessionManager {
 
   // ── Public API ──
 
-  create(command: string, cwd?: string, clientIp = 'unknown', enableStdin = false, usePty = false): SessionInfo {
+  create(command: string, cwd?: string, clientIp = 'unknown', enableStdin = false): SessionInfo {
     const sessionId = randomUUID();
     const resolvedCwd = cwd || process.cwd();
     const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
@@ -60,6 +46,12 @@ export class SessionManager {
         ? ['-NoLogo', '-NoProfile', '-Command', command]
         : ['-c', command];
 
+    const childProcess = spawn(shell, shellArgs, {
+      cwd: resolvedCwd,
+      env: process.env,
+      stdio: [enableStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+    });
+
     const emitter = new EventEmitter();
     const now = Date.now();
 
@@ -67,7 +59,7 @@ export class SessionManager {
       sessionId,
       command,
       cwd: resolvedCwd,
-      pid: 0,
+      pid: childProcess.pid!,
       state: 'running',
       exitCode: null,
       signal: null,
@@ -76,20 +68,31 @@ export class SessionManager {
       stdout: '',
       stderr: '',
       clientIp,
-      usePty,
-      process: null,
-      ptyProcess: null,
+      process: childProcess,
       emitter,
       lastOutputTime: now,
     };
 
-    const onClose = (code: number | null, signal: string | null) => {
+    childProcess.stdout?.on('data', (data: Buffer) => {
+      const text = data.toString('utf-8');
+      session.stdout += text;
+      session.lastOutputTime = Date.now();
+      emitter.emit('output', 'stdout', text);
+    });
+
+    childProcess.stderr?.on('data', (data: Buffer) => {
+      const text = data.toString('utf-8');
+      session.stderr += text;
+      session.lastOutputTime = Date.now();
+      emitter.emit('output', 'stderr', text);
+    });
+
+    childProcess.on('close', (code, signal) => {
       session.state = 'exited';
       session.exitCode = code;
       session.signal = signal;
       session.endedAt = new Date().toISOString();
       session.process = null;
-      session.ptyProcess = null;
       emitter.emit('exit', code, signal);
 
       const entry: AuditEntry = {
@@ -105,66 +108,11 @@ export class SessionManager {
         clientIp: session.clientIp,
       };
       auditLogger.appendEntry(entry);
-    };
+    });
 
-    if (usePty) {
-      // ── PTY mode ──
-      if (!ptyModule) {
-        throw new Error(ptyLoadError || 'node-pty is not available');
-      }
-      const ptyProcess = ptyModule.spawn(shell, shellArgs, {
-        name: 'xterm-256color',
-        cols: 120,
-        rows: 30,
-        cwd: resolvedCwd,
-        env: process.env as Record<string, string>,
-      });
-
-      session.pid = ptyProcess.pid;
-      session.ptyProcess = ptyProcess;
-
-      ptyProcess.onData((data: string) => {
-        session.stdout += data;
-        session.lastOutputTime = Date.now();
-        emitter.emit('output', 'stdout', data);
-      });
-
-      ptyProcess.onExit(({ exitCode, signal }) => {
-        onClose(exitCode, signal !== undefined ? String(signal) : null);
-      });
-    } else {
-      // ── Pipe mode (original) ──
-      const childProcess = spawn(shell, shellArgs, {
-        cwd: resolvedCwd,
-        env: process.env,
-        stdio: [enableStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-      });
-
-      session.pid = childProcess.pid!;
-      session.process = childProcess;
-
-      childProcess.stdout?.on('data', (data: Buffer) => {
-        const text = data.toString('utf-8');
-        session.stdout += text;
-        session.lastOutputTime = Date.now();
-        emitter.emit('output', 'stdout', text);
-      });
-
-      childProcess.stderr?.on('data', (data: Buffer) => {
-        const text = data.toString('utf-8');
-        session.stderr += text;
-        session.lastOutputTime = Date.now();
-        emitter.emit('output', 'stderr', text);
-      });
-
-      childProcess.on('close', (code, signal) => {
-        onClose(code, signal);
-      });
-
-      childProcess.on('error', (err) => {
-        emitter.emit('error', err);
-      });
-    }
+    childProcess.on('error', (err) => {
+      emitter.emit('error', err);
+    });
 
     this.sessions.set(sessionId, session);
     return this.toInfo(session);
@@ -172,42 +120,33 @@ export class SessionManager {
 
   writeStdin(sessionId: string, data: string, close = false): void {
     const session = this.getSession(sessionId);
-    if (session.state !== 'running') {
-      throw new Error('Session is not running');
+    if (session.state !== 'running' || !session.process?.stdin?.writable) {
+      throw new Error('Session stdin not available');
     }
-    if (session.usePty) {
-      if (!session.ptyProcess) throw new Error('PTY not available');
-      if (data) session.ptyProcess.write(data);
-      // PTY doesn't support closing stdin separately; ignore close flag
-    } else {
-      if (!session.process?.stdin?.writable) {
-        throw new Error('Session stdin not available');
-      }
-      if (data) session.process.stdin.write(data);
-      if (close) session.process.stdin.end();
+    if (data) {
+      session.process.stdin.write(data);
+    }
+    if (close) {
+      session.process.stdin.end();
     }
   }
 
   kill(sessionId: string): void {
     const session = this.getSession(sessionId);
-    if (session.state !== 'running') {
+    if (session.state !== 'running' || !session.process) {
       throw new Error('Session is not running');
     }
-    if (session.usePty) {
-      if (!session.ptyProcess) throw new Error('PTY not available');
-      session.ptyProcess.kill();
-    } else {
-      if (!session.process) throw new Error('Process not available');
-      const pid = session.process.pid;
-      if (process.platform === 'win32' && pid) {
-        try {
-          execSync(`taskkill /T /F /PID ${pid}`, { stdio: 'ignore' });
-        } catch {
-          session.process.kill('SIGKILL');
-        }
-      } else {
-        session.process.kill('SIGTERM');
+    const pid = session.process.pid;
+    if (process.platform === 'win32' && pid) {
+      // Kill entire process tree on Windows
+      try {
+        execSync(`taskkill /T /F /PID ${pid}`, { stdio: 'ignore' });
+      } catch {
+        // taskkill may fail if process already exited
+        session.process.kill('SIGKILL');
       }
+    } else {
+      session.process.kill('SIGTERM');
     }
   }
 
@@ -341,7 +280,6 @@ export class SessionManager {
       stdoutLength: s.stdout.length,
       stderrLength: s.stderr.length,
       clientIp: s.clientIp,
-      usePty: s.usePty,
     };
   }
 
