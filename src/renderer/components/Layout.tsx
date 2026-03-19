@@ -66,8 +66,10 @@ export default function Layout() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto bg-slate-950 p-6">
-        <Outlet />
+      <main className="flex-1 overflow-auto bg-slate-950 p-6 flex justify-center">
+        <div className="w-full max-w-4xl">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

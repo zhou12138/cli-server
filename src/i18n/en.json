@@ -34,7 +34,9 @@
     "running": "running",
     "kill": "Kill session",
     "exit": "exit {code}",
-    "clearHistory": "Clear history"
+    "clearHistory": "Clear history",
+    "waitingForOutput": "Waiting for output...",
+    "noOutput": "No output"
   },
   "audit": {
     "title": "Audit Log",

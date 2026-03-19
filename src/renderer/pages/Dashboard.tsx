@@ -92,10 +92,11 @@ function fallbackEvents(stdout?: string, stderr?: string): IOEvent[] {
 }
 
 // ── Session Card ──
-function SessionCard({ session, onKill }: { session: UnifiedSession; onKill: () => void }) {
+function SessionCard({ session, expanded, onToggle, onKill }: {
+  session: UnifiedSession; expanded: boolean; onToggle: () => void; onKill: () => void;
+}) {
   const { t } = useI18n();
   const isActive = session.state === 'running';
-  const [expanded, setExpanded] = useState(false);
   const [ioEvents, setIoEvents] = useState<IOEvent[]>(
     session.ioEvents ?? fallbackEvents(session.stdout, session.stderr),
   );
@@ -124,14 +125,14 @@ function SessionCard({ session, onKill }: { session: UnifiedSession; onKill: () 
 
   return (
     <div className={`rounded-lg border transition-colors ${isActive
-        ? 'border-blue-500/40 bg-blue-500/5'
-        : 'border-surface-700 bg-surface-900'
+      ? 'border-blue-500/40 bg-blue-500/5'
+      : 'border-surface-700 bg-surface-900'
       }`}>
       {/* Header — entire command area is clickable */}
       <div className="flex items-start gap-3 px-4 py-3">
         <div
           className="flex-1 min-w-0 cursor-pointer select-none"
-          onClick={() => hasOutput && setExpanded(!expanded)}
+          onClick={() => onToggle()}
         >
           <code className={`text-sm font-mono break-all transition-colors ${expanded ? 'text-white' : 'text-slate-200 hover:text-white'
             }`}>{session.command}</code>
@@ -168,15 +169,19 @@ function SessionCard({ session, onKill }: { session: UnifiedSession; onKill: () 
       </div>
 
       {/* Expanded IO timeline — merged by timestamp, color-coded */}
-      {expanded && hasOutput && (
+      {expanded && (
         <div className="border-t border-surface-700 px-4 py-3">
-          <pre className="text-xs font-mono bg-surface-950 rounded p-2 max-h-72 overflow-auto whitespace-pre-wrap">
-            {ioEvents.map((ev, i) => (
-              <span key={i} className={STREAM_COLORS[ev.stream] ?? 'text-slate-400'}>
-                {ev.data}
-              </span>
-            ))}
-          </pre>
+          {hasOutput ? (
+            <pre className="text-xs font-mono bg-surface-950 rounded p-2 max-h-72 overflow-auto whitespace-pre-wrap">
+              {ioEvents.map((ev, i) => (
+                <span key={i} className={STREAM_COLORS[ev.stream] ?? 'text-slate-400'}>
+                  {ev.data}
+                </span>
+              ))}
+            </pre>
+          ) : (
+            <p className="text-xs text-slate-600 italic">{isActive ? t('dashboard.waitingForOutput') : t('dashboard.noOutput')}</p>
+          )}
         </div>
       )}
     </div>
@@ -191,14 +196,25 @@ export default function Dashboard() {
   const [recentEntries, setRecentEntries] = useState<AuditEntry[]>([]);
   const [totalAudit, setTotalAudit] = useState(0);
 
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
   const refresh = useCallback(() => {
     window.electronAPI.getServerStatus().then(setStatus);
-    window.electronAPI.getSessions({ state: 'running', limit: 50 }).then(({ data }) => {
-      setLiveSessions(data as SessionInfo[]);
-    });
-    window.electronAPI.getAuditEntries({ limit: 20 }).then(({ entries, total }) => {
-      setRecentEntries(entries as AuditEntry[]);
-      setTotalAudit(total);
+    // Batch both fetches so the unified list updates atomically
+    Promise.all([
+      window.electronAPI.getSessions({ state: 'running', limit: 50 }),
+      window.electronAPI.getAuditEntries({ limit: 20 }),
+    ]).then(([sessionsResult, auditResult]) => {
+      setLiveSessions(sessionsResult.data as SessionInfo[]);
+      setRecentEntries(auditResult.entries as AuditEntry[]);
+      setTotalAudit(auditResult.total);
     });
   }, []);
 
@@ -245,7 +261,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">{t('dashboard.title')}</h2>
 
       {/* Status Cards */}
@@ -324,6 +340,8 @@ export default function Dashboard() {
               <SessionCard
                 key={s.id}
                 session={s}
+                expanded={expandedIds.has(s.id)}
+                onToggle={() => toggleExpanded(s.id)}
                 onKill={() => window.electronAPI.killSession(s.id).then(refresh)}
               />
             ))}

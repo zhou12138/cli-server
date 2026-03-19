@@ -34,7 +34,9 @@
     "running": "运行中",
     "kill": "终止会话",
     "exit": "退出码 {code}",
-    "clearHistory": "清除历史"
+    "clearHistory": "清除历史",
+    "waitingForOutput": "等待输出...",
+    "noOutput": "无输出"
   },
   "audit": {
     "title": "审计日志",
