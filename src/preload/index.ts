@@ -53,6 +53,8 @@ export interface ElectronAPI {
   }>;
   readSessionIOLog: (sessionId: string) => Promise<IOEvent[]>;
   clearAuditLog: () => Promise<{ success: boolean }>;
+  getNotificationEnabled: () => Promise<boolean>;
+  setNotificationEnabled: (enabled: boolean) => Promise<boolean>;
   onServerEvent: (callback: (event: { type: string; data?: unknown }) => void) => () => void;
 }
 
@@ -66,6 +68,8 @@ const api: ElectronAPI = {
   readSessionOutput: (sessionId, stream, offset, limit) => ipcRenderer.invoke('session:readOutput', sessionId, stream, offset, limit),
   readSessionIOLog: (sessionId) => ipcRenderer.invoke('session:readIOLog', sessionId),
   clearAuditLog: () => ipcRenderer.invoke('audit:clear'),
+  getNotificationEnabled: () => ipcRenderer.invoke('settings:getNotification'),
+  setNotificationEnabled: (enabled) => ipcRenderer.invoke('settings:setNotification', enabled),
   onServerEvent: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { type: string; data?: unknown }) => callback(data);
     ipcRenderer.on('server:event', handler);

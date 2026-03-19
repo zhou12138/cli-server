@@ -112,8 +112,8 @@ export default function AuditLog() {
                     <TableCell className="text-xs text-slate-500">
                       {new Date(entry.timestamp).toLocaleString()}
                     </TableCell>
-                    <TableCell>
-                      <code className="text-xs font-mono text-slate-200">{entry.command}</code>
+                    <TableCell className="max-w-xs">
+                      <code className="text-xs font-mono text-slate-200 line-clamp-3 break-all" title={entry.command}>{entry.command}</code>
                     </TableCell>
                     <TableCell>
                       <Badge variant={exitVariant(entry.exitCode)}>

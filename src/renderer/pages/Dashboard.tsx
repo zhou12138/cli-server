@@ -134,8 +134,8 @@ function SessionCard({ session, expanded, onToggle, onKill }: {
           className="flex-1 min-w-0 cursor-pointer select-none"
           onClick={() => onToggle()}
         >
-          <code className={`text-sm font-mono break-all transition-colors ${expanded ? 'text-white' : 'text-slate-200 hover:text-white'
-            }`}>{session.command}</code>
+          <code className={`text-sm font-mono break-all transition-colors line-clamp-3 ${expanded ? 'text-white' : 'text-slate-200 hover:text-white'
+            }`} title={session.command}>{session.command}</code>
           <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
             <span>{new Date(session.startedAt).toLocaleTimeString()}</span>
             <span>{formatDuration(session.durationMs)}</span>

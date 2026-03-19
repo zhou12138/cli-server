@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Express, Request, Response } from 'express';
 import * as os from 'node:os';
 import type { SessionManager } from '../session/manager';
+import { emitServerEvent } from '../server';
 
 function json(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
@@ -41,6 +42,7 @@ After creating a session, use session_wait with idleMs (e.g. 5000-15000) to poll
     async ({ command, cwd, enableStdin }) => {
       try {
         const info = sessionManager.create(command, cwd, clientIp, enableStdin ?? false);
+        emitServerEvent('session:created', { sessionId: info.sessionId, command, clientIp });
         return json(info);
       } catch (err) {
         return error(String(err));

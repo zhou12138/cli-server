@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, Notification, ipcMain } from 'electron';
 import * as path from 'node:path';
 import { startServer } from './server';
 import { registerIpcHandlers, getPort } from './ipc/handlers';
@@ -105,16 +105,26 @@ function createTray(): void {
 
 const sessionManager = new SessionManager();
 
+// Session notification setting
+let sessionNotificationEnabled = true;
+
 app.whenReady().then(async () => {
   // Initialize audit logger
   auditLogger.init();
+
+  // IPC for notification setting
+  ipcMain.handle('settings:getNotification', () => sessionNotificationEnabled);
+  ipcMain.handle('settings:setNotification', (_e, enabled: boolean) => {
+    sessionNotificationEnabled = enabled;
+    return sessionNotificationEnabled;
+  });
 
   // Create the browser window
   createWindow();
 
   // Register IPC handlers
   if (mainWindow) {
-    registerIpcHandlers(mainWindow, sessionManager);
+    registerIpcHandlers(mainWindow, sessionManager, () => sessionNotificationEnabled);
   }
 
   // Start the embedded server
@@ -140,7 +150,7 @@ app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
     if (mainWindow) {
-      registerIpcHandlers(mainWindow, sessionManager);
+      registerIpcHandlers(mainWindow, sessionManager, () => sessionNotificationEnabled);
     }
   } else {
     mainWindow.show();

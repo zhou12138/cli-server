@@ -17,8 +17,12 @@ export function onServerEvent(cb: ServerEventCallback): void {
   eventCallback = cb;
 }
 
-function emit(type: string, data?: unknown): void {
+export function emitServerEvent(type: string, data?: unknown): void {
   eventCallback?.({ type, data });
+}
+
+function emit(type: string, data?: unknown): void {
+  emitServerEvent(type, data);
 }
 
 export function getActiveConnections(): number {

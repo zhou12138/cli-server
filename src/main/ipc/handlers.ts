@@ -1,4 +1,4 @@
-import { ipcMain, type BrowserWindow } from 'electron';
+import { ipcMain, Notification, type BrowserWindow } from 'electron';
 import { auditLogger } from '../audit/logger';
 import {
   startServer,
@@ -14,12 +14,23 @@ const DEFAULT_PORT = 19876;
 let currentPort = DEFAULT_PORT;
 let sessionMgr: SessionManager;
 
-export function registerIpcHandlers(mainWindow: BrowserWindow, sessionManager: SessionManager): void {
+export function registerIpcHandlers(mainWindow: BrowserWindow, sessionManager: SessionManager, getNotificationEnabled: () => boolean): void {
   sessionMgr = sessionManager;
 
   // Forward server events to renderer
   onServerEvent((event) => {
     mainWindow.webContents.send('server:event', event);
+
+    // Show system notification on new session creation
+    if (event.type === 'session:created' && getNotificationEnabled()) {
+      const data = event.data as { command?: string; clientIp?: string } | undefined;
+      const cmd = data?.command ?? 'unknown';
+      const truncated = cmd.length > 200 ? cmd.slice(0, 200) + '...' : cmd;
+      new Notification({
+        title: 'New Session',
+        body: `> ${truncated}`,
+      }).show();
+    }
   });
 
   ipcMain.handle('audit:getEntries', (_event, options?: { offset?: number; limit?: number; search?: string }) => {

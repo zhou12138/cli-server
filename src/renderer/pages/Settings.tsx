@@ -13,6 +13,7 @@ export default function Settings() {
   const [restarting, setRestarting] = useState(false);
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
+  const [notifyEnabled, setNotifyEnabled] = useState(true);
 
   const mcpUrl = `http://localhost:${savedPort}/mcp`;
 
@@ -21,6 +22,7 @@ export default function Settings() {
       setPort(s.port);
       setSavedPort(s.port);
     });
+    window.electronAPI.getNotificationEnabled().then(setNotifyEnabled);
   }, []);
 
   const handleRestart = async () => {
@@ -124,6 +126,30 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Notification */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('settings.notifications')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-xs text-slate-500">{t('settings.notificationsDescription')}</p>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <button
+              onClick={async () => {
+                const next = !notifyEnabled;
+                setNotifyEnabled(next);
+                await window.electronAPI.setNotificationEnabled(next);
+              }}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${notifyEnabled ? 'bg-blue-600' : 'bg-slate-700'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${notifyEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+            <span className="text-sm text-slate-300">{t('settings.notifyOnNewSession')}</span>
+          </label>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between w-full">
