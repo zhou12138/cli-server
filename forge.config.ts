@@ -10,6 +10,12 @@ const config: ForgeConfig = {
     asar: true,
     name: 'CLI Server',
   },
+  rebuildConfig: {
+    // node-pty needs Spectre-mitigated libs + full Windows SDK;
+    // skip native module rebuild when tools are missing — PTY mode
+    // degrades gracefully at runtime via dynamic require.
+    onlyModules: [],
+  },
   makers: [
     new MakerSquirrel({ name: 'cli-server', authors: 'CLI Server' }),
     new MakerDMG({ format: 'ULFO' }),
