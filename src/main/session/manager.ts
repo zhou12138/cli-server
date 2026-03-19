@@ -37,7 +37,7 @@ export class SessionManager {
 
   // ── Public API ──
 
-  create(command: string, cwd?: string, clientIp = 'unknown'): SessionInfo {
+  create(command: string, cwd?: string, clientIp = 'unknown', enableStdin = false): SessionInfo {
     const sessionId = randomUUID();
     const resolvedCwd = cwd || process.cwd();
     const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
@@ -49,7 +49,7 @@ export class SessionManager {
     const childProcess = spawn(shell, shellArgs, {
       cwd: resolvedCwd,
       env: process.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: [enableStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
 
     const emitter = new EventEmitter();

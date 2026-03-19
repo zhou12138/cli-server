@@ -36,10 +36,11 @@ After creating a session, use session_wait with idleMs (e.g. 5000-15000) to poll
     {
       command: z.string().describe(`Shell command to execute (${sessionShell} syntax)`),
       cwd: z.string().optional().describe('Working directory'),
+      enableStdin: z.boolean().optional().describe('Enable stdin pipe for interactive input (default: false). Only set to true if you plan to use session_stdin to send input. Most commands should leave this false.'),
     },
-    async ({ command, cwd }) => {
+    async ({ command, cwd, enableStdin }) => {
       try {
-        const info = sessionManager.create(command, cwd, clientIp);
+        const info = sessionManager.create(command, cwd, clientIp, enableStdin ?? false);
         return json(info);
       } catch (err) {
         return error(String(err));
