@@ -7,11 +7,14 @@
   "main": ".vite/build/index.js",
   "scripts": {
     "start": "electron-forge start",
+    "start:managed-client": "electron-forge start -- --managed-client-only --enable-managed-client-runtime",
+    "start:managed-client-ui": "electron-forge start -- --enable-managed-client-runtime",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@azure/msal-node": "^5.1.1",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@radix-ui/react-slot": "^1.2.4",
     "class-variance-authority": "^0.7.1",

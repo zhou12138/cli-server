@@ -7,6 +7,20 @@ export interface IOEvent {
 }
 
 export interface ElectronAPI {
+  getManagedClientBootstrapState: () => Promise<{
+    mode: 'cli-server' | 'managed-client';
+    headless: boolean;
+    baseUrl: string | null;
+    needsBaseUrl: boolean;
+    running: boolean;
+  }>;
+  saveManagedClientBaseUrlAndStart: (baseUrl: string) => Promise<{
+    mode: 'cli-server' | 'managed-client';
+    headless: boolean;
+    baseUrl: string | null;
+    needsBaseUrl: boolean;
+    running: boolean;
+  }>;
   getAuditEntries: (options?: { offset?: number; limit?: number; search?: string }) => Promise<{
     entries: Array<{
       id: string;
@@ -59,6 +73,8 @@ export interface ElectronAPI {
 }
 
 const api: ElectronAPI = {
+  getManagedClientBootstrapState: () => ipcRenderer.invoke('managed-client:getBootstrapState'),
+  saveManagedClientBaseUrlAndStart: (baseUrl) => ipcRenderer.invoke('managed-client:saveBaseUrlAndStart', baseUrl),
   getAuditEntries: (options) => ipcRenderer.invoke('audit:getEntries', options),
   getAuditEntry: (id) => ipcRenderer.invoke('audit:getEntry', id),
   getServerStatus: () => ipcRenderer.invoke('server:getStatus'),

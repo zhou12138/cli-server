@@ -10,7 +10,8 @@
   "tray": {
     "show": "Show",
     "quit": "Quit",
-    "serverRunning": "Server running on port {port}"
+    "serverRunning": "Server running on port {port}",
+    "managedClientMode": "Managed client runtime mode"
   },
   "status": {
     "running": "Running",
