@@ -1,3 +1,32 @@
+import type { BuiltInToolsPermissionProfile } from '../builtin-tools/types';
+
+export type ManagedClientMode = 'managed-client' | 'managed-client-mcp-ws';
+
+export interface ManagedClientExternalMcpServerBaseConfig {
+  name: string;
+  toolPrefix?: string;
+  tools?: string[];
+  requiredPermissionProfile: BuiltInToolsPermissionProfile;
+}
+
+export interface ManagedClientExternalMcpHttpServerConfig extends ManagedClientExternalMcpServerBaseConfig {
+  transport: 'http';
+  url: string;
+  timeout?: number;
+}
+
+export interface ManagedClientExternalMcpStdioServerConfig extends ManagedClientExternalMcpServerBaseConfig {
+  transport: 'stdio';
+  command: string;
+  args: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+}
+
+export type ManagedClientExternalMcpServerConfig =
+  | ManagedClientExternalMcpHttpServerConfig
+  | ManagedClientExternalMcpStdioServerConfig;
+
 export interface ManagedClientRegisterRequest {
   client_name: string;
   capabilities: {
@@ -54,13 +83,21 @@ export interface ManagedClientTaskResult {
 }
 
 export interface ManagedClientRuntimeConfig {
+  mode: ManagedClientMode;
   enabled: boolean;
   headless: boolean;
   baseUrl: string | null;
+  signinPageUrl: string | null;
+  tlsServername: string | null;
+  tlsCaFile: string | null;
+  tlsPinSha256: string | null;
+  workspaceRoot: string;
   token: string | null;
+  clientId: string;
   clientName: string;
   pollWaitSeconds: number;
   retryDelayMs: number;
   version: string;
   supportedCommands: string[];
+  mcpServers: ManagedClientExternalMcpServerConfig[];
 }

@@ -1,4 +1,7 @@
 {
   "baseUrl": "http://0.0.0.0:8000/api",
-  "bootstrapBaseUrl": "http://0.0.0.0:8000/api"
+  "bootstrapBaseUrl": "http://0.0.0.0:8000/api",
+  "clientId": "77beb318-af3d-42ed-b781-ff7093577f98",
+  "enabled": true,
+  "mode": "managed-client-mcp-ws"
 }

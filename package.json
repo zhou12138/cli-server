@@ -9,6 +9,8 @@
     "start": "electron-forge start",
     "start:managed-client": "electron-forge start -- --managed-client-only --enable-managed-client-runtime",
     "start:managed-client-ui": "electron-forge start -- --enable-managed-client-runtime",
+    "start:managed-client-mcp-ws": "electron-forge start -- --managed-client-mcp-ws-only --enable-managed-client-mcp-ws",
+    "start:managed-client-mcp-ws-ui": "electron-forge start -- --enable-managed-client-mcp-ws --managed-client-mode=managed-client-mcp-ws",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "lint": "tsc --noEmit"

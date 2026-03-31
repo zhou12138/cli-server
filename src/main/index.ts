@@ -1,12 +1,27 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, Notification, ipcMain } from 'electron';
 import * as path from 'node:path';
-import { startServer } from './server';
+import { startServer, stopServer, isServerRunning } from './server';
 import { registerIpcHandlers, getPort } from './ipc/handlers';
 import { auditLogger } from './audit/logger';
 import { createT, type Locale } from '../i18n';
 import { SessionManager } from './session/manager';
 import { ManagedClientRuntime } from './managed-client/runtime';
-import { getManagedClientRuntimeConfig, saveManagedClientFileConfig } from './managed-client/config';
+import { ManagedClientMcpWsRuntime, validateManagedClientTlsConfig } from './managed-client/mcp-ws-runtime';
+import { registerManagedMcpServerApplyHook } from './managed-client/admin-tools';
+import { startManagedClientSignin } from './managed-client/signin';
+import { getManagedClientWorkspacePaths } from './managed-client/workspace';
+import {
+  getBuiltInToolsSecurityConfig,
+  getManagedClientMcpServersConfig,
+  getManagedClientRuntimeConfig,
+  saveBuiltInToolsSecurityConfig,
+  saveManagedClientFileConfig,
+  saveManagedClientMcpServersConfig,
+} from './managed-client/config';
+import { parseManagedClientMcpServers, type ManagedClientFileMcpServerConfig } from './managed-client/mcp-server-config';
+import { ManagedClientMcpToolRegistry } from './managed-client/mcp-tool-registry';
+import type { ManagedClientMode, ManagedClientRuntimeConfig } from './managed-client/types';
+import type { BuiltInToolsSecurityConfig } from './builtin-tools/types';
 
 // Handle Squirrel.Windows install/uninstall events inline
 // (replaces electron-squirrel-startup to avoid bundling issues)
@@ -19,6 +34,48 @@ if (process.platform === 'win32') {
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+const MCP_REPUBLISH_WAIT_TIMEOUT_MS = 4000;
+
+async function awaitManagedMcpRepublishWithTimeout(
+  republishOperation: Promise<{
+    applied: boolean;
+    toolCount: number;
+    tools: string[];
+    reason?: 'runtime-inactive' | 'bridge-not-ready';
+  }>,
+): Promise<{
+  applied: boolean;
+  toolCount: number;
+  tools: string[];
+  reason?: 'runtime-inactive' | 'bridge-not-ready' | 'republish-pending';
+}> {
+  let timeoutHandle: NodeJS.Timeout | null = null;
+
+  try {
+    return await Promise.race([
+      republishOperation,
+      new Promise<{
+        applied: boolean;
+        toolCount: number;
+        tools: string[];
+        reason: 'republish-pending';
+      }>((resolve) => {
+        timeoutHandle = setTimeout(() => {
+          resolve({
+            applied: false,
+            toolCount: 0,
+            tools: [],
+            reason: 'republish-pending',
+          });
+        }, MCP_REPUBLISH_WAIT_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
 
 // Detect system locale for main process
 function getMainLocale(): Locale {
@@ -116,16 +173,112 @@ function createTray(isManagedClientMode: boolean): void {
 }
 
 const sessionManager = new SessionManager();
-let managedClientRuntime: ManagedClientRuntime | null = null;
+type ManagedClientRuntimeInstance = ManagedClientRuntime | ManagedClientMcpWsRuntime;
+
+let managedClientRuntime: ManagedClientRuntimeInstance | null = null;
 let managedClientConfig = getManagedClientRuntimeConfig(app.getVersion());
-let isManagedClientMode = managedClientConfig.enabled;
+let managedClientSessionToken: string | null = null;
+let currentMode: 'cli-server' | ManagedClientMode = managedClientConfig.enabled ? managedClientConfig.mode : 'cli-server';
+let needsModeSelection = false;
+let managedClientSigninPromise: Promise<{ token: string; signinUrl: string }> | null = null;
 
 // Session notification setting
 let sessionNotificationEnabled = true;
 
+function buildBootstrapState() {
+  const runtimeStatus = managedClientRuntime?.getStatus() as {
+    enabled?: boolean;
+    running?: boolean;
+    clientId?: string | null;
+    baseUrl?: string | null;
+    pullStatus?: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
+    pulledTaskCount?: number;
+    emptyPollCount?: number;
+    lastPollStatus?: number | null;
+    lastTaskCommand?: string | null;
+    lastPolledAt?: string | null;
+  } | undefined;
+  const mcpWsStatus = managedClientRuntime instanceof ManagedClientMcpWsRuntime
+    ? managedClientRuntime.getStatus()
+    : null;
+  const workspacePaths = getManagedClientWorkspacePaths(managedClientConfig.workspaceRoot);
+
+  return {
+    mode: currentMode,
+    headless: managedClientConfig.headless,
+    baseUrl: managedClientConfig.baseUrl,
+    signinPageUrl: managedClientConfig.signinPageUrl,
+    tlsServername: managedClientConfig.tlsServername,
+    tlsCaFile: managedClientConfig.tlsCaFile,
+    tlsPinSha256: managedClientConfig.tlsPinSha256,
+    workspaceRoot: workspacePaths.rootDir,
+    workspaceCurrentDir: workspacePaths.currentDir,
+    workspaceArchiveDir: workspacePaths.archiveDir,
+    needsModeSelection,
+    needsBaseUrl: currentMode !== 'cli-server' && !managedClientConfig.headless && !needsModeSelection && !(runtimeStatus?.running ?? false),
+    running: runtimeStatus?.running ?? false,
+    pullStatus: runtimeStatus?.pullStatus ?? 'idle',
+    pulledTaskCount: runtimeStatus?.pulledTaskCount ?? 0,
+    emptyPollCount: runtimeStatus?.emptyPollCount ?? 0,
+    lastPollStatus: runtimeStatus?.lastPollStatus ?? null,
+    lastTaskCommand: runtimeStatus?.lastTaskCommand ?? null,
+    lastPolledAt: runtimeStatus?.lastPolledAt ?? null,
+    receivedEventCount: mcpWsStatus?.receivedEventCount ?? 0,
+    pingCount: mcpWsStatus?.pingCount ?? 0,
+    pongSentCount: mcpWsStatus?.pongSentCount ?? 0,
+    lastEventAt: mcpWsStatus?.lastEventAt ?? null,
+    lastEventName: mcpWsStatus?.lastEventName ?? null,
+    lastPingAt: mcpWsStatus?.lastPingAt ?? null,
+  };
+}
+
+function createManagedClientRuntime(config: ManagedClientRuntimeConfig): ManagedClientRuntimeInstance {
+  if (config.mode === 'managed-client-mcp-ws') {
+    return new ManagedClientMcpWsRuntime(config, sessionManager);
+  }
+
+  return new ManagedClientRuntime(config, sessionManager);
+}
+
+async function ensureServerStarted(): Promise<void> {
+  if (isServerRunning()) {
+    return;
+  }
+
+  await startServer(getPort(), sessionManager);
+}
+
+function refreshTray(): void {
+  if (!tray) {
+    return;
+  }
+
+  tray.destroy();
+  tray = null;
+  createTray(currentMode !== 'cli-server');
+}
+
 app.whenReady().then(async () => {
   managedClientConfig = getManagedClientRuntimeConfig(app.getVersion());
-  isManagedClientMode = managedClientConfig.enabled;
+  currentMode = managedClientConfig.enabled ? managedClientConfig.mode : 'cli-server';
+  needsModeSelection = !managedClientConfig.headless;
+  registerManagedMcpServerApplyHook(async () => {
+    managedClientConfig = {
+      ...getManagedClientRuntimeConfig(app.getVersion()),
+      token: managedClientSessionToken,
+    };
+
+    if (!(managedClientRuntime instanceof ManagedClientMcpWsRuntime)) {
+      return {
+        applied: false,
+        toolCount: 0,
+        tools: [],
+        reason: 'runtime-inactive' as const,
+      };
+    }
+
+    return managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers);
+  });
 
   // Initialize audit logger
   auditLogger.init();
@@ -136,30 +289,195 @@ app.whenReady().then(async () => {
     sessionNotificationEnabled = enabled;
     return sessionNotificationEnabled;
   });
-  ipcMain.handle('managed-client:getBootstrapState', () => ({
-    mode: isManagedClientMode ? 'managed-client' : 'cli-server',
-    headless: managedClientConfig.headless,
-    baseUrl: managedClientConfig.baseUrl,
-    needsBaseUrl: isManagedClientMode && !managedClientConfig.headless && !(managedClientRuntime?.getStatus().running ?? false),
-    running: managedClientRuntime?.getStatus().running ?? false,
+  ipcMain.handle('managed-client:getBootstrapState', () => buildBootstrapState());
+  ipcMain.handle('managed-client:validateTls', async (_e, payload: {
+    baseUrl: string;
+    tlsServername?: string | null;
+    tlsCaFile?: string | null;
+    tlsPinSha256?: string | null;
+  }) => validateManagedClientTlsConfig({
+    baseUrl: payload.baseUrl,
+    tlsServername: payload.tlsServername ?? null,
+    tlsCaFile: payload.tlsCaFile ?? null,
+    tlsPinSha256: payload.tlsPinSha256 ?? null,
   }));
-  ipcMain.handle('managed-client:saveBaseUrlAndStart', async (_e, baseUrl: string) => {
-    saveManagedClientFileConfig({ bootstrapBaseUrl: baseUrl });
-    managedClientConfig = getManagedClientRuntimeConfig(app.getVersion());
-    isManagedClientMode = managedClientConfig.enabled;
+  ipcMain.handle('managed-client:getMcpServersConfig', () => ({
+    mcpServers: getManagedClientMcpServersConfig(),
+  }));
+  ipcMain.handle('built-in-tools:getSecurityConfig', () => ({
+    config: getBuiltInToolsSecurityConfig(),
+  }));
+  ipcMain.handle('built-in-tools:saveSecurityConfig', async (_e, payload: { config: BuiltInToolsSecurityConfig }) => {
+    saveBuiltInToolsSecurityConfig(payload.config);
+    managedClientConfig = {
+      ...getManagedClientRuntimeConfig(app.getVersion()),
+      token: managedClientSessionToken,
+    };
 
-    if (!managedClientRuntime && managedClientConfig.enabled) {
-      managedClientRuntime = new ManagedClientRuntime(managedClientConfig, sessionManager);
-      managedClientRuntime.start();
+    let applied = false;
+    let toolCount = 0;
+    let tools: string[] = [];
+    let reason: 'runtime-inactive' | 'bridge-not-ready' | 'republish-pending' | undefined;
+
+    if (managedClientRuntime instanceof ManagedClientMcpWsRuntime) {
+      const result = await awaitManagedMcpRepublishWithTimeout(
+        managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers),
+      );
+      applied = result.applied;
+      toolCount = result.toolCount;
+      tools = result.tools;
+      reason = result.reason;
     }
 
     return {
-      mode: isManagedClientMode ? 'managed-client' : 'cli-server',
-      headless: managedClientConfig.headless,
-      baseUrl: managedClientConfig.baseUrl,
-      needsBaseUrl: false,
-      running: managedClientRuntime?.getStatus().running ?? false,
+      saved: true,
+      config: getBuiltInToolsSecurityConfig(),
+      applied,
+      toolCount,
+      tools,
+      reason,
     };
+  });
+  ipcMain.handle('managed-client:testMcpServersConfig', async (_e, payload: { mcpServers: Record<string, ManagedClientFileMcpServerConfig> }) => {
+    const externalServers = parseManagedClientMcpServers(payload.mcpServers);
+    const results = await ManagedClientMcpToolRegistry.testExternalServers({
+      externalServerConfigs: externalServers,
+      version: app.getVersion(),
+    });
+    return { results };
+  });
+  ipcMain.handle('managed-client:saveMcpServersConfig', async (_e, payload: {
+    mcpServers: Record<string, ManagedClientFileMcpServerConfig>;
+    apply?: boolean;
+  }) => {
+    saveManagedClientMcpServersConfig(payload.mcpServers);
+    managedClientConfig = {
+      ...getManagedClientRuntimeConfig(app.getVersion()),
+      token: managedClientSessionToken,
+    };
+
+    let applied = false;
+    let toolCount = 0;
+    let tools: string[] = [];
+
+    const shouldApply = payload.apply !== false;
+
+    if (shouldApply && managedClientRuntime instanceof ManagedClientMcpWsRuntime) {
+      const result = await managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers);
+      applied = result.applied;
+      toolCount = result.toolCount;
+      tools = result.tools;
+    }
+
+    return {
+      saved: true,
+      applied,
+      toolCount,
+      tools,
+    };
+  });
+  ipcMain.handle('managed-client:refreshMcpTools', async () => {
+    managedClientConfig = {
+      ...getManagedClientRuntimeConfig(app.getVersion()),
+      token: managedClientSessionToken,
+    };
+
+    if (!(managedClientRuntime instanceof ManagedClientMcpWsRuntime)) {
+      return {
+        applied: false,
+        toolCount: 0,
+        tools: [],
+      };
+    }
+
+    return managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers);
+  });
+  ipcMain.handle('managed-client:selectMode', async (_e, mode: 'cli-server' | ManagedClientMode) => {
+    managedClientRuntime?.stop();
+    managedClientRuntime = null;
+    await stopServer();
+
+    saveManagedClientFileConfig({
+      enabled: mode !== 'cli-server',
+      mode: mode === 'cli-server' ? undefined : mode,
+    });
+    managedClientConfig = getManagedClientRuntimeConfig(app.getVersion());
+    managedClientSessionToken = null;
+    currentMode = managedClientConfig.enabled ? managedClientConfig.mode : 'cli-server';
+    needsModeSelection = false;
+
+    if (mode === 'cli-server') {
+      await ensureServerStarted();
+    }
+
+    refreshTray();
+    return buildBootstrapState();
+  });
+  ipcMain.handle('managed-client:saveBaseUrlAndStart', async (_e, payload: {
+    baseUrl: string;
+    signinPageUrl?: string | null;
+    tlsServername?: string | null;
+    tlsCaFile?: string | null;
+    tlsPinSha256?: string | null;
+    token?: string | null;
+  }) => {
+    const normalizedToken = payload.token?.trim();
+    const normalizedSigninPageUrl = payload.signinPageUrl?.trim();
+    const normalizedTlsServername = payload.tlsServername?.trim();
+    const normalizedTlsCaFile = payload.tlsCaFile?.trim();
+    const normalizedTlsPinSha256 = payload.tlsPinSha256?.trim();
+
+    managedClientRuntime?.stop();
+    managedClientRuntime = null;
+
+    saveManagedClientFileConfig({
+      bootstrapBaseUrl: payload.baseUrl,
+      signinPageUrl: normalizedSigninPageUrl ? normalizedSigninPageUrl : undefined,
+      tlsServername: normalizedTlsServername ? normalizedTlsServername : undefined,
+      tlsCaFile: normalizedTlsCaFile ? normalizedTlsCaFile : undefined,
+      tlsPinSha256: normalizedTlsPinSha256 ? normalizedTlsPinSha256 : undefined,
+      token: undefined,
+    });
+    managedClientSessionToken = normalizedToken ? normalizedToken : null;
+    managedClientConfig = {
+      ...getManagedClientRuntimeConfig(app.getVersion()),
+      token: managedClientSessionToken,
+    };
+    currentMode = managedClientConfig.enabled ? managedClientConfig.mode : 'cli-server';
+    needsModeSelection = false;
+
+    if (managedClientConfig.enabled) {
+      managedClientRuntime = createManagedClientRuntime(managedClientConfig);
+      managedClientRuntime.start();
+    }
+
+    refreshTray();
+    return buildBootstrapState();
+  });
+  ipcMain.handle('managed-client:signOut', async () => {
+    managedClientRuntime?.stop();
+    managedClientRuntime = null;
+    managedClientSessionToken = null;
+    managedClientConfig = {
+      ...getManagedClientRuntimeConfig(app.getVersion()),
+      token: null,
+    };
+    currentMode = managedClientConfig.enabled ? managedClientConfig.mode : 'cli-server';
+    needsModeSelection = false;
+
+    refreshTray();
+    return buildBootstrapState();
+  });
+  ipcMain.handle('managed-client:startSignin', async (_e, payload?: { signinPageUrl?: string | null; baseUrl?: string | null }) => {
+    if (managedClientSigninPromise) {
+      return managedClientSigninPromise;
+    }
+
+    managedClientSigninPromise = startManagedClientSignin(payload).finally(() => {
+      managedClientSigninPromise = null;
+    });
+
+    return managedClientSigninPromise;
   });
 
   if (!managedClientConfig.headless) {
@@ -172,7 +490,7 @@ app.whenReady().then(async () => {
     registerIpcHandlers(mainWindow, sessionManager, () => sessionNotificationEnabled);
   }
 
-  if (!managedClientConfig.headless && !isManagedClientMode) {
+  if (!managedClientConfig.headless && currentMode === 'cli-server' && !needsModeSelection) {
     // Start the embedded server
     try {
       await startServer(getPort(), sessionManager);
@@ -184,15 +502,15 @@ app.whenReady().then(async () => {
 
   if (!managedClientConfig.headless) {
     // Create system tray
-    createTray(isManagedClientMode);
+    createTray(currentMode !== 'cli-server');
   }
 
   if (managedClientConfig.enabled) {
     try {
       if (managedClientConfig.headless && managedClientConfig.baseUrl) {
-        managedClientRuntime = new ManagedClientRuntime(managedClientConfig, sessionManager);
+        managedClientRuntime = createManagedClientRuntime(managedClientConfig);
         managedClientRuntime.start();
-        console.log('Managed client runtime enabled');
+        console.log(`Managed client runtime enabled (${managedClientConfig.mode})`);
       } else if (!managedClientConfig.headless) {
         console.log('Managed client runtime waiting for UI bootstrap configuration');
       } else {

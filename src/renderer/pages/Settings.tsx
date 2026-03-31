@@ -14,15 +14,28 @@ export default function Settings() {
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
   const [notifyEnabled, setNotifyEnabled] = useState(true);
+  const [managedClientMode, setManagedClientMode] = useState<'cli-server' | 'managed-client' | 'managed-client-mcp-ws'>('cli-server');
+  const [workspaceRoot, setWorkspaceRoot] = useState('');
+  const [workspaceCurrentDir, setWorkspaceCurrentDir] = useState('');
+  const [workspaceArchiveDir, setWorkspaceArchiveDir] = useState('');
+  const [signingOut, setSigningOut] = useState(false);
 
   const mcpUrl = `http://localhost:${savedPort}/mcp`;
 
   useEffect(() => {
-    window.electronAPI.getServerStatus().then((s) => {
-      setPort(s.port);
-      setSavedPort(s.port);
+    Promise.all([
+      window.electronAPI.getServerStatus(),
+      window.electronAPI.getNotificationEnabled(),
+      window.electronAPI.getManagedClientBootstrapState(),
+    ]).then(([serverStatus, notificationEnabled, bootstrapState]) => {
+      setPort(serverStatus.port);
+      setSavedPort(serverStatus.port);
+      setNotifyEnabled(notificationEnabled);
+      setManagedClientMode(bootstrapState.mode);
+      setWorkspaceRoot(bootstrapState.workspaceRoot);
+      setWorkspaceCurrentDir(bootstrapState.workspaceCurrentDir);
+      setWorkspaceArchiveDir(bootstrapState.workspaceArchiveDir);
     });
-    window.electronAPI.getNotificationEnabled().then(setNotifyEnabled);
   }, []);
 
   const handleRestart = async () => {
@@ -149,6 +162,49 @@ export default function Settings() {
           </label>
         </CardContent>
       </Card>
+
+      {managedClientMode === 'managed-client-mcp-ws' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.account')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-slate-500">{t('settings.accountDescription')}</p>
+            <div className="space-y-2 rounded-md border border-slate-800 bg-slate-950/80 p-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t('settings.workspaceRootLabel')}</div>
+                <code className="mt-1 block break-all text-xs text-blue-400">{workspaceRoot}</code>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t('settings.workspaceCurrentLabel')}</div>
+                <code className="mt-1 block break-all text-xs text-emerald-400">{workspaceCurrentDir}</code>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t('settings.workspaceArchiveLabel')}</div>
+                <code className="mt-1 block break-all text-xs text-amber-300">{workspaceArchiveDir}</code>
+              </div>
+              <p className="text-xs text-slate-500">{t('settings.workspaceDescription')}</p>
+            </div>
+            <button
+              onClick={async () => {
+                setSigningOut(true);
+                setMessage('');
+                try {
+                  await window.electronAPI.signOutManagedClient();
+                  window.location.reload();
+                } catch (err) {
+                  setMessage(t('settings.signOutFailed', { error: String(err) }));
+                  setSigningOut(false);
+                }
+              }}
+              disabled={signingOut}
+              className="px-4 py-2 rounded border border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {signingOut ? t('settings.signingOut') : t('settings.signOut')}
+            </button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import StatusBadge from './StatusBadge';
 import { useI18n } from '../hooks/useI18n';
-import { LayoutDashboard, ScrollText, Settings } from 'lucide-react';
+import { LayoutDashboard, ScrollText, Settings, PlugZap, Shield } from 'lucide-react';
 
 export default function Layout() {
   const { t } = useI18n();
@@ -10,6 +10,8 @@ export default function Layout() {
   const navItems = [
     { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
     { to: '/audit', label: t('nav.auditLog'), icon: ScrollText },
+    { to: '/mcp-servers', label: t('nav.mcpServers'), icon: PlugZap },
+    { to: '/built-in-tools', label: t('nav.builtInTools'), icon: Shield },
     { to: '/settings', label: t('nav.settings'), icon: Settings },
   ];
 
@@ -17,6 +19,49 @@ export default function Layout() {
     running: false,
     port: 19876,
     activeConnections: 0,
+  });
+  const [managedClient, setManagedClient] = useState<{
+    mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws';
+    headless: boolean;
+    baseUrl: string | null;
+    workspaceRoot: string;
+    workspaceCurrentDir: string;
+    workspaceArchiveDir: string;
+    needsBaseUrl: boolean;
+    running: boolean;
+    pullStatus: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
+    pulledTaskCount: number;
+    emptyPollCount: number;
+    lastPollStatus: number | null;
+    lastTaskCommand: string | null;
+    lastPolledAt: string | null;
+    receivedEventCount: number;
+    pingCount: number;
+    pongSentCount: number;
+    lastEventAt: string | null;
+    lastEventName: string | null;
+    lastPingAt: string | null;
+  }>({
+    mode: 'cli-server',
+    headless: false,
+    baseUrl: null,
+    workspaceRoot: '',
+    workspaceCurrentDir: '',
+    workspaceArchiveDir: '',
+    needsBaseUrl: false,
+    running: false,
+    pullStatus: 'idle',
+    pulledTaskCount: 0,
+    emptyPollCount: 0,
+    lastPollStatus: null,
+    lastTaskCommand: null,
+    lastPolledAt: null,
+    receivedEventCount: 0,
+    pingCount: 0,
+    pongSentCount: 0,
+    lastEventAt: null,
+    lastEventName: null,
+    lastPingAt: null,
   });
 
   useEffect(() => {
@@ -26,6 +71,18 @@ export default function Layout() {
     });
     return unsub;
   }, []);
+
+  const isManagedClientMode = managedClient.mode !== 'cli-server';
+  const isManagedMcpWsMode = managedClient.mode === 'managed-client-mcp-ws';
+  const modeLabel = managedClient.mode === 'cli-server'
+    ? t('mode.server')
+    : isManagedMcpWsMode ? t('mode.managedClientMcpWs') : t('mode.managedClient');
+  const modeSummary = isManagedClientMode
+    ? (managedClient.running
+      ? (isManagedMcpWsMode ? t('mode.managedClientMcpWsRunning') : t('mode.managedClientRunning'))
+      : t('mode.managedClientWaiting'))
+    : t('mode.serverSummary', { port: status.port });
+  const closeHint = isManagedClientMode ? t('mode.closeHintManaged') : t('mode.closeHint');
 
   return (
     <div className="flex h-screen">
