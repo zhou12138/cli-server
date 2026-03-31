@@ -374,6 +374,24 @@ Optional environment variables:
 - `MANAGED_CLIENT_AAD_SCOPES=api://your-app-id/.default`
 - `MANAGED_CLIENT_AAD_REDIRECT_URI=http://localhost`
 
+In `managed-client-mcp-ws` mode, the desktop node can publish these built-in MCP tools upstream:
+
+- `shell_execute`
+- `file_read`
+- `managed_mcp_server_upsert`
+- `session_create`
+- `session_stdin`
+- `session_wait`
+- `session_read_output`
+
+For interactive commands such as `github-copilot-cli auth`, prefer the session tool chain instead of `shell_execute`:
+
+1. `session_create` with `enableStdin=true`
+2. `session_wait` to detect first prompt or output idle
+3. `session_read_output` to inspect stdout/stderr
+4. `session_stdin` to send replies such as `\n`, codes, or confirmation input
+5. Repeat `session_wait` + `session_read_output` until exit or completion
+
 Equivalent CLI flags are also supported:
 
 - `--enable-managed-client-runtime`

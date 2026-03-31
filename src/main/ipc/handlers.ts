@@ -41,6 +41,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow, sessionManager: S
     return auditLogger.getEntry(id);
   });
 
+  ipcMain.handle('audit:export', (_event, options?: { search?: string }) => {
+    return auditLogger.exportEntries(options?.search);
+  });
+
   ipcMain.handle('server:getStatus', (): ServerStatus => {
     return {
       running: isServerRunning(),

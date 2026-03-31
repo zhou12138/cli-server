@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { ManagedClientFileMcpServerConfig } from '../main/managed-client/mcp-server-config';
+import type { BuiltInToolsSecurityConfig, BuiltInToolsPermissionProfile, ExternalMcpAccessBlockedReason } from '../main/builtin-tools/types';
 
 export interface IOEvent {
   stream: 'stdin' | 'stdout' | 'stderr';
@@ -8,18 +10,179 @@ export interface IOEvent {
 
 export interface ElectronAPI {
   getManagedClientBootstrapState: () => Promise<{
-    mode: 'cli-server' | 'managed-client';
+    mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws';
     headless: boolean;
     baseUrl: string | null;
+    signinPageUrl: string | null;
+    tlsServername: string | null;
+    tlsCaFile: string | null;
+    tlsPinSha256: string | null;
+    workspaceRoot: string;
+    workspaceCurrentDir: string;
+    workspaceArchiveDir: string;
+    needsModeSelection: boolean;
     needsBaseUrl: boolean;
     running: boolean;
+    pullStatus: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
+    pulledTaskCount: number;
+    emptyPollCount: number;
+    lastPollStatus: number | null;
+    lastTaskCommand: string | null;
+    lastPolledAt: string | null;
+    receivedEventCount: number;
+    pingCount: number;
+    pongSentCount: number;
+    lastEventAt: string | null;
+    lastEventName: string | null;
+    lastPingAt: string | null;
   }>;
-  saveManagedClientBaseUrlAndStart: (baseUrl: string) => Promise<{
-    mode: 'cli-server' | 'managed-client';
+  selectManagedClientMode: (mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws') => Promise<{
+    mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws';
     headless: boolean;
     baseUrl: string | null;
+    signinPageUrl: string | null;
+    tlsServername: string | null;
+    tlsCaFile: string | null;
+    tlsPinSha256: string | null;
+    workspaceRoot: string;
+    workspaceCurrentDir: string;
+    workspaceArchiveDir: string;
+    needsModeSelection: boolean;
     needsBaseUrl: boolean;
     running: boolean;
+    pullStatus: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
+    pulledTaskCount: number;
+    emptyPollCount: number;
+    lastPollStatus: number | null;
+    lastTaskCommand: string | null;
+    lastPolledAt: string | null;
+    receivedEventCount: number;
+    pingCount: number;
+    pongSentCount: number;
+    lastEventAt: string | null;
+    lastEventName: string | null;
+    lastPingAt: string | null;
+  }>;
+  saveManagedClientBaseUrlAndStart: (payload: {
+    baseUrl: string;
+    signinPageUrl?: string | null;
+    tlsServername?: string | null;
+    tlsCaFile?: string | null;
+    tlsPinSha256?: string | null;
+    token?: string | null;
+  }) => Promise<{
+    mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws';
+    headless: boolean;
+    baseUrl: string | null;
+    signinPageUrl: string | null;
+    tlsServername: string | null;
+    tlsCaFile: string | null;
+    tlsPinSha256: string | null;
+    workspaceRoot: string;
+    workspaceCurrentDir: string;
+    workspaceArchiveDir: string;
+    needsModeSelection: boolean;
+    needsBaseUrl: boolean;
+    running: boolean;
+    pullStatus: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
+    pulledTaskCount: number;
+    emptyPollCount: number;
+    lastPollStatus: number | null;
+    lastTaskCommand: string | null;
+    lastPolledAt: string | null;
+    receivedEventCount: number;
+    pingCount: number;
+    pongSentCount: number;
+    lastEventAt: string | null;
+    lastEventName: string | null;
+    lastPingAt: string | null;
+  }>;
+  signOutManagedClient: () => Promise<{
+    mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws';
+    headless: boolean;
+    baseUrl: string | null;
+    signinPageUrl: string | null;
+    tlsServername: string | null;
+    tlsCaFile: string | null;
+    tlsPinSha256: string | null;
+    workspaceRoot: string;
+    workspaceCurrentDir: string;
+    workspaceArchiveDir: string;
+    needsModeSelection: boolean;
+    needsBaseUrl: boolean;
+    running: boolean;
+    pullStatus: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
+    pulledTaskCount: number;
+    emptyPollCount: number;
+    lastPollStatus: number | null;
+    lastTaskCommand: string | null;
+    lastPolledAt: string | null;
+    receivedEventCount: number;
+    pingCount: number;
+    pongSentCount: number;
+    lastEventAt: string | null;
+    lastEventName: string | null;
+    lastPingAt: string | null;
+  }>;
+  startManagedClientSignin: (payload?: { signinPageUrl?: string | null; baseUrl?: string | null }) => Promise<{
+    token: string;
+    signinUrl: string;
+  }>;
+  validateManagedClientTls: (payload: {
+    baseUrl: string;
+    tlsServername?: string | null;
+    tlsCaFile?: string | null;
+    tlsPinSha256?: string | null;
+  }) => Promise<{
+    valid: boolean;
+    skipped: boolean;
+    wsUrl: string;
+    servername: string | null;
+    message: string;
+  }>;
+  getManagedClientMcpServersConfig: () => Promise<{
+    mcpServers: Record<string, ManagedClientFileMcpServerConfig>;
+  }>;
+  testManagedClientMcpServersConfig: (payload: {
+    mcpServers: Record<string, ManagedClientFileMcpServerConfig>;
+  }) => Promise<{
+    results: Array<{
+      name: string;
+      transport: 'http' | 'stdio';
+      requiredPermissionProfile: BuiltInToolsPermissionProfile;
+      success: boolean;
+      toolCount: number;
+      tools: string[];
+      error?: string;
+      blockedReason?: ExternalMcpAccessBlockedReason;
+    }>;
+  }>;
+  saveManagedClientMcpServersConfig: (payload: {
+    mcpServers: Record<string, ManagedClientFileMcpServerConfig>;
+    apply?: boolean;
+  }) => Promise<{
+    saved: boolean;
+    applied: boolean;
+    toolCount: number;
+    tools: string[];
+  }>;
+  refreshManagedClientMcpTools: () => Promise<{
+    applied: boolean;
+    toolCount: number;
+    tools: string[];
+  }>;
+  getBuiltInToolsSecurityConfig: () => Promise<{
+    config: BuiltInToolsSecurityConfig;
+  }>;
+  saveBuiltInToolsSecurityConfig: (payload: {
+    config: BuiltInToolsSecurityConfig;
+  }) => Promise<{
+    saved: boolean;
+    config: BuiltInToolsSecurityConfig;
+    applied: boolean;
+    toolCount: number;
+    tools: string[];
+    reason?: 'runtime-inactive' | 'bridge-not-ready' | 'republish-pending';
   }>;
   getAuditEntries: (options?: { offset?: number; limit?: number; search?: string }) => Promise<{
     entries: Array<{
@@ -50,6 +213,11 @@ export interface ElectronAPI {
     durationMs: number;
     clientIp: string;
   } | undefined>;
+  exportAuditEntries: (options?: { search?: string }) => Promise<{
+    fileName: string;
+    content: string;
+    total: number;
+  }>;
   getServerStatus: () => Promise<{ running: boolean; port: number; activeConnections: number }>;
   restartServer: (port?: number) => Promise<{ running: boolean; port: number }>;
   getSessions: (options?: { state?: string; offset?: number; limit?: number }) => Promise<{
@@ -74,9 +242,20 @@ export interface ElectronAPI {
 
 const api: ElectronAPI = {
   getManagedClientBootstrapState: () => ipcRenderer.invoke('managed-client:getBootstrapState'),
-  saveManagedClientBaseUrlAndStart: (baseUrl) => ipcRenderer.invoke('managed-client:saveBaseUrlAndStart', baseUrl),
+  selectManagedClientMode: (mode) => ipcRenderer.invoke('managed-client:selectMode', mode),
+  saveManagedClientBaseUrlAndStart: (payload) => ipcRenderer.invoke('managed-client:saveBaseUrlAndStart', payload),
+  signOutManagedClient: () => ipcRenderer.invoke('managed-client:signOut'),
+  startManagedClientSignin: (payload) => ipcRenderer.invoke('managed-client:startSignin', payload),
+  validateManagedClientTls: (payload) => ipcRenderer.invoke('managed-client:validateTls', payload),
+  getManagedClientMcpServersConfig: () => ipcRenderer.invoke('managed-client:getMcpServersConfig'),
+  testManagedClientMcpServersConfig: (payload) => ipcRenderer.invoke('managed-client:testMcpServersConfig', payload),
+  saveManagedClientMcpServersConfig: (payload) => ipcRenderer.invoke('managed-client:saveMcpServersConfig', payload),
+  refreshManagedClientMcpTools: () => ipcRenderer.invoke('managed-client:refreshMcpTools'),
+  getBuiltInToolsSecurityConfig: () => ipcRenderer.invoke('built-in-tools:getSecurityConfig'),
+  saveBuiltInToolsSecurityConfig: (payload) => ipcRenderer.invoke('built-in-tools:saveSecurityConfig', payload),
   getAuditEntries: (options) => ipcRenderer.invoke('audit:getEntries', options),
   getAuditEntry: (id) => ipcRenderer.invoke('audit:getEntry', id),
+  exportAuditEntries: (options) => ipcRenderer.invoke('audit:export', options),
   getServerStatus: () => ipcRenderer.invoke('server:getStatus'),
   restartServer: (port) => ipcRenderer.invoke('server:restart', port),
   getSessions: (options) => ipcRenderer.invoke('session:list', options),

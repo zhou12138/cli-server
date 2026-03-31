@@ -1,20 +1,225 @@
 import * as os from 'node:os';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { ManagedClientRuntimeConfig } from './types';
+import { randomUUID } from 'node:crypto';
+import type { ManagedClientMode, ManagedClientRuntimeConfig } from './types';
+import { getDefaultManagedClientWorkspaceRoot } from './workspace';
+import { parseManagedClientMcpServers, type ManagedClientFileMcpServerConfig } from './mcp-server-config';
+import {
+  applyPermissionProfileGuards,
+  DEFAULT_BUILT_IN_TOOLS_SECURITY_CONFIG,
+  getBuiltInToolsSecurityConfigForProfile,
+  normalizeBuiltInToolsPermissionProfile,
+  type BuiltInToolsSecurityConfig,
+  type BuiltInToolsPermissionProfile,
+} from '../builtin-tools/types';
 
 interface ManagedClientFileConfig {
+  mode?: ManagedClientMode;
   bootstrapBaseUrl?: string;
   baseUrl?: string;
+  signinPageUrl?: string;
+  tlsServername?: string;
+  tlsCaFile?: string;
+  tlsPinSha256?: string;
+  workspaceRoot?: string;
   token?: string;
+  clientId?: string;
   clientName?: string;
   pollWaitSeconds?: number;
   retryDelayMs?: number;
   enabled?: boolean;
+  mcpServers?: Record<string, ManagedClientFileMcpServerConfig>;
+  builtInTools?: PartialBuiltInToolsSecurityConfig;
+}
+
+type PartialBuiltInToolsSecurityConfig = {
+  permissionProfile?: BuiltInToolsPermissionProfile;
+  shellExecute?: Partial<BuiltInToolsSecurityConfig['shellExecute']>;
+  fileRead?: Partial<BuiltInToolsSecurityConfig['fileRead']>;
+  managedMcpServerAdmin?: Partial<BuiltInToolsSecurityConfig['managedMcpServerAdmin']>;
+};
+
+interface PersistedManagedClientMcpServerConfig extends ManagedClientFileMcpServerConfig {
+  name?: string;
 }
 
 function getManagedClientConfigPath(): string {
   return path.resolve(process.cwd(), 'managed-client.config.json');
+}
+
+function getManagedClientMcpConfigPath(): string {
+  return path.resolve(process.cwd(), 'managed-client.mcp-servers.json');
+}
+
+function normalizeManagedClientMcpServers(
+  parsed: unknown,
+): Record<string, ManagedClientFileMcpServerConfig> {
+  if (!parsed) {
+    return {};
+  }
+
+  if (Array.isArray(parsed)) {
+    return Object.fromEntries(
+      parsed.flatMap((entry): Array<[string, ManagedClientFileMcpServerConfig]> => {
+        if (!entry || typeof entry !== 'object') {
+          return [];
+        }
+
+        const { name, ...config } = entry as PersistedManagedClientMcpServerConfig;
+        if (typeof name !== 'string' || !name.trim()) {
+          return [];
+        }
+
+        return [[name.trim(), config]];
+      }),
+    );
+  }
+
+  if (typeof parsed === 'object') {
+    return parsed as Record<string, ManagedClientFileMcpServerConfig>;
+  }
+
+  return {};
+}
+
+function parseStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parsePositiveNumber(value: unknown, fallback: number): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseBooleanValue(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function getChangedEntries<T extends object>(base: T, value: T): Partial<T> | undefined {
+  const changedEntries = Object.entries(value).filter(([key, currentValue]) => base[key as keyof T] !== currentValue);
+  if (changedEntries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(changedEntries) as Partial<T>;
+}
+
+function serializeBuiltInToolsSecurityConfig(config: BuiltInToolsSecurityConfig): PartialBuiltInToolsSecurityConfig {
+  const normalized = applyPermissionProfileGuards(config);
+  const base = getBuiltInToolsSecurityConfigForProfile(normalized.permissionProfile);
+
+  return {
+    permissionProfile: normalized.permissionProfile,
+    shellExecute: getChangedEntries(base.shellExecute, normalized.shellExecute),
+    fileRead: getChangedEntries(base.fileRead, normalized.fileRead),
+    managedMcpServerAdmin: getChangedEntries(base.managedMcpServerAdmin, normalized.managedMcpServerAdmin),
+  };
+}
+
+function normalizeBuiltInToolsSecurityConfig(parsed: unknown): BuiltInToolsSecurityConfig {
+  const permissionProfile = normalizeBuiltInToolsPermissionProfile(
+    typeof parsed === 'object' && parsed !== null && 'permissionProfile' in parsed
+      ? (parsed as { permissionProfile?: unknown }).permissionProfile
+      : undefined,
+  );
+  const defaults = getBuiltInToolsSecurityConfigForProfile(permissionProfile);
+  const shellExecute = typeof parsed === 'object' && parsed !== null && 'shellExecute' in parsed
+    ? (parsed as { shellExecute?: unknown }).shellExecute
+    : undefined;
+  const fileRead = typeof parsed === 'object' && parsed !== null && 'fileRead' in parsed
+    ? (parsed as { fileRead?: unknown }).fileRead
+    : undefined;
+  const managedMcpServerAdmin = typeof parsed === 'object' && parsed !== null && 'managedMcpServerAdmin' in parsed
+    ? (parsed as { managedMcpServerAdmin?: unknown }).managedMcpServerAdmin
+    : undefined;
+
+  return applyPermissionProfileGuards({
+    permissionProfile,
+    shellExecute: {
+      enabled: parseBooleanValue(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { enabled?: unknown }).enabled : undefined,
+        defaults.shellExecute.enabled,
+      ),
+      blockedCommands: parseStringList(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockedCommands?: unknown }).blockedCommands : undefined,
+      ),
+      blockedWorkingDirectories: parseStringList(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockedWorkingDirectories?: unknown }).blockedWorkingDirectories : undefined,
+      ),
+      blockedExecutableNames: parseStringList(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockedExecutableNames?: unknown }).blockedExecutableNames : undefined,
+      ),
+      blockPipes: parseBooleanValue(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockPipes?: unknown }).blockPipes : undefined,
+        defaults.shellExecute.blockPipes,
+      ),
+      blockRedirection: parseBooleanValue(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockRedirection?: unknown }).blockRedirection : undefined,
+        defaults.shellExecute.blockRedirection,
+      ),
+      blockNetworkCommands: parseBooleanValue(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockNetworkCommands?: unknown }).blockNetworkCommands : undefined,
+        defaults.shellExecute.blockNetworkCommands,
+      ),
+      maxCommandLength: parsePositiveNumber(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { maxCommandLength?: unknown }).maxCommandLength : undefined,
+        defaults.shellExecute.maxCommandLength,
+      ),
+      maxTimeoutSeconds: parsePositiveNumber(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { maxTimeoutSeconds?: unknown }).maxTimeoutSeconds : undefined,
+        defaults.shellExecute.maxTimeoutSeconds,
+      ),
+    },
+    fileRead: {
+      enabled: parseBooleanValue(
+        typeof fileRead === 'object' && fileRead !== null ? (fileRead as { enabled?: unknown }).enabled : undefined,
+        defaults.fileRead.enabled,
+      ),
+      allowRelativePaths: parseBooleanValue(
+        typeof fileRead === 'object' && fileRead !== null ? (fileRead as { allowRelativePaths?: unknown }).allowRelativePaths : undefined,
+        defaults.fileRead.allowRelativePaths,
+      ),
+      allowedPaths: parseStringList(
+        typeof fileRead === 'object' && fileRead !== null ? (fileRead as { allowedPaths?: unknown }).allowedPaths : undefined,
+      ),
+      blockedPaths: parseStringList(
+        typeof fileRead === 'object' && fileRead !== null ? (fileRead as { blockedPaths?: unknown }).blockedPaths : undefined,
+      ),
+      blockedExtensions: parseStringList(
+        typeof fileRead === 'object' && fileRead !== null ? (fileRead as { blockedExtensions?: unknown }).blockedExtensions : undefined,
+      ),
+      maxBytesPerRead: parsePositiveNumber(
+        typeof fileRead === 'object' && fileRead !== null ? (fileRead as { maxBytesPerRead?: unknown }).maxBytesPerRead : undefined,
+        defaults.fileRead.maxBytesPerRead,
+      ),
+      maxFileSizeBytes: parsePositiveNumber(
+        typeof fileRead === 'object' && fileRead !== null ? (fileRead as { maxFileSizeBytes?: unknown }).maxFileSizeBytes : undefined,
+        defaults.fileRead.maxFileSizeBytes,
+      ),
+    },
+    managedMcpServerAdmin: {
+      enabled: parseBooleanValue(
+        typeof managedMcpServerAdmin === 'object' && managedMcpServerAdmin !== null ? (managedMcpServerAdmin as { enabled?: unknown }).enabled : undefined,
+        defaults.managedMcpServerAdmin.enabled,
+      ),
+      allowHttpServers: parseBooleanValue(
+        typeof managedMcpServerAdmin === 'object' && managedMcpServerAdmin !== null ? (managedMcpServerAdmin as { allowHttpServers?: unknown }).allowHttpServers : undefined,
+        defaults.managedMcpServerAdmin.allowHttpServers,
+      ),
+      allowStdioServers: parseBooleanValue(
+        typeof managedMcpServerAdmin === 'object' && managedMcpServerAdmin !== null ? (managedMcpServerAdmin as { allowStdioServers?: unknown }).allowStdioServers : undefined,
+        defaults.managedMcpServerAdmin.allowStdioServers,
+      ),
+    },
+  });
 }
 
 export function loadManagedClientFileConfig(): ManagedClientFileConfig {
@@ -36,6 +241,58 @@ export function saveManagedClientFileConfig(config: ManagedClientFileConfig): vo
   };
 
   fs.writeFileSync(getManagedClientConfigPath(), JSON.stringify(next, null, 2), 'utf-8');
+}
+
+export function getBuiltInToolsSecurityConfig(): BuiltInToolsSecurityConfig {
+  return normalizeBuiltInToolsSecurityConfig(loadManagedClientFileConfig().builtInTools);
+}
+
+export function saveBuiltInToolsSecurityConfig(config: BuiltInToolsSecurityConfig): void {
+  saveManagedClientFileConfig({
+    builtInTools: serializeBuiltInToolsSecurityConfig(normalizeBuiltInToolsSecurityConfig(config)),
+  });
+}
+
+function loadManagedClientMcpFileConfig(): Record<string, ManagedClientFileMcpServerConfig> {
+  const configPath = getManagedClientMcpConfigPath();
+  if (fs.existsSync(configPath)) {
+    const raw = fs.readFileSync(configPath, 'utf-8');
+    const parsed = JSON.parse(raw) as unknown;
+    return normalizeManagedClientMcpServers(parsed);
+  }
+
+  return loadManagedClientFileConfig().mcpServers ?? {};
+}
+
+function saveManagedClientMcpFileConfig(mcpServers: Record<string, ManagedClientFileMcpServerConfig>): void {
+  fs.writeFileSync(
+    getManagedClientMcpConfigPath(),
+    JSON.stringify(mcpServers, null, 2),
+    'utf-8',
+  );
+}
+
+function removeLegacyManagedClientMcpServersConfig(): void {
+  const current = loadManagedClientFileConfig();
+  if (!('mcpServers' in current)) {
+    return;
+  }
+
+  const { mcpServers: _legacyMcpServers, ...rest } = current;
+  const next = Object.fromEntries(
+    Object.entries(rest).filter(([, value]) => value !== undefined),
+  );
+
+  fs.writeFileSync(getManagedClientConfigPath(), JSON.stringify(next, null, 2), 'utf-8');
+}
+
+export function getManagedClientMcpServersConfig(): Record<string, ManagedClientFileMcpServerConfig> {
+  return loadManagedClientMcpFileConfig();
+}
+
+export function saveManagedClientMcpServersConfig(mcpServers: Record<string, ManagedClientFileMcpServerConfig>): void {
+  saveManagedClientMcpFileConfig(mcpServers);
+  removeLegacyManagedClientMcpServersConfig();
 }
 
 function parseBooleanFlag(value: string | undefined): boolean {
@@ -74,23 +331,100 @@ function hasArg(args: string[], name: string): boolean {
   return args.includes(name);
 }
 
+function parseManagedClientMode(value: string | undefined | null): ManagedClientMode | null {
+  if (!value) {
+    return null;
+  }
+
+  if (value === 'managed-client' || value === 'managed-client-mcp-ws') {
+    return value;
+  }
+
+  return null;
+}
+
+function normalizeManagedClientToken(token: string | null | undefined): string | null {
+  const trimmed = token?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.replace(/^Bearer\s+/i, '').trim();
+}
+
+function normalizeOptionalString(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function getOrCreateManagedClientId(fileConfig: ManagedClientFileConfig): string {
+  if (fileConfig.clientId?.trim()) {
+    return fileConfig.clientId.trim();
+  }
+
+  const clientId = randomUUID();
+  saveManagedClientFileConfig({ clientId });
+  return clientId;
+}
+
 export function getManagedClientRuntimeConfig(version: string, args = process.argv): ManagedClientRuntimeConfig {
   const fileConfig = loadManagedClientFileConfig();
-  // Startup config resolution order: CLI args -> UI bootstrap value -> system environment -> default file fallback.
-  const enabled =
-    hasArg(args, '--enable-managed-client-runtime')
+  const explicitMode =
+    parseManagedClientMode(getArgValue(args, '--managed-client-mode'))
+    ?? parseManagedClientMode(process.env.MANAGED_CLIENT_MODE)
+    ?? parseManagedClientMode(fileConfig.mode)
+    ?? null;
+
+  const wsManagedMode =
+    explicitMode === 'managed-client-mcp-ws'
+    || hasArg(args, '--enable-managed-client-mcp-ws')
+    || hasArg(args, '--managed-client-mcp-ws-only');
+
+  const pollingManagedMode =
+    explicitMode === 'managed-client'
+    || hasArg(args, '--enable-managed-client-runtime')
     || hasArg(args, '--managed-client-only')
     || parseBooleanFlag(process.env.ENABLE_MANAGED_CLIENT_RUNTIME)
     || fileConfig.enabled === true;
 
-  const headless = hasArg(args, '--managed-client-only');
+  const enabled = wsManagedMode || pollingManagedMode;
+  const mode: ManagedClientMode = wsManagedMode ? 'managed-client-mcp-ws' : 'managed-client';
+  const headless = hasArg(args, '--managed-client-only') || hasArg(args, '--managed-client-mcp-ws-only');
   const baseUrl =
     getArgValue(args, '--managed-client-base-url')
     ?? fileConfig.bootstrapBaseUrl
     ?? process.env.MANAGED_CLIENT_BASE_URL
     ?? fileConfig.baseUrl
     ?? null;
-  const token = getArgValue(args, '--managed-client-token') ?? process.env.MANAGED_CLIENT_BEARER_TOKEN ?? fileConfig.token ?? null;
+  const signinPageUrl =
+    getArgValue(args, '--managed-client-signin-page-url')
+    ?? process.env.MANAGED_CLIENT_SIGNIN_PAGE_URL
+    ?? fileConfig.signinPageUrl
+    ?? null;
+  const tlsServername =
+    getArgValue(args, '--managed-client-tls-servername')
+    ?? process.env.MANAGED_CLIENT_TLS_SERVERNAME
+    ?? fileConfig.tlsServername
+    ?? null;
+  const tlsCaFile =
+    getArgValue(args, '--managed-client-tls-ca-file')
+    ?? process.env.MANAGED_CLIENT_TLS_CA_FILE
+    ?? fileConfig.tlsCaFile
+    ?? null;
+  const tlsPinSha256 =
+    getArgValue(args, '--managed-client-tls-pin-sha256')
+    ?? process.env.MANAGED_CLIENT_TLS_PIN_SHA256
+    ?? fileConfig.tlsPinSha256
+    ?? null;
+  const workspaceRoot =
+    getArgValue(args, '--managed-client-workspace-root')
+    ?? process.env.MANAGED_CLIENT_WORKSPACE_ROOT
+    ?? fileConfig.workspaceRoot
+    ?? getDefaultManagedClientWorkspaceRoot();
+  const token = normalizeManagedClientToken(
+    getArgValue(args, '--managed-client-token') ?? process.env.MANAGED_CLIENT_BEARER_TOKEN ?? null,
+  );
+  const clientId = getArgValue(args, '--managed-client-id') ?? process.env.MANAGED_CLIENT_ID ?? getOrCreateManagedClientId(fileConfig);
   const clientName = getArgValue(args, '--managed-client-name') ?? process.env.MANAGED_CLIENT_NAME ?? fileConfig.clientName ?? os.hostname();
   const pollWaitSeconds = parseNumberFlag(
     getArgValue(args, '--managed-client-wait-seconds') ?? process.env.MANAGED_CLIENT_WAIT_SECONDS ?? String(fileConfig.pollWaitSeconds ?? ''),
@@ -100,16 +434,25 @@ export function getManagedClientRuntimeConfig(version: string, args = process.ar
     getArgValue(args, '--managed-client-retry-ms') ?? process.env.MANAGED_CLIENT_RETRY_MS ?? String(fileConfig.retryDelayMs ?? ''),
     3000,
   );
+  const mcpServers = parseManagedClientMcpServers(loadManagedClientMcpFileConfig());
 
   return {
+    mode,
     enabled,
     headless,
     baseUrl: baseUrl ? baseUrl.replace(/\/+$/, '') : null,
+    signinPageUrl: signinPageUrl ? signinPageUrl.replace(/\/+$/, '') : null,
+    tlsServername: normalizeOptionalString(tlsServername),
+    tlsCaFile: normalizeOptionalString(tlsCaFile),
+    tlsPinSha256: normalizeOptionalString(tlsPinSha256),
+    workspaceRoot: path.resolve(workspaceRoot),
     token,
+    clientId,
     clientName,
     pollWaitSeconds,
     retryDelayMs,
     version,
     supportedCommands: ['run_command', 'read_file'],
+    mcpServers,
   };
 }

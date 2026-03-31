@@ -42,6 +42,29 @@ interface ServerStatus {
   activeConnections: number;
 }
 
+interface ManagedClientStatus {
+  mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws';
+  headless: boolean;
+  baseUrl: string | null;
+  workspaceRoot: string;
+  workspaceCurrentDir: string;
+  workspaceArchiveDir: string;
+  needsBaseUrl: boolean;
+  running: boolean;
+  pullStatus: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
+  pulledTaskCount: number;
+  emptyPollCount: number;
+  lastPollStatus: number | null;
+  lastTaskCommand: string | null;
+  lastPolledAt: string | null;
+  receivedEventCount: number;
+  pingCount: number;
+  pongSentCount: number;
+  lastEventAt: string | null;
+  lastEventName: string | null;
+  lastPingAt: string | null;
+}
+
 interface UnifiedSession {
   id: string;
   command: string;
@@ -62,6 +85,15 @@ function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60_000).toFixed(1)}m`;
+}
+
+function formatTimestamp(value: string | null): string {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
 }
 
 // Color classes per stream type
@@ -192,6 +224,28 @@ function SessionCard({ session, expanded, onToggle, onKill }: {
 export default function Dashboard() {
   const { t } = useI18n();
   const [status, setStatus] = useState<ServerStatus>({ running: false, port: 19876, activeConnections: 0 });
+  const [managedClient, setManagedClient] = useState<ManagedClientStatus>({
+    mode: 'cli-server',
+    headless: false,
+    baseUrl: null,
+    workspaceRoot: '',
+    workspaceCurrentDir: '',
+    workspaceArchiveDir: '',
+    needsBaseUrl: false,
+    running: false,
+    pullStatus: 'idle',
+    pulledTaskCount: 0,
+    emptyPollCount: 0,
+    lastPollStatus: null,
+    lastTaskCommand: null,
+    lastPolledAt: null,
+    receivedEventCount: 0,
+    pingCount: 0,
+    pongSentCount: 0,
+    lastEventAt: null,
+    lastEventName: null,
+    lastPingAt: null,
+  });
   const [liveSessions, setLiveSessions] = useState<SessionInfo[]>([]);
   const [recentEntries, setRecentEntries] = useState<AuditEntry[]>([]);
   const [totalAudit, setTotalAudit] = useState(0);
@@ -230,6 +284,23 @@ export default function Dashboard() {
     await window.electronAPI.clearAuditLog();
     refresh();
   };
+
+  const isManagedClientMode = managedClient.mode !== 'cli-server';
+  const isManagedMcpWsMode = managedClient.mode === 'managed-client-mcp-ws';
+  const pullStatusLabel = (() => {
+    switch (managedClient.pullStatus) {
+      case 'waiting':
+        return isManagedMcpWsMode ? t('dashboard.pullWaitingMcpWs') : t('dashboard.pullWaiting');
+      case 'task-assigned':
+        return isManagedMcpWsMode ? t('dashboard.pullAssignedMcpWs') : t('dashboard.pullAssigned');
+      case 'task-completed':
+        return isManagedMcpWsMode ? t('dashboard.pullCompletedMcpWs') : t('dashboard.pullCompleted');
+      case 'task-failed':
+        return isManagedMcpWsMode ? t('dashboard.pullFailedMcpWs') : t('dashboard.pullFailed');
+      default:
+        return t('dashboard.pullIdle');
+    }
+  })();
 
   // Merge live sessions + audit entries, deduplicate, active first
   const liveIds = new Set(liveSessions.map((s) => s.sessionId));
@@ -301,6 +372,57 @@ export default function Dashboard() {
             <p className="text-xs text-slate-500 mt-1">
               {t('status.activeConnections', { count: status.activeConnections })}
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('dashboard.pullStatus')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg font-bold text-white">
+              {isManagedClientMode ? pullStatusLabel : t('dashboard.pullInactive')}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {isManagedClientMode
+                ? (isManagedMcpWsMode
+                  ? t('dashboard.pullCountsMcpWs', {
+                    pulled: managedClient.pulledTaskCount,
+                    empty: managedClient.emptyPollCount,
+                  })
+                  : t('dashboard.pullCounts', {
+                    pulled: managedClient.pulledTaskCount,
+                    empty: managedClient.emptyPollCount,
+                  }))
+                : t('dashboard.pullInactiveHint')}
+            </p>
+            {isManagedMcpWsMode && (
+              <>
+                <p className="text-xs text-slate-500 mt-1 break-all">
+                  {t('dashboard.mcpWsEventMetrics', {
+                    events: managedClient.receivedEventCount,
+                    pings: managedClient.pingCount,
+                    pongs: managedClient.pongSentCount,
+                  })}
+                </p>
+                <p className="text-xs text-slate-500 mt-1 break-all">
+                  {t('dashboard.mcpWsLastEvent', {
+                    event: managedClient.lastEventName ?? '-',
+                    time: formatTimestamp(managedClient.lastEventAt),
+                  })}
+                </p>
+                <p className="text-xs text-slate-500 mt-1 break-all">
+                  {t('dashboard.mcpWsLastPing', {
+                    time: formatTimestamp(managedClient.lastPingAt),
+                  })}
+                </p>
+              </>
+            )}
+            {isManagedClientMode && managedClient.lastTaskCommand && (
+              <p className="text-xs text-slate-500 mt-1 break-all">
+                {t(isManagedMcpWsMode ? 'dashboard.lastPulledTaskMcpWs' : 'dashboard.lastPulledTask', { command: managedClient.lastTaskCommand })}
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

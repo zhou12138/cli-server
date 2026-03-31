@@ -4,7 +4,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
-import { ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, Search } from 'lucide-react';
 
 interface AuditEntry {
   id: string;
@@ -25,21 +25,22 @@ export default function AuditLog() {
   const { t } = useI18n();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [total, setTotal] = useState(0);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [page, setPage] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchEntries = useCallback(() => {
     window.electronAPI
-      .getAuditEntries({ offset: page * PAGE_SIZE, limit: PAGE_SIZE, search: search || undefined })
+      .getAuditEntries({ offset: page * PAGE_SIZE, limit: PAGE_SIZE, search: appliedSearch || undefined })
       .then(({ entries: data, total: t }) => {
         setEntries(data);
         setTotal(t);
       });
-  }, [search, page]);
+  }, [appliedSearch, page]);
 
   // Reset to first page when search changes
-  useEffect(() => { setPage(0); }, [search]);
+  useEffect(() => { setPage(0); }, [appliedSearch]);
 
   useEffect(() => {
     fetchEntries();
@@ -51,6 +52,10 @@ export default function AuditLog() {
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
+  };
+
+  const handleSearch = () => {
+    setAppliedSearch(searchInput.trim());
   };
 
   const exitVariant = (code: number | null) => {
@@ -71,12 +76,36 @@ export default function AuditLog() {
         <span className="text-xs text-slate-500">{t('audit.totalEntries', { total })}</span>
       </div>
 
-      <Input
-        type="text"
-        placeholder={t('audit.searchPlaceholder')}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          type="text"
+          placeholder={t('audit.searchPlaceholder')}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              handleSearch();
+            }
+          }}
+          className="flex-1"
+        />
+        <button
+          onClick={handleSearch}
+          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 transition-colors"
+        >
+          <Search className="w-4 h-4" />
+          {t('audit.searchButton')}
+        </button>
+        <button
+          onClick={() => {
+            setSearchInput('');
+            setAppliedSearch('');
+          }}
+          className="px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 transition-colors"
+        >
+          {t('audit.resetSearch')}
+        </button>
+      </div>
 
       <Card>
         <Table>
@@ -94,7 +123,7 @@ export default function AuditLog() {
             {entries.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-slate-600">
-                  {search ? t('audit.noMatching') : t('audit.noEntries')}
+                  {appliedSearch ? t('audit.noMatching') : t('audit.noEntries')}
                 </TableCell>
               </TableRow>
             ) : (
