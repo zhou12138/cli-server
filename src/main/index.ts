@@ -186,18 +186,7 @@ let managedClientSigninPromise: Promise<{ token: string; signinUrl: string }> | 
 let sessionNotificationEnabled = true;
 
 function buildBootstrapState() {
-  const runtimeStatus = managedClientRuntime?.getStatus() as {
-    enabled?: boolean;
-    running?: boolean;
-    clientId?: string | null;
-    baseUrl?: string | null;
-    pullStatus?: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
-    pulledTaskCount?: number;
-    emptyPollCount?: number;
-    lastPollStatus?: number | null;
-    lastTaskCommand?: string | null;
-    lastPolledAt?: string | null;
-  } | undefined;
+  const runtimeStatus = managedClientRuntime?.getStatus() ?? null;
   const mcpWsStatus = managedClientRuntime instanceof ManagedClientMcpWsRuntime
     ? managedClientRuntime.getStatus()
     : null;
@@ -217,12 +206,12 @@ function buildBootstrapState() {
     needsModeSelection,
     needsBaseUrl: currentMode !== 'cli-server' && !managedClientConfig.headless && !needsModeSelection && !(runtimeStatus?.running ?? false),
     running: runtimeStatus?.running ?? false,
-    pullStatus: runtimeStatus?.pullStatus ?? 'idle',
-    pulledTaskCount: runtimeStatus?.pulledTaskCount ?? 0,
-    emptyPollCount: runtimeStatus?.emptyPollCount ?? 0,
-    lastPollStatus: runtimeStatus?.lastPollStatus ?? null,
-    lastTaskCommand: runtimeStatus?.lastTaskCommand ?? null,
-    lastPolledAt: runtimeStatus?.lastPolledAt ?? null,
+    pullStatus: mcpWsStatus?.pullStatus ?? 'idle',
+    pulledTaskCount: mcpWsStatus?.pulledTaskCount ?? 0,
+    emptyPollCount: mcpWsStatus?.emptyPollCount ?? 0,
+    lastPollStatus: mcpWsStatus?.lastPollStatus ?? null,
+    lastTaskCommand: mcpWsStatus?.lastTaskCommand ?? null,
+    lastPolledAt: mcpWsStatus?.lastPolledAt ?? null,
     receivedEventCount: mcpWsStatus?.receivedEventCount ?? 0,
     pingCount: mcpWsStatus?.pingCount ?? 0,
     pongSentCount: mcpWsStatus?.pongSentCount ?? 0,

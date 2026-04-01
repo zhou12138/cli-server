@@ -5,7 +5,7 @@ import { shell } from 'electron';
 
 const DEFAULT_SIGNIN_PAGE_URL = 'http://localhost:3000/desktop-signin';
 const CALLBACK_PATH = '/managed-client/signin/callback';
-const CALLBACK_HOST = '127.0.0.1';
+const CALLBACK_HOST = 'localhost';
 const SIGNIN_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_SIGNIN_PAGE_PATH = '/desktop-signin';
 
