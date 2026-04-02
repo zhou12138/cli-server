@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
-import { Info } from 'lucide-react';
 import { I18nProvider } from './hooks/useI18n';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -11,32 +10,12 @@ import Settings from './pages/Settings';
 import { Input } from './components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 
-type TlsValidationState = 'idle' | 'validating' | 'valid' | 'invalid';
-
-function InfoTip({ text }: { text: string }) {
-  return (
-    <span className="group relative inline-flex items-center">
-      <span
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-500 transition-colors hover:text-cyan-300"
-        title={text}
-      >
-        <Info className="h-4 w-4" />
-      </span>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-80 -translate-x-1/2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[11px] leading-5 text-slate-200 shadow-2xl group-hover:block">
-        {text}
-      </span>
-    </span>
-  );
-}
-
 interface ManagedClientBootstrapState {
   mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws';
   headless: boolean;
   baseUrl: string | null;
   signinPageUrl: string | null;
   tlsServername: string | null;
-  tlsCaFile: string | null;
-  tlsPinSha256: string | null;
   workspaceRoot: string;
   workspaceCurrentDir: string;
   workspaceArchiveDir: string;
@@ -62,18 +41,10 @@ export default function App() {
   const [baseUrl, setBaseUrl] = useState('');
   const [signinPageUrl, setSigninPageUrl] = useState('');
   const [tlsServername, setTlsServername] = useState('');
-  const [tlsCaFile, setTlsCaFile] = useState('');
-  const [tlsPinSha256, setTlsPinSha256] = useState('');
-  const [tlsValidationState, setTlsValidationState] = useState<TlsValidationState>('idle');
-  const [tlsValidationMessage, setTlsValidationMessage] = useState('');
   const [token, setToken] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [signinPending, setSigninPending] = useState(false);
-
-  const tlsServernameTip = '填写 TLS SNI 和主机名校验值。通常直接使用 base URL 的 hostname，例如 https://dev3.societas-test.microsoft.com 对应 dev3.societas-test.microsoft.com。只有证书 SAN/CN 与访问域名不同，才需要手动覆盖。';
-  const tlsCaFileTip = '填写企业 CA 证书文件路径。获取方式：浏览器打开目标站点，查看证书链，导出企业根证书或中间证书为 Base-64 / PEM 文件，例如 C:\\certs\\corp-root.pem；如果系统默认信任该站点，则通常可以留空。';
-  const tlsPinSha256Tip = '填写服务端叶子证书的 SHA-256 指纹。可用 openssl s_client -connect host:443 -servername host | openssl x509 -noout -fingerprint -sha256 获取，或用 PowerShell 连接后对证书 RawData 计算 SHA-256。可带冒号，保存时会自动归一化。';
 
   useEffect(() => {
     window.electronAPI.getManagedClientBootstrapState().then((state) => {
@@ -81,17 +52,8 @@ export default function App() {
       setBaseUrl(state.baseUrl ?? '');
       setSigninPageUrl(state.signinPageUrl ?? state.baseUrl ?? '');
       setTlsServername(state.tlsServername ?? '');
-      setTlsCaFile(state.tlsCaFile ?? '');
-      setTlsPinSha256(state.tlsPinSha256 ?? '');
-      setTlsValidationState('idle');
-      setTlsValidationMessage('');
     });
   }, []);
-
-  const resetTlsValidation = () => {
-    setTlsValidationState('idle');
-    setTlsValidationMessage('');
-  };
 
   if (!bootstrap) {
     return null;
@@ -142,8 +104,6 @@ export default function App() {
                       setBaseUrl(next.baseUrl ?? '');
                       setSigninPageUrl(next.signinPageUrl ?? next.baseUrl ?? '');
                       setTlsServername(next.tlsServername ?? '');
-                      setTlsCaFile(next.tlsCaFile ?? '');
-                      setTlsPinSha256(next.tlsPinSha256 ?? '');
                       setToken('');
                     } catch (saveError) {
                       setError(saveError instanceof Error ? saveError.message : String(saveError));
@@ -170,8 +130,6 @@ export default function App() {
                       setBaseUrl(next.baseUrl ?? '');
                       setSigninPageUrl(next.signinPageUrl ?? next.baseUrl ?? '');
                       setTlsServername(next.tlsServername ?? '');
-                      setTlsCaFile(next.tlsCaFile ?? '');
-                      setTlsPinSha256(next.tlsPinSha256 ?? '');
                       setToken('');
                     } catch (saveError) {
                       setError(saveError instanceof Error ? saveError.message : String(saveError));
@@ -199,7 +157,6 @@ export default function App() {
   if ((bootstrap.mode === 'managed-client' || bootstrap.mode === 'managed-client-mcp-ws') && !bootstrap.headless && bootstrap.needsBaseUrl) {
     const isDesktopWsMode = bootstrap.mode === 'managed-client-mcp-ws';
     const isBusy = saving || signinPending;
-    const tlsValidated = !isDesktopWsMode || tlsValidationState === 'valid';
     return (
       <I18nProvider>
         <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
@@ -233,10 +190,7 @@ export default function App() {
                     <Input
                       type="text"
                       value={baseUrl}
-                      onChange={(event) => {
-                        setBaseUrl(event.target.value);
-                        resetTlsValidation();
-                      }}
+                      onChange={(event) => setBaseUrl(event.target.value)}
                       placeholder={isDesktopWsMode ? 'ws://localhost:8000/api/mcphub/ws or http://localhost:8000/api' : 'http://localhost:8000/api'}
                     />
                   </div>
@@ -257,109 +211,6 @@ export default function App() {
                     <p className="text-xs leading-5 text-slate-500">
                       Leave the sign-in page URL aligned with the base URL when the frontend is served there, and the client will connect to the MCP Hub WebSocket endpoint at /api/mcphub/ws.
                     </p>
-                    <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4 space-y-4">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-100">TLS validation overrides</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-400">
-                          Optional for non-localhost MCP Hub endpoints. Leave blank to use the base URL hostname and default trust chain.
-                        </p>
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <label className="flex items-center gap-2 text-xs text-slate-500">
-                            <span>MANAGED_CLIENT_TLS_SERVERNAME</span>
-                            <InfoTip text={tlsServernameTip} />
-                          </label>
-                          <Input
-                            type="text"
-                            value={tlsServername}
-                            onChange={(event) => {
-                              setTlsServername(event.target.value);
-                              resetTlsValidation();
-                            }}
-                            placeholder="dev3.societas-test.microsoft.com"
-                          />
-                          <p className="text-xs leading-5 text-slate-500">
-                            Optional SNI and hostname override. Default is the hostname from MANAGED_CLIENT_BASE_URL.
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="flex items-center gap-2 text-xs text-slate-500">
-                            <span>MANAGED_CLIENT_TLS_CA_FILE</span>
-                            <InfoTip text={tlsCaFileTip} />
-                          </label>
-                          <Input
-                            type="text"
-                            value={tlsCaFile}
-                            onChange={(event) => {
-                              setTlsCaFile(event.target.value);
-                              resetTlsValidation();
-                            }}
-                            placeholder="C:\\certs\\societas-root.pem"
-                          />
-                          <p className="text-xs leading-5 text-slate-500">
-                            Optional PEM/BASE64 CA bundle path for enterprise roots or intermediates not trusted by default.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-2 text-xs text-slate-500">
-                          <span>MANAGED_CLIENT_TLS_PIN_SHA256</span>
-                          <InfoTip text={tlsPinSha256Tip} />
-                        </label>
-                        <Input
-                          type="text"
-                          value={tlsPinSha256}
-                          onChange={(event) => {
-                            setTlsPinSha256(event.target.value);
-                            resetTlsValidation();
-                          }}
-                          placeholder="12:34:56:78:90:AB:CD:EF:..."
-                        />
-                        <p className="text-xs leading-5 text-slate-500">
-                          Optional leaf certificate SHA-256 fingerprint. Colons are allowed.
-                        </p>
-                      </div>
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <button
-                          onClick={async () => {
-                            if (!baseUrl.trim()) {
-                              setError('MANAGED_CLIENT_BASE_URL is required');
-                              return;
-                            }
-
-                            setTlsValidationState('validating');
-                            setTlsValidationMessage('');
-                            setError('');
-
-                            try {
-                              const result = await window.electronAPI.validateManagedClientTls({
-                                baseUrl: baseUrl.trim(),
-                                tlsServername: tlsServername.trim() || null,
-                                tlsCaFile: tlsCaFile.trim() || null,
-                                tlsPinSha256: tlsPinSha256.trim() || null,
-                              });
-                              setTlsValidationState('valid');
-                              setTlsValidationMessage(result.message);
-                            } catch (validationError) {
-                              setTlsValidationState('invalid');
-                              setTlsValidationMessage(validationError instanceof Error ? validationError.message : String(validationError));
-                            }
-                          }}
-                          disabled={isBusy || tlsValidationState === 'validating'}
-                          className="inline-flex items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition-colors hover:bg-cyan-400/15 disabled:opacity-50"
-                        >
-                          {tlsValidationState === 'validating' ? 'Validating TLS...' : 'Validate TLS'}
-                        </button>
-                        <div className={`text-xs leading-5 ${tlsValidationState === 'valid'
-                          ? 'text-emerald-300'
-                          : tlsValidationState === 'invalid'
-                            ? 'text-red-400'
-                            : 'text-slate-500'}`}>
-                          {tlsValidationMessage || 'Validate the TLS settings before browser sign-in or static-token startup.'}
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 )}
               </div>
@@ -398,11 +249,6 @@ export default function App() {
                               return;
                             }
 
-                            if (!tlsValidated) {
-                              setError('Validate TLS successfully before starting browser sign-in');
-                              return;
-                            }
-
                             setSigninPending(true);
                             setError('');
 
@@ -417,8 +263,6 @@ export default function App() {
                                 baseUrl: baseUrl.trim(),
                                 signinPageUrl: signinPageUrl.trim() || null,
                                 tlsServername: tlsServername.trim() || null,
-                                tlsCaFile: tlsCaFile.trim() || null,
-                                tlsPinSha256: tlsPinSha256.trim() || null,
                                 token: signin.token,
                               });
 
@@ -429,7 +273,7 @@ export default function App() {
                               setSigninPending(false);
                             }
                           }}
-                          disabled={isBusy || !tlsValidated}
+                          disabled={isBusy}
                           className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-emerald-300 disabled:opacity-50"
                         >
                           {signinPending ? 'Waiting for browser sign-in...' : 'Continue In Browser'}
@@ -469,11 +313,6 @@ export default function App() {
                             return;
                           }
 
-                          if (!tlsValidated) {
-                            setError('Validate TLS successfully before starting the managed MCP bridge');
-                            return;
-                          }
-
                           setSaving(true);
                           setError('');
                           try {
@@ -481,8 +320,6 @@ export default function App() {
                               baseUrl: baseUrl.trim(),
                               signinPageUrl: signinPageUrl.trim() || null,
                               tlsServername: tlsServername.trim() || null,
-                              tlsCaFile: tlsCaFile.trim() || null,
-                              tlsPinSha256: tlsPinSha256.trim() || null,
                               token: token.trim() || null,
                             });
                             setBootstrap(next);
@@ -492,7 +329,7 @@ export default function App() {
                             setSaving(false);
                           }
                         }}
-                        disabled={isBusy || !tlsValidated}
+                        disabled={isBusy}
                         className="inline-flex items-center justify-center rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm font-semibold text-amber-100 transition-colors hover:bg-amber-400/15 disabled:opacity-50"
                       >
                         {saving ? 'Starting...' : 'Start With Static Token'}
@@ -528,8 +365,6 @@ export default function App() {
                           baseUrl: baseUrl.trim(),
                           signinPageUrl: signinPageUrl.trim() || null,
                           tlsServername: tlsServername.trim() || null,
-                          tlsCaFile: tlsCaFile.trim() || null,
-                          tlsPinSha256: tlsPinSha256.trim() || null,
                           token: token.trim() || null,
                         });
                         setBootstrap(next);

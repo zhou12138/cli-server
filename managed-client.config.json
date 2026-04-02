@@ -6,8 +6,6 @@
   "mode": "managed-client-mcp-ws",
   "signinPageUrl": "https://dev3.societas-test.microsoft.com",
   "tlsServername": "dev3.societas-test.microsoft.com",
-  "tlsCaFile": "C:\\Users\\zhouweiwei.REDMOND\\Downloads\\DigiCert Global Root G2.pem",
-  "tlsPinSha256": "E6:65:CE:17:70:0D:C5:B7:B5:4E:5C:1E:F2:19:63:10:C3:5C:ED:84:92:BC:29:4D:30:78:49:80:07:E7:BA:33",
   "builtInTools": {
     "permissionProfile": "full-local-admin",
     "shellExecute": {

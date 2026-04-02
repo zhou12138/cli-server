@@ -20,8 +20,6 @@ interface ManagedClientFileConfig {
   baseUrl?: string;
   signinPageUrl?: string;
   tlsServername?: string;
-  tlsCaFile?: string;
-  tlsPinSha256?: string;
   workspaceRoot?: string;
   token?: string;
   clientId?: string;
@@ -406,16 +404,6 @@ export function getManagedClientRuntimeConfig(version: string, args = process.ar
     ?? process.env.MANAGED_CLIENT_TLS_SERVERNAME
     ?? fileConfig.tlsServername
     ?? null;
-  const tlsCaFile =
-    getArgValue(args, '--managed-client-tls-ca-file')
-    ?? process.env.MANAGED_CLIENT_TLS_CA_FILE
-    ?? fileConfig.tlsCaFile
-    ?? null;
-  const tlsPinSha256 =
-    getArgValue(args, '--managed-client-tls-pin-sha256')
-    ?? process.env.MANAGED_CLIENT_TLS_PIN_SHA256
-    ?? fileConfig.tlsPinSha256
-    ?? null;
   const workspaceRoot =
     getArgValue(args, '--managed-client-workspace-root')
     ?? process.env.MANAGED_CLIENT_WORKSPACE_ROOT
@@ -443,8 +431,6 @@ export function getManagedClientRuntimeConfig(version: string, args = process.ar
     baseUrl: baseUrl ? baseUrl.replace(/\/+$/, '') : null,
     signinPageUrl: signinPageUrl ? signinPageUrl.replace(/\/+$/, '') : null,
     tlsServername: normalizeOptionalString(tlsServername),
-    tlsCaFile: normalizeOptionalString(tlsCaFile),
-    tlsPinSha256: normalizeOptionalString(tlsPinSha256),
     workspaceRoot: path.resolve(workspaceRoot),
     token,
     clientId,

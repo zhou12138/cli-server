@@ -15,8 +15,6 @@ export interface ElectronAPI {
     baseUrl: string | null;
     signinPageUrl: string | null;
     tlsServername: string | null;
-    tlsCaFile: string | null;
-    tlsPinSha256: string | null;
     workspaceRoot: string;
     workspaceCurrentDir: string;
     workspaceArchiveDir: string;
@@ -42,8 +40,6 @@ export interface ElectronAPI {
     baseUrl: string | null;
     signinPageUrl: string | null;
     tlsServername: string | null;
-    tlsCaFile: string | null;
-    tlsPinSha256: string | null;
     workspaceRoot: string;
     workspaceCurrentDir: string;
     workspaceArchiveDir: string;
@@ -67,8 +63,6 @@ export interface ElectronAPI {
     baseUrl: string;
     signinPageUrl?: string | null;
     tlsServername?: string | null;
-    tlsCaFile?: string | null;
-    tlsPinSha256?: string | null;
     token?: string | null;
   }) => Promise<{
     mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws';
@@ -76,8 +70,6 @@ export interface ElectronAPI {
     baseUrl: string | null;
     signinPageUrl: string | null;
     tlsServername: string | null;
-    tlsCaFile: string | null;
-    tlsPinSha256: string | null;
     workspaceRoot: string;
     workspaceCurrentDir: string;
     workspaceArchiveDir: string;
@@ -103,8 +95,6 @@ export interface ElectronAPI {
     baseUrl: string | null;
     signinPageUrl: string | null;
     tlsServername: string | null;
-    tlsCaFile: string | null;
-    tlsPinSha256: string | null;
     workspaceRoot: string;
     workspaceCurrentDir: string;
     workspaceArchiveDir: string;
@@ -131,8 +121,6 @@ export interface ElectronAPI {
   validateManagedClientTls: (payload: {
     baseUrl: string;
     tlsServername?: string | null;
-    tlsCaFile?: string | null;
-    tlsPinSha256?: string | null;
   }) => Promise<{
     valid: boolean;
     skipped: boolean;

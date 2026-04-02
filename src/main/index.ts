@@ -198,8 +198,6 @@ function buildBootstrapState() {
     baseUrl: managedClientConfig.baseUrl,
     signinPageUrl: managedClientConfig.signinPageUrl,
     tlsServername: managedClientConfig.tlsServername,
-    tlsCaFile: managedClientConfig.tlsCaFile,
-    tlsPinSha256: managedClientConfig.tlsPinSha256,
     workspaceRoot: workspacePaths.rootDir,
     workspaceCurrentDir: workspacePaths.currentDir,
     workspaceArchiveDir: workspacePaths.archiveDir,
@@ -282,13 +280,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('managed-client:validateTls', async (_e, payload: {
     baseUrl: string;
     tlsServername?: string | null;
-    tlsCaFile?: string | null;
-    tlsPinSha256?: string | null;
   }) => validateManagedClientTlsConfig({
     baseUrl: payload.baseUrl,
     tlsServername: payload.tlsServername ?? null,
-    tlsCaFile: payload.tlsCaFile ?? null,
-    tlsPinSha256: payload.tlsPinSha256 ?? null,
   }));
   ipcMain.handle('managed-client:getMcpServersConfig', () => ({
     mcpServers: getManagedClientMcpServersConfig(),
@@ -406,15 +400,11 @@ app.whenReady().then(async () => {
     baseUrl: string;
     signinPageUrl?: string | null;
     tlsServername?: string | null;
-    tlsCaFile?: string | null;
-    tlsPinSha256?: string | null;
     token?: string | null;
   }) => {
     const normalizedToken = payload.token?.trim();
     const normalizedSigninPageUrl = payload.signinPageUrl?.trim();
     const normalizedTlsServername = payload.tlsServername?.trim();
-    const normalizedTlsCaFile = payload.tlsCaFile?.trim();
-    const normalizedTlsPinSha256 = payload.tlsPinSha256?.trim();
 
     managedClientRuntime?.stop();
     managedClientRuntime = null;
@@ -423,8 +413,6 @@ app.whenReady().then(async () => {
       bootstrapBaseUrl: payload.baseUrl,
       signinPageUrl: normalizedSigninPageUrl ? normalizedSigninPageUrl : undefined,
       tlsServername: normalizedTlsServername ? normalizedTlsServername : undefined,
-      tlsCaFile: normalizedTlsCaFile ? normalizedTlsCaFile : undefined,
-      tlsPinSha256: normalizedTlsPinSha256 ? normalizedTlsPinSha256 : undefined,
       token: undefined,
     });
     managedClientSessionToken = normalizedToken ? normalizedToken : null;

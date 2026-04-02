@@ -89,8 +89,6 @@ export interface ManagedClientRuntimeConfig {
   baseUrl: string | null;
   signinPageUrl: string | null;
   tlsServername: string | null;
-  tlsCaFile: string | null;
-  tlsPinSha256: string | null;
   workspaceRoot: string;
   token: string | null;
   clientId: string;

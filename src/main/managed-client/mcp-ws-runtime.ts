@@ -1,5 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import tls from 'node:tls';
 import type { ClientOptions as WebSocketClientOptions } from 'ws';
 import { WebSocket } from 'ws';
@@ -12,6 +11,7 @@ import { createMcpServer } from '../mcp/server';
 import type { ManagedClientRuntimeConfig } from './types';
 import { getBuiltInToolsSecurityConfig } from './config';
 import { ManagedClientMcpToolRegistry } from './mcp-tool-registry';
+import { createManagedClientDefenseLayer } from './tool-defense';
 import { prepareManagedClientWorkspace } from './workspace';
 import { getManagedClientToolResultMode } from '../builtin-tools/types';
 
@@ -58,25 +58,31 @@ function isLoopbackHostname(hostname: string): boolean {
     || normalized === '[::1]';
 }
 
-function normalizeFingerprint(value: string): string {
-  return value.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+function getWebSocketTlsSocket(socket: WebSocket): tls.TLSSocket | null {
+  const candidate = (socket as WebSocket & { _socket?: unknown })._socket;
+  return candidate instanceof tls.TLSSocket ? candidate : null;
 }
 
-function getTlsPinnedFingerprint(cert: tls.PeerCertificate): string | null {
-  if (typeof cert.fingerprint256 === 'string' && cert.fingerprint256.trim()) {
-    return normalizeFingerprint(cert.fingerprint256);
-  }
+function buildTlsTrustLogPayload(wsUrl: string, servername: string, tlsSocket: tls.TLSSocket): Record<string, unknown> {
+  const peerCertificate = tlsSocket.getPeerCertificate();
+  const subject = peerCertificate && typeof peerCertificate === 'object' ? peerCertificate.subject : undefined;
+  const issuer = peerCertificate && typeof peerCertificate === 'object' ? peerCertificate.issuer : undefined;
 
-  if (cert.raw) {
-    return createHash('sha256').update(cert.raw).digest('hex').toUpperCase();
-  }
-
-  return null;
+  return {
+    wsUrl,
+    servername,
+    authorized: tlsSocket.authorized,
+    authorizationError: tlsSocket.authorizationError ?? null,
+    subject,
+    issuer,
+    validFrom: peerCertificate?.valid_from ?? null,
+    validTo: peerCertificate?.valid_to ?? null,
+  };
 }
 
 function getManagedClientTlsConnectionOptions(
   wsUrl: string,
-  config: Pick<ManagedClientRuntimeConfig, 'tlsServername' | 'tlsCaFile' | 'tlsPinSha256'>,
+  config: Pick<ManagedClientRuntimeConfig, 'tlsServername'>,
 ): tls.ConnectionOptions | undefined {
   const url = new URL(wsUrl);
   if (url.protocol !== 'wss:') {
@@ -84,40 +90,19 @@ function getManagedClientTlsConnectionOptions(
   }
 
   const servername = config.tlsServername?.trim() || url.hostname;
-  const caFile = config.tlsCaFile?.trim();
-  const expectedFingerprint = config.tlsPinSha256?.trim();
 
   return {
     rejectUnauthorized: true,
     servername,
-    ca: caFile ? readFileSync(caFile, 'utf-8') : undefined,
     checkServerIdentity: (_hostname: string, peerCertificate: tls.PeerCertificate) => {
-      const identityError = tls.checkServerIdentity(servername, peerCertificate);
-      if (identityError) {
-        return identityError;
-      }
-
-      if (!expectedFingerprint) {
-        return undefined;
-      }
-
-      const actualFingerprint = getTlsPinnedFingerprint(peerCertificate);
-      if (!actualFingerprint) {
-        return new Error('Managed MCP websocket TLS pinning failed: peer certificate does not expose fingerprint material');
-      }
-
-      if (actualFingerprint !== normalizeFingerprint(expectedFingerprint)) {
-        return new Error('Managed MCP websocket TLS pinning failed: peer certificate fingerprint mismatch');
-      }
-
-      return undefined;
+      return tls.checkServerIdentity(servername, peerCertificate);
     },
   };
 }
 
 function getManagedClientTlsOptions(
   wsUrl: string,
-  config: Pick<ManagedClientRuntimeConfig, 'tlsServername' | 'tlsCaFile' | 'tlsPinSha256'>,
+  config: Pick<ManagedClientRuntimeConfig, 'tlsServername'>,
 ): (WebSocketClientOptions & tls.ConnectionOptions) | undefined {
   const tlsOptions = getManagedClientTlsConnectionOptions(wsUrl, config);
   if (!tlsOptions) {
@@ -164,7 +149,7 @@ function getDesktopWebSocketUrl(baseUrl: string, token: string | null): string {
   return url.toString();
 }
 
-export async function validateManagedClientTlsConfig(config: Pick<ManagedClientRuntimeConfig, 'baseUrl' | 'tlsServername' | 'tlsCaFile' | 'tlsPinSha256'>): Promise<{
+export async function validateManagedClientTlsConfig(config: Pick<ManagedClientRuntimeConfig, 'baseUrl' | 'tlsServername'>): Promise<{
   valid: boolean;
   skipped: boolean;
   wsUrl: string;
@@ -313,6 +298,7 @@ export class ManagedClientMcpWsRuntime {
   private loopPromise: Promise<void> | null = null;
   private abortController: AbortController | null = null;
   private socket: WebSocket | null = null;
+  private readonly defenseLayer;
   private pullStatus: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed' = 'idle';
   private pulledTaskCount = 0;
   private emptyPollCount = 0;
@@ -333,7 +319,9 @@ export class ManagedClientMcpWsRuntime {
   constructor(
     private readonly config: ManagedClientRuntimeConfig,
     private readonly sessionManager: SessionManager,
-  ) {}
+  ) {
+    this.defenseLayer = createManagedClientDefenseLayer(config);
+  }
 
   start(): void {
     if (!this.config.enabled || this.running) {
@@ -637,6 +625,7 @@ export class ManagedClientMcpWsRuntime {
   private async openSocket(wsUrl: string, signal: AbortSignal): Promise<WebSocket> {
     return new Promise<WebSocket>((resolve, reject) => {
       const socket = new WebSocket(wsUrl, getManagedClientTlsOptions(wsUrl, this.config));
+      const servername = this.config.tlsServername?.trim() || new URL(wsUrl).hostname;
       const onAbort = () => {
         socket.close();
         reject(new Error('Managed MCP websocket connection aborted'));
@@ -648,6 +637,12 @@ export class ManagedClientMcpWsRuntime {
         signal.removeEventListener('abort', onAbort);
         this.lastPollStatus = 101;
         this.lastPolledAt = new Date().toISOString();
+        const tlsSocket = getWebSocketTlsSocket(socket);
+        if (tlsSocket) {
+          const tlsTrustLog = buildTlsTrustLogPayload(wsUrl, servername, tlsSocket);
+          console.log('[managed-client-mcp-ws] TLS trust status', tlsTrustLog);
+          this.appendAuditEntry('[managed-client-mcp-ws] tls trust status', tlsTrustLog, tlsSocket.authorized ? 0 : 1);
+        }
         this.appendAuditEntry('[managed-client-mcp-ws] socket open', { wsUrl }, 0);
         emitServerEvent('managed-client-mcp-ws:connected', { wsUrl });
         resolve(socket);
@@ -655,6 +650,13 @@ export class ManagedClientMcpWsRuntime {
 
       socket.once('error', (error) => {
         signal.removeEventListener('abort', onAbort);
+        const tlsSocket = getWebSocketTlsSocket(socket);
+        if (tlsSocket && tlsSocket.authorizationError) {
+          const tlsTrustLog = buildTlsTrustLogPayload(wsUrl, servername, tlsSocket);
+          console.log('[managed-client-mcp-ws] TLS trust status', tlsTrustLog);
+          this.appendAuditEntry('[managed-client-mcp-ws] tls trust status', tlsTrustLog, 1, toErrorMessage(tlsSocket.authorizationError));
+        }
+
         reject(error instanceof Error ? error : new Error(String(error)));
       });
 
@@ -852,6 +854,44 @@ export class ManagedClientMcpWsRuntime {
       return;
     }
 
+    const requestInspection = await this.defenseLayer.inspectToolCall({
+      requestId,
+      connectionId: this.connectionId,
+      toolName,
+      argumentsPayload,
+      rawPayload: payload,
+      binding,
+      runtimeConfig: {
+        baseUrl: this.config.baseUrl,
+        clientId: this.config.clientId,
+        clientName: this.config.clientName,
+        mode: this.config.mode,
+      },
+    });
+
+    if (!requestInspection.allowed) {
+      const message = requestInspection.message ?? `Desktop tool call blocked by defense layer: ${toolName}`;
+      this.pullStatus = 'task-failed';
+      this.lastTaskCommand = toolName;
+      this.lastPolledAt = new Date().toISOString();
+      this.appendAuditEntry(`[managed-client-mcp-ws] tool_call blocked: ${toolName}`, {
+        requestId,
+        toolName,
+        source: binding.source,
+        sourceName: binding.sourceName,
+        findings: requestInspection.findings,
+      }, 1, message);
+      emitServerEvent('managed-client-mcp-ws:task:blocked', {
+        requestId,
+        toolName,
+        code: requestInspection.code ?? 'tool_call_blocked',
+      });
+      await this.sendToolError(socket, requestId, requestInspection.code ?? 'tool_call_blocked', message);
+      return;
+    }
+
+    const effectiveArgumentsPayload = requestInspection.argumentsPayload;
+
     this.pullStatus = 'task-assigned';
     this.pulledTaskCount += 1;
     this.lastTaskCommand = toolName;
@@ -859,16 +899,36 @@ export class ManagedClientMcpWsRuntime {
     this.appendAuditEntry('[managed-client-mcp-ws] tool_call received', {
       requestId,
       toolName,
-      arguments: argumentsPayload,
+      arguments: effectiveArgumentsPayload,
+      defenseFindings: requestInspection.findings,
     }, 0);
     emitServerEvent('managed-client-mcp-ws:task:started', { requestId, toolName });
 
     try {
-      const { result } = await this.toolRegistry!.callTool(toolName, argumentsPayload);
+      const { result } = await this.toolRegistry!.callTool(toolName, effectiveArgumentsPayload);
       const text = flattenToolResult(result);
 
       if (result.isError) {
-        const message = text && text !== '(no output)' ? text : 'Tool execution failed';
+        const rawMessage = text && text !== '(no output)' ? text : 'Tool execution failed';
+        const responseInspection = await this.defenseLayer.inspectToolResponse({
+          requestId,
+          connectionId: this.connectionId,
+          toolName,
+          binding,
+          success: false,
+          responseText: rawMessage,
+          responseMode: 'error',
+          rawResult: result,
+          runtimeConfig: {
+            baseUrl: this.config.baseUrl,
+            clientId: this.config.clientId,
+            clientName: this.config.clientName,
+            mode: this.config.mode,
+          },
+        });
+        const message = responseInspection.allowed
+          ? responseInspection.responseText
+          : (responseInspection.message ?? `Desktop tool response blocked by defense layer: ${toolName}`);
         this.pullStatus = 'task-failed';
         this.lastTaskCommand = toolName;
         this.appendAuditEntry(`[managed-client-mcp-ws] tool_call failed: ${toolName}`, {
@@ -877,29 +937,74 @@ export class ManagedClientMcpWsRuntime {
           source: binding.source,
           sourceName: binding.sourceName,
           result,
+          defenseFindings: responseInspection.findings,
         }, 1, message);
         emitServerEvent('managed-client-mcp-ws:task:completed', {
           requestId,
           toolName,
           success: false,
         });
-        await this.sendToolError(socket, requestId, 'tool_execution_failed', message);
+        await this.sendToolError(socket, requestId, responseInspection.allowed ? 'tool_execution_failed' : (responseInspection.code ?? 'tool_response_blocked'), message);
         return;
       }
 
       const permissionProfile = getBuiltInToolsSecurityConfig().permissionProfile;
       const resultMode = getManagedClientToolResultMode(permissionProfile, toolName, binding.source);
+      const outboundResponseText = resultMode === 'full'
+        ? (text && text !== '(no output)' ? text : '(no output)')
+        : JSON.stringify(resultMode === 'handle'
+          ? buildMinimalToolSuccessPayload(toolName, result)
+          : { success: true });
+      const responseInspection = await this.defenseLayer.inspectToolResponse({
+        requestId,
+        connectionId: this.connectionId,
+        toolName,
+        binding,
+        success: true,
+        responseText: outboundResponseText,
+        responseMode: resultMode,
+        rawResult: result,
+        runtimeConfig: {
+          baseUrl: this.config.baseUrl,
+          clientId: this.config.clientId,
+          clientName: this.config.clientName,
+          mode: this.config.mode,
+        },
+      });
+
+      if (!responseInspection.allowed) {
+        const message = responseInspection.message ?? `Desktop tool response blocked by defense layer: ${toolName}`;
+        this.pullStatus = 'task-failed';
+        this.lastTaskCommand = toolName;
+        this.appendAuditEntry(`[managed-client-mcp-ws] tool_call response blocked: ${toolName}`, {
+          requestId,
+          toolName,
+          source: binding.source,
+          sourceName: binding.sourceName,
+          result,
+          defenseFindings: responseInspection.findings,
+        }, 1, message);
+        emitServerEvent('managed-client-mcp-ws:task:completed', {
+          requestId,
+          toolName,
+          success: false,
+        });
+        await this.sendToolError(socket, requestId, responseInspection.code ?? 'tool_response_blocked', message);
+        return;
+      }
 
       if (resultMode === 'full') {
-        if (text && text !== '(no output)') {
-          await this.sendToolResultChunk(socket, requestId, text, false);
+        if (responseInspection.responseText && responseInspection.responseText !== '(no output)') {
+          await this.sendToolResultChunk(socket, requestId, responseInspection.responseText, false);
         }
-        await this.sendToolResultChunk(socket, requestId, text && text !== '(no output)' ? '\n[completed]' : '(no output)', true);
+        await this.sendToolResultChunk(
+          socket,
+          requestId,
+          responseInspection.responseText && responseInspection.responseText !== '(no output)' ? '\n[completed]' : '(no output)',
+          true,
+        );
       } else {
-        const payload = resultMode === 'handle'
-          ? buildMinimalToolSuccessPayload(toolName, result)
-          : { success: true };
-        await this.sendToolResultChunk(socket, requestId, JSON.stringify(payload), true);
+        await this.sendToolResultChunk(socket, requestId, responseInspection.responseText, true);
       }
 
       this.pullStatus = 'task-completed';
@@ -910,6 +1015,7 @@ export class ManagedClientMcpWsRuntime {
         source: binding.source,
         sourceName: binding.sourceName,
         result,
+        defenseFindings: responseInspection.findings,
       }, 0);
       emitServerEvent('managed-client-mcp-ws:task:completed', {
         requestId,
