@@ -1,78 +1,131 @@
-# managed-client-mcp-ws Tool Call 认证与用户绑定工程结论
+# managed-client-mcp-ws 抗中间人攻击设计文档
 
-## 背景
+## 1. 文档目的
 
-当前 `managed-client-mcp-ws` 模式已经具备两层基础认证能力：
+本文面向当前 `managed-client-mcp-ws` 模型，回答两个问题：
 
-1. `client -> server` 通过 Bearer Token 完成客户端身份认证
-2. `server -> client` 通过 TLS 完成服务端身份认证
+1. 在现有 `Bearer Token + TLS + WebSocket tool_call` 架构下，如何系统性降低中间人攻击风险
+2. 客户端和服务端分别需要承担哪些职责，协议需要增加哪些字段和校验
 
-这两层已经能解决：
+本文不是泛泛讨论 TLS 常识，而是给出一份可落地的 client/server 设计，便于后续协议改造、代码实现和安全验收。
 
-1. 客户端是否已登录并被服务端接受
-2. 客户端当前连接的是否是受信任的目标服务端
+## 2. 当前模型与已知现状
 
-但当前仍然缺少一层更细粒度的校验：
+当前 `managed-client-mcp-ws` 模型大致如下：
 
-1. 某条 `tool_call` 是否来自当前这条已建立的合法连接
-2. 某条 `tool_call` 是否确实属于当前登录用户
-3. 某条 `tool_call` 是否确实发给当前这个 client，而不是串到了别的 client
+1. Desktop client 通过浏览器登录或静态 Token 获取访问凭证
+2. Client 主动向服务端发起 `wss` WebSocket 连接
+3. 服务端发送 `session_opened`
+4. Client 发送 `register`
+5. Client 发送 `update_tools`
+6. 服务端发送 `tool_call`
+7. Client 执行本地工具并通过 `tool_result_chunk` / `tool_error` 返回结果
 
-换句话说，当前问题不是“链路是不是加密的”，而是“请求是不是属于当前登录用户和当前 client”。
+当前实现里，已经具备以下基础能力：
 
-## 目标
+1. 非 localhost 场景强制要求 `https` / `wss`
+2. TLS 默认启用服务端证书校验与 hostname 校验
+3. 客户端在握手阶段能拿到 `connection_id`
+4. 文档和协议方向已经明确需要做 `user_id/client_id/connection_id` 的请求级绑定
 
-目标是在 `managed-client-mcp-ws` 协议里补齐请求级身份绑定，使客户端在执行 `tool_call` 之前，能够明确拒绝以下情况：
+但如果讨论“防止中间人攻击”，当前能力还不够完整，原因在于：
 
-1. 服务端把别的用户的请求发到了当前 client
-2. 服务端把别的 client 的请求发到了当前 client
-3. 旧连接或错误连接上的请求串到了当前连接
-4. 缺少身份字段、无法判断归属的 `tool_call`
+1. TLS 只能保护链路，不自动保护业务消息的归属关系
+2. Bearer Token 一旦被窃取，本身不具备持有者证明能力
+3. 仅靠 `user_id/client_id/connection_id` 绑定，可以解决串用户和串连接，但不能完全解决重放和消息篡改
+4. 当前 token 仍通过 URL query 传递，存在日志泄漏和代理侧暴露面
 
-本阶段先做最小可用版本，不引入请求签名，只做强绑定校验。
+因此，抗中间人设计必须拆成两层：
 
-## 当前协议现状
+1. 传输层防护，阻断网络路径上的传统 MITM
+2. 请求层绑定与签名，阻断连接内串改、重放、错误路由和部分受信边界内 MITM
 
-当前 `managed-client-mcp-ws` 大致流程如下：
+## 3. 威胁模型
 
-1. 客户端建立 WebSocket 连接
-2. 服务端发送 `session_opened`
-3. 客户端发送 `register`
-4. 客户端发送 `update_tools`
-5. 服务端发送 `tool_call`
+本文重点覆盖以下攻击面：
 
-当前握手阶段已知字段：
+1. 攻击者位于 client 与服务端之间，试图解密、篡改或注入 `tool_call`
+2. 攻击者通过错误代理、错误路由、消息总线串包，把别的用户请求送到当前 client
+3. 攻击者重放旧的 `tool_call`，诱导 client 重复执行本地动作
+4. 攻击者窃取 Bearer Token 后建立看似合法的新连接
+5. TLS 在外层终止后，内网链路上的组件继续篡改消息
 
-1. `session_opened.payload.connection_id`
-2. `register` 时客户端会发送：
-   - `client_id`
-   - `client_name`
+本文不试图解决以下问题：
 
-当前缺口：
+1. 本地机器已被攻破
+2. 服务端控制平面本身已被攻破并能合法地下发恶意请求
+3. `full-local-admin` 权限模式天然带来的高本地能力面
 
-1. 握手阶段没有稳定返回当前登录用户的 `user_id`
-2. `tool_call` 当前未要求携带：
-   - `user_id`
-   - `client_id`
-   - `connection_id`
-3. 客户端当前无法判断 `tool_call` 是否与当前登录用户匹配
+## 4. 安全目标
 
-## 最小可用方案
+针对当前模型，抗 MITM 的目标应明确为：
 
-### 一、握手阶段返回当前会话身份
+1. Client 必须能够确认对端确实是受信任服务端
+2. Client 必须能够确认一条 `tool_call` 确实属于当前用户、当前 client、当前连接
+3. Client 必须能够拒绝过期请求、重放请求和被篡改请求
+4. 服务端必须能够限制 token 泄漏后的复用窗口
+5. 整个链路中的日志、代理和中间层不应拿到可长期复用的认证材料
 
-服务端需要在握手阶段把当前会话的身份信息显式返回给客户端。
+## 5. 总体设计结论
 
-推荐做法：
+在当前 `managed-client-mcp-ws` 模型下，防止中间人攻击的建议方案不是单点修复，而是以下五层同时成立：
 
-1. 在 `session_opened` 中返回：
-   - `connection_id`
-2. 在 `register` 响应中返回：
-   - `ok`
-   - `client_id`
-   - `user_id`
-   - 可选：`tenant_id`
-   - 可选：`session_id`
+1. `wss + 严格证书校验 + 可选证书钉扎`，防网络 MITM
+2. 去掉 query-string token，改为握手头或首帧认证，防日志与代理泄漏
+3. `register` 返回并锁定 `user_id/client_id/connection_id/session_id`，防串会话
+4. 每个 `tool_call` 增加 `iat/exp/nonce/body_sha256/signature/key_id`，防篡改与重放
+5. Client 建立本地 replay cache 和严格拒绝策略，任何字段缺失或校验失败都不执行工具
+
+如果只能分阶段推进，则优先级如下：
+
+1. 第一阶段：强制 TLS、去掉 query token、补齐 `user_id/client_id/connection_id`
+2. 第二阶段：补 `iat/exp/nonce` 和 replay cache
+3. 第三阶段：补请求签名和服务端签名密钥轮换
+4. 第四阶段：按部署等级引入 mTLS、证书钉扎或 PoP Token
+
+## 6. 协议设计
+
+### 6.1 传输层要求
+
+生产环境协议要求如下：
+
+1. 非 loopback 地址只允许 `https` / `wss`
+2. 禁止从 `wss` 降级到 `ws`
+3. Client 必须启用 `rejectUnauthorized: true`
+4. Client 必须基于目标 hostname 做 SNI 与 hostname 校验
+5. 禁止使用 `NODE_TLS_REJECT_UNAUTHORIZED=0` 之类的绕过方式
+6. 如部署环境允许，增加 SPKI pin 或私有 CA pin 作为增强项
+
+推荐规则：
+
+1. 开发态仅允许 `localhost` 放宽到 loopback 特例
+2. 任何非 loopback 域名，只要证书不匹配，直接拒绝连接
+
+### 6.2 认证材料传递要求
+
+当前实现将 token 放在 `access_token` query 参数中，这不利于抗 MITM，原因如下：
+
+1. 反向代理日志可能记录完整 URL
+2. 监控、审计和错误追踪可能误收集 query
+3. 某些中间层会把 URL 作为高频可观测对象保留
+
+设计要求：
+
+1. 优先使用 `Authorization: Bearer <token>` 作为 WebSocket 握手头
+2. 如果基础设施不支持自定义握手头，则改为 WebSocket 建立后立刻发送一次性 `authenticate` 首帧
+3. 无论采用哪种方式，服务端都不得在日志中落明文 token
+4. token 必须是短期有效，且仅用于 desktop session 建立
+
+### 6.3 会话绑定字段
+
+在 `register` 成功后，服务端必须返回以下字段：
+
+1. `user_id`
+2. `client_id`
+3. `connection_id`
+4. `session_id`
+5. `server_key_id`
+6. `server_time`
 
 推荐响应示例：
 
@@ -82,30 +135,21 @@
   "id": "req-register-1",
   "ok": true,
   "payload": {
-    "client_id": "client-123",
     "user_id": "user-456",
-    "tenant_id": "tenant-789"
+    "client_id": "client-123",
+    "connection_id": "conn-abc",
+    "session_id": "sess-001",
+    "server_key_id": "sig-key-2026-04",
+    "server_time": "2026-04-03T08:30:00Z"
   }
 }
 ```
 
-客户端会将以下值保存为当前连接上下文：
+Client 必须把这些值保存为当前连接上下文，不允许跨连接复用。
 
-1. `expectedConnectionId`
-2. `expectedClientId`
-3. `expectedUserId`
+### 6.4 tool_call 信封设计
 
-### 二、每个 tool_call 都携带绑定字段
-
-服务端下发 `tool_call` 时，必须在 payload 中携带以下字段：
-
-1. `tool_name`
-2. `arguments`
-3. `user_id`
-4. `client_id`
-5. `connection_id`
-
-推荐 `tool_call` 示例：
+服务端下发 `tool_call` 时，不应只发送业务参数，而应发送完整信封：
 
 ```json
 {
@@ -113,41 +157,156 @@
   "id": "tool-call-001",
   "method": "tool_call",
   "params": {
+    "meta": {
+      "schema_version": "2026-04-01",
+      "request_id": "tool-call-001",
+      "session_id": "sess-001",
+      "connection_id": "conn-abc",
+      "user_id": "user-456",
+      "client_id": "client-123",
+      "iat": "2026-04-03T08:30:05Z",
+      "exp": "2026-04-03T08:30:35Z",
+      "nonce": "9d871f2e-5d31-4381-8d38-6b3d8c8f24c3",
+      "body_sha256": "base64url-sha256-of-canonical-body",
+      "key_id": "sig-key-2026-04",
+      "signature": "base64url-signature"
+    },
     "tool_name": "session_create",
     "arguments": {
       "command": "whoami"
-    },
-    "user_id": "user-456",
-    "client_id": "client-123",
-    "connection_id": "conn-abc"
+    }
   }
 }
 ```
 
-### 三、客户端执行前做强校验
+字段语义如下：
 
-客户端在执行 `tool_call` 之前，按以下顺序校验：
+1. `session_id` 用于标识当前认证会话
+2. `connection_id` 用于标识当前 WebSocket 连接
+3. `user_id` / `client_id` 用于标识归属
+4. `iat` / `exp` 用于限制请求时效
+5. `nonce` 用于单次请求唯一性
+6. `body_sha256` 用于防止 `tool_name` 或 `arguments` 被中间层篡改
+7. `key_id` 指定服务端用于签名的密钥版本
+8. `signature` 用于让 client 验证请求来源与完整性
 
-1. `tool_name` 存在
-2. 本地已存在当前连接上下文：
-   - `expectedConnectionId`
-   - `expectedClientId`
-   - `expectedUserId`
-3. `payload.user_id === expectedUserId`
-4. `payload.client_id === expectedClientId`
-5. `payload.connection_id === expectedConnectionId`
+### 6.5 签名对象定义
 
-任一失败，直接拒绝执行，并返回结构化错误。
+为避免两端 canonicalization 不一致，签名对象必须固定。推荐签名输入为以下 JSON 结构的 canonical form：
 
-推荐错误码：
+```json
+{
+  "schema_version": "2026-04-01",
+  "request_id": "tool-call-001",
+  "session_id": "sess-001",
+  "connection_id": "conn-abc",
+  "user_id": "user-456",
+  "client_id": "client-123",
+  "iat": "2026-04-03T08:30:05Z",
+  "exp": "2026-04-03T08:30:35Z",
+  "nonce": "9d871f2e-5d31-4381-8d38-6b3d8c8f24c3",
+  "tool_name": "session_create",
+  "arguments": {
+    "command": "whoami"
+  }
+}
+```
 
-1. `missing_binding`
-2. `user_mismatch`
-3. `client_mismatch`
-4. `connection_mismatch`
-5. `unbound_session`
+签名算法建议：
 
-推荐错误示例：
+1. 首选 `Ed25519`
+2. 备选 `ES256`
+3. 不建议自行拼接字符串后做 HMAC，除非 client 与 server 确实共享会话级对称密钥，并且密钥分发有清晰设计
+
+## 7. Client 设计
+
+### 7.1 Client 安全职责
+
+Client 不是被动执行器，而是本地最后一道安全边界。Client 必须承担以下职责：
+
+1. 验证 TLS 对端
+2. 保存当前连接上下文
+3. 验证每个 `tool_call` 的归属、时效、唯一性和签名
+4. 对校验失败请求直接拒绝，不执行本地工具
+5. 记录审计日志，但不能把敏感 token 打进日志
+
+### 7.2 Client 状态机
+
+推荐 client 状态如下：
+
+1. `disconnected`
+2. `tls_connected`
+3. `session_opened`
+4. `registered`
+5. `ready`
+6. `closing`
+
+只有进入 `ready` 后，才允许处理 `tool_call`。
+
+Client 必须在 `registered` 阶段保存：
+
+1. `expectedUserId`
+2. `expectedClientId`
+3. `expectedConnectionId`
+4. `expectedSessionId`
+5. `expectedServerKeyId`
+6. `serverClockOffsetMs`
+
+### 7.3 Client 校验顺序
+
+Client 收到 `tool_call` 后，必须按固定顺序校验：
+
+1. `tool_name` 是否存在
+2. `meta` 是否完整存在
+3. 当前连接上下文是否已经建立完成
+4. `user_id` 是否等于 `expectedUserId`
+5. `client_id` 是否等于 `expectedClientId`
+6. `connection_id` 是否等于 `expectedConnectionId`
+7. `session_id` 是否等于 `expectedSessionId`
+8. `key_id` 是否是当前允许的服务端签名密钥
+9. `iat` / `exp` 是否在允许的时钟偏移窗口内
+10. `nonce` 是否已在 replay cache 中出现过
+11. `body_sha256` 是否与实际 `tool_name + arguments` 匹配
+12. `signature` 是否校验通过
+
+任一失败，必须终止执行，并返回结构化错误。
+
+### 7.4 Client replay cache
+
+为防止重放，client 必须维护本连接级 replay cache：
+
+1. key 为 `session_id + nonce`
+2. TTL 至少覆盖 `exp` 窗口，建议 5 到 10 分钟
+3. 连接断开后立即清空旧连接缓存
+4. 若发现重复 nonce，直接返回 `replay_detected`
+
+### 7.5 Client 密钥信任模型
+
+Client 验证 `tool_call.signature` 时，需要一个可信公钥来源。推荐按以下优先级实现：
+
+1. 最佳方案：桌面应用内置服务端签名公钥或其指纹，并支持 `key_id` 轮换
+2. 次优方案：桌面应用内置受信任 CA 或租户级 key manifest，并通过受控更新分发
+3. 过渡方案：在已验证 TLS 连接上获取公钥，但仅能抵御网络 MITM，无法完全抵御 TLS 终止后的内部中间层篡改
+
+如果目标只是先阻断网络 MITM，第三种可作为过渡；如果目标包含“防止受信边界内错误代理篡改消息”，则必须采用第一或第二种。
+
+### 7.6 Client 错误码
+
+建议固定错误码如下：
+
+1. `unbound_session`
+2. `missing_binding`
+3. `user_mismatch`
+4. `client_mismatch`
+5. `connection_mismatch`
+6. `session_mismatch`
+7. `stale_request`
+8. `replay_detected`
+9. `body_hash_mismatch`
+10. `invalid_signature`
+11. `invalid_server_key`
+
+推荐错误响应示例：
 
 ```json
 {
@@ -155,246 +314,223 @@
   "event": "tool_error",
   "payload": {
     "request_id": "tool-call-001",
-    "code": "user_mismatch",
-    "message": "tool_call user_id does not match the authenticated desktop session"
+    "code": "invalid_signature",
+    "message": "tool_call signature verification failed",
+    "connection_id": "conn-abc"
   }
 }
 ```
 
-## 客户端预期行为
+### 7.7 Client 审计要求
 
-服务端支持上述字段后，客户端侧将做如下行为：
+Client audit log 至少要记录：
 
-1. 在握手阶段保存当前连接的：
-   - `connection_id`
-   - `client_id`
-   - `user_id`
-2. 拒绝任何缺少绑定字段的 `tool_call`
-3. 拒绝任何与当前会话身份不匹配的 `tool_call`
-4. 在 audit log 中记录拒绝原因，但不执行本地工具
+1. 当前 `connection_id`
+2. 当前 `session_id`
+3. 当前 `user_id`
+4. 当前 `client_id`
+5. 被拒绝请求的 `request_id`
+6. `tool_name`
+7. 拒绝原因错误码
 
-## 为什么这一步是必要的
+Client audit log 不应记录：
 
-TLS 只能证明：
+1. Bearer Token 明文
+2. 原始签名密钥材料
+3. 完整未脱敏的高风险工具参数
 
-1. 当前连接对端是受信任服务端
+## 8. Server 设计
 
-Bearer token 只能证明：
+### 8.1 Server 安全职责
 
-1. 当前 client 登录成功了
+服务端需要承担的职责不是“把请求发给 client”这么简单，而是：
 
-但这两者都不能自动证明：
+1. 为每条连接建立可信认证上下文
+2. 为每个 `tool_call` 注入完整归属信息
+3. 为每个 `tool_call` 生成防重放元数据和签名
+4. 控制 token 生命周期与签名密钥轮换
+5. 避免任何中间层拿到可长期复用的认证材料
 
-1. 这条 `tool_call` 属于当前登录用户
-2. 这条 `tool_call` 属于当前这个 client
+### 8.2 Server 会话建立
 
-因此必须补一层“请求级身份绑定”。
+服务端在 WebSocket 握手成功后，必须立刻建立不可变的连接上下文：
 
-## 为什么本阶段先不做签名
+1. `authenticated_user_id`
+2. `authenticated_client_id`
+3. `connection_id`
+4. `session_id`
+5. `issued_at`
+6. `auth_strength`
+7. `signing_key_id`
 
-更强版本可以在 `tool_call` 上增加签名、过期时间和防重放字段，例如：
+这些字段必须来源于统一的认证链路，不能由业务层任意传入。
 
-1. `iat`
-2. `exp`
-3. `nonce`
-4. `signature`
+### 8.3 Server tool_call 构造规则
 
-但当前最明显的缺口不是“缺少签名”，而是“缺少最基础的 user/client/connection 绑定”。
+服务端在发送 `tool_call` 前必须做到：
 
-因此分阶段推进更合理：
+1. 从连接上下文中读取 `user_id/client_id/connection_id/session_id`
+2. 生成新的 `request_id`
+3. 生成新的 `nonce`
+4. 设置较短的 `exp`，建议 15 到 30 秒
+5. 计算业务体 canonical form 的摘要
+6. 使用当前活动签名私钥生成 `signature`
 
-1. 第一阶段：先做 `user_id/client_id/connection_id` 强绑定
-2. 第二阶段：再做 `iat/exp/nonce/signature`
+明确禁止：
 
-## 服务端改造要求
+1. 业务调用方自行填 `user_id/client_id/connection_id`
+2. 下游服务在离开认证边界后再拼装签名
+3. 使用无限期有效的 `tool_call`
+4. 对同一 `request_id` 重复发送不同业务体
 
-服务端至少需要完成以下改动：
+### 8.4 Server 密钥管理
 
-1. `register` 响应返回当前认证上下文中的 `user_id`
-2. 保证 `register` 响应中的 `client_id` 与当前连接绑定一致
-3. 每个 `tool_call` 都填充：
-   - `user_id`
-   - `client_id`
-   - `connection_id`
-4. 服务端下发前确保这三个字段来自同一个已认证会话，而不是业务层任意拼装
+服务端需要独立的消息签名密钥，而不是直接复用 TLS 证书私钥。建议如下：
 
-## 推荐兼容策略
+1. 签名密钥单独托管在 KMS/HSM 或至少受限密钥存储中
+2. 每个环境使用独立 `key_id`
+3. 支持新旧 key 短期并行，便于 client 平滑轮换
+4. 密钥轮换周期建议按月或按季度
+5. 签名失败时不得降级为“无签名照常下发”
 
-为了避免客户端和服务端同时切换导致中断，推荐按以下顺序推进：
+### 8.5 Server 防重放设计
 
-1. 服务端先支持在 `register` 响应中返回 `user_id/client_id`
-2. 服务端开始为 `tool_call` 附带 `user_id/client_id/connection_id`
-3. 客户端上线严格校验逻辑
-4. 如有历史客户端，服务端可在短期内保留兼容模式
-5. 一旦新版客户端稳定，服务端再去掉无绑定字段的旧路径
+虽然 client 会做 replay cache，但服务端也应做最小防重放控制：
 
-## 后续增强方向
+1. `request_id` 全局唯一
+2. `nonce` 单次唯一
+3. 已发送但未过期的 `request_id` 不允许重新签发不同内容
+4. 对超时未执行的请求可显式标记废弃
 
-完成本阶段后，建议继续增加以下能力：
+### 8.6 Server 日志与代理要求
 
-1. `tool_call` 增加 `iat` 和 `exp`
-2. `tool_call` 增加 `nonce` 防重放
-3. 对请求体做签名，防止错误路由或内部消息串改
-4. 对高风险工具增加服务端侧二次授权或审批
+服务端与网关必须遵守以下要求：
 
-## 一句话结论
+1. 任何访问日志不得记录 token query 或认证头明文
+2. 若仍处于过渡期使用 query token，网关必须显式 scrub
+3. 内部反向代理到 WebSocket Hub 的链路建议继续保持 TLS
+4. 如存在多跳代理，至少在 trust boundary 之间使用 mTLS
 
-本阶段的核心不是重新做 TLS，而是在现有 TLS 与 Bearer Token 之上，补齐 `tool_call` 的请求级身份绑定。
+## 9. Client 与 Server 交互流程
 
-最小要求就是：
+推荐交互顺序如下：
 
-1. `register` 返回当前 `user_id`
-2. `tool_call` 携带 `user_id/client_id/connection_id`
-3. 客户端执行前必须逐项匹配，否则拒绝执行
+1. Client 以 `wss` 建立连接，并验证证书
+2. 服务端发送 `session_opened(connection_id)`
+3. Client 发送 `register(client_id, client_name)`
+4. Server 校验 token，并返回 `user_id/client_id/connection_id/session_id/server_key_id/server_time`
+5. Client 保存连接上下文，并切换到 `ready`
+6. Server 下发带 `meta + signature` 的 `tool_call`
+7. Client 校验归属、时效、nonce、hash、signature
+8. 仅在全部通过后执行工具
+9. Client 返回 `tool_result_chunk` 或 `tool_error`
 
-## 风险变化结论
+第 7 步是关键边界。只要任一项失败，client 就必须视为潜在 MITM、串包或重放，而不是“先执行再说”。
 
-这一阶段落地后，风险不会归零，但会明显下降，尤其是以下几类风险：
+## 10. 分阶段落地建议
 
-1. 服务端把 A 用户请求误发给 B 用户客户端
-2. 服务端把别的 client 的请求串给当前 client
-3. 旧连接上的请求被错误复用到当前连接
-4. 缺少身份上下文的 `tool_call` 被客户端直接执行
+### 阶段一：最小可用抗 MITM 基线
 
-这一阶段不能单独解决的风险：
+目标：先把最明显的 MITM 与串会话风险降下来。
 
-1. 本地机器已经失陷或被注入
-2. Bearer Token 在其他路径泄漏后被重新建立合法会话
-3. 服务端本身已被攻破且能够合法地产生恶意请求
-4. `full-local-admin` 模式下本地能力面天然仍然较大
+服务端改造：
 
-结论上，这一阶段会把 `managed-client-mcp-ws` 从“只具备链路可信”推进到“链路可信 + 请求归属可信”。
+1. 生产环境仅允许 `https` / `wss`
+2. `register` 返回 `user_id/client_id/connection_id/session_id`
+3. 每个 `tool_call` 都带 `user_id/client_id/connection_id/session_id`
+4. token 从 query 迁移到 header 或首帧认证
 
-## 工程决策
+客户端改造：
 
-本项目当前建议按以下顺序推进，而不是直接引入请求签名：
+1. 严格拒绝证书错误和 hostname 不匹配
+2. 保存完整连接上下文
+3. 缺字段或归属不匹配一律拒绝
 
-1. 先落地 `user_id/client_id/connection_id` 强绑定
-2. 再补 `iat/exp/nonce`
-3. 最后视需要补 `signature`
+### 阶段二：防重放
 
-原因：
+服务端改造：
 
-1. 当前最大的缺口是没有请求归属字段，而不是缺少签名
-2. 先补归属字段，能以最低协议复杂度解决最现实的串用户和串 client 风险
-3. 直接上签名会显著增加前后端复杂度，但不能替代最基础的会话绑定
+1. `tool_call` 增加 `iat/exp/nonce`
+2. 请求过期窗口收紧到 15 到 30 秒
 
-## 实施范围
+客户端改造：
 
-### 客户端范围
+1. 增加本地时钟偏移处理
+2. 增加 replay cache
+3. 对过期和重复 nonce 的请求一律拒绝
 
-客户端改造完成后，预期行为如下：
+### 阶段三：防篡改
 
-1. 握手阶段保存当前连接上下文：
-  - `expectedConnectionId`
-  - `expectedClientId`
-  - `expectedUserId`
-2. `tool_call` 到达时先做身份绑定校验，再决定是否执行本地工具
-3. 缺字段或不匹配一律拒绝执行
-4. 拒绝事件写入 audit log，并上报结构化错误码
+服务端改造：
 
-### 服务端范围
+1. 引入签名私钥与 `key_id`
+2. 对 canonical request 进行签名
 
-服务端改造完成后，预期行为如下：
+客户端改造：
 
-1. `register` 响应返回与当前认证上下文一致的 `user_id/client_id`
-2. `tool_call` 下发前强制附带：
-  - `user_id`
-  - `client_id`
-  - `connection_id`
-3. 这三个字段必须来自同一个已认证连接，而不是业务层临时拼接
-4. 对历史客户端可保留短期兼容路径，但默认新路径应为强绑定模式
+1. 内置或受控分发服务端公钥
+2. 校验 `body_sha256` 和 `signature`
+3. 对 `invalid_signature` 做高优先级审计
 
-## 推荐上线顺序
+### 阶段四：高安全部署增强
 
-建议按以下阶段推进：
+可选增强：
 
-1. 文档对齐：明确协议字段、错误码、兼容窗口
-2. 服务端先补 `register` 响应中的 `user_id/client_id`
-3. 服务端开始在 `tool_call` 中携带 `user_id/client_id/connection_id`
-4. 客户端上线严格校验逻辑并默认拒绝缺失绑定字段的请求
-5. 观测稳定后，服务端移除旧的无绑定字段路径
+1. mTLS
+2. 证书钉扎
+3. PoP Token 或 DPoP 风格持有者证明
+4. 高风险工具增加二次授权
 
-## 验收标准
+## 11. 验收标准
 
 ### 功能验收
 
-满足以下条件可认为第一阶段完成：
-
-1. 客户端握手完成后能拿到并保存当前连接的：
-  - `connection_id`
-  - `client_id`
-  - `user_id`
-2. 服务端下发的每个 `tool_call` 都包含：
-  - `user_id`
-  - `client_id`
-  - `connection_id`
-3. 客户端仅在三项全部匹配时才执行工具
-4. 任一字段缺失或不匹配时，客户端返回结构化错误，不执行工具
+1. Client 只在 `ready` 状态处理 `tool_call`
+2. `register` 成功后 client 能保存 `user_id/client_id/connection_id/session_id`
+3. 每个 `tool_call` 都包含完整 `meta`
+4. 任何一项校验失败都不会执行本地工具
 
 ### 安全验收
 
 至少覆盖以下负向用例：
 
-1. `tool_call.user_id` 与当前登录用户不同，应拒绝
-2. `tool_call.client_id` 与当前 client 不同，应拒绝
-3. `tool_call.connection_id` 与当前连接不同，应拒绝
-4. `tool_call` 缺少任一绑定字段，应拒绝
-5. 连接重建后，旧连接残留请求应拒绝
+1. 证书 hostname 不匹配，连接失败
+2. `tool_call.user_id` 不匹配，拒绝
+3. `tool_call.client_id` 不匹配，拒绝
+4. `tool_call.connection_id` 不匹配，拒绝
+5. `tool_call.session_id` 不匹配，拒绝
+6. `tool_call.exp` 已过期，拒绝
+7. `tool_call.nonce` 重复，拒绝
+8. `tool_call.arguments` 被篡改导致 `body_sha256` 不匹配，拒绝
+9. `tool_call.signature` 非法，拒绝
 
 ### 观测验收
 
-客户端 audit/event 中至少应能观测到：
+1. 审计日志能区分 `user_mismatch`、`connection_mismatch`、`replay_detected`、`invalid_signature`
+2. 不记录 token 明文
+3. 能从日志中关联 `request_id`、`connection_id`、`session_id`
 
-1. 当前连接保存的 `connection_id/client_id/user_id`
-2. 拒绝执行的错误码
-3. 被拒绝请求的 `requestId/toolName`
-4. 是否发生了 `user_mismatch/client_mismatch/connection_mismatch`
+## 12. 残留风险
 
-## 建议错误码语义
+即使本文方案全部落地，仍然有以下残留风险：
 
-为便于联调和日志分析，建议错误码语义固定：
+1. 本地终端已被恶意软件控制
+2. 服务端本身已被攻破，能合法产生有效签名请求
+3. 使用 `full-local-admin` 时，本地工具能力面本来就高
+4. 如果 client 仅通过当前 TLS 会话动态拿公钥，而没有做公钥钉扎，则无法完全防住 TLS 终止后的内部中间层
 
-1. `unbound_session`
-  - 客户端还没有建立完整的会话绑定上下文
-2. `missing_binding`
-  - `tool_call` 缺少必须字段
-3. `user_mismatch`
-  - `tool_call.user_id` 不匹配当前登录用户
-4. `client_mismatch`
-  - `tool_call.client_id` 不匹配当前 client
-5. `connection_mismatch`
-  - `tool_call.connection_id` 不匹配当前连接
+因此，这份设计的真实目标不是“绝对不可能被攻击”，而是把 `managed-client-mcp-ws` 从“只有链路机密性”推进到“链路机密性 + 请求归属可信 + 请求完整性可信 + 请求时效可信”。
 
-## 本阶段完成后的安全收益
+## 13. 一句话结论
 
-第一阶段完成后，可以认为本地 client 的暴露面风险会有明显下降，主要体现在：
+在当前 `managed-client-mcp-ws` 模型下，防止中间人攻击不能只靠 TLS，也不能只靠 `user_id/client_id/connection_id` 绑定。
 
-1. 合法服务端上的错误路由请求不再能被静默执行
-2. 错用户、错 client、错连接的 `tool_call` 会被客户端主动拒绝
-3. 即使链路 TLS 正常，客户端也不会盲目信任所有来自该连接的 `tool_call`
+可落地的正确做法是：
 
-更准确地说，这一阶段让客户端从“信任这条连接”升级到“信任这条连接上与当前用户和当前 client 匹配的请求”。
+1. 强制 `wss` 和严格证书校验
+2. 去掉 query-string token
+3. 在 `register` 后锁定 `user_id/client_id/connection_id/session_id`
+4. 为每个 `tool_call` 增加 `iat/exp/nonce/body_sha256/signature`
+5. 由 client 做严格校验，任何失败都不执行本地工具
 
-## 残留风险与后续优先级
-
-第一阶段之后，仍建议继续按以下优先级推进：
-
-1. 去掉 query-string token，改用更合适的握手认证传递方式
-2. 增加 `iat/exp`，收紧请求时效窗口
-3. 增加 `nonce`，降低重放风险
-4. 对请求体做签名，降低内部消息串改风险
-5. 对高风险工具引入更强审批或服务端二次授权
-
-这是因为第一阶段解决的是“请求归属”，不是“请求不可重放”或“服务端内部不可篡改”。
-
-## 工程结论
-
-如果目标是尽快把 `managed-client-mcp-ws` 推进到更接近生产可接受的状态，那么第一阶段最值得优先落地的不是请求签名，而是 `tool_call` 的会话绑定与用户绑定。
-
-原因很直接：
-
-1. 改动面相对可控
-2. 风险收益非常直接
-3. 能显著降低串用户、串 client、串连接导致的本地暴露面误执行问题
-4. 可以为后续 `iat/exp/nonce/signature` 提供稳定基础
+只有这样，当前模型才算具备较完整的抗 MITM 能力。
