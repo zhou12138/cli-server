@@ -186,7 +186,7 @@ let managedClientSigninPromise: Promise<{ token: string; signinUrl: string }> | 
 let sessionNotificationEnabled = true;
 
 function buildBootstrapState() {
-  const runtimeStatus = managedClientRuntime?.getStatus() ?? null;
+  const runtimeStatus = managedClientRuntime?.getStatus();
   const mcpWsStatus = managedClientRuntime instanceof ManagedClientMcpWsRuntime
     ? managedClientRuntime.getStatus()
     : null;
@@ -440,8 +440,15 @@ app.whenReady().then(async () => {
       managedClientRuntime.start();
     }
 
-    refreshTray();
-    return buildBootstrapState();
+
+    return {
+      saved: true,
+      config: getBuiltInToolsSecurityConfig(),
+      applied,
+      toolCount,
+      tools,
+      reason,
+    };
   });
   ipcMain.handle('managed-client:signOut', async () => {
     managedClientRuntime?.stop();
