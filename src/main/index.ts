@@ -186,7 +186,7 @@ let managedClientSigninPromise: Promise<{ token: string; signinUrl: string }> | 
 let sessionNotificationEnabled = true;
 
 function buildBootstrapState() {
-  const runtimeStatus = managedClientRuntime?.getStatus() ?? null;
+  const runtimeStatus = managedClientRuntime?.getStatus();
   const mcpWsStatus = managedClientRuntime instanceof ManagedClientMcpWsRuntime
     ? managedClientRuntime.getStatus()
     : null;
