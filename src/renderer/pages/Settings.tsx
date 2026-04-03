@@ -15,9 +15,7 @@ export default function Settings() {
   const [copied, setCopied] = useState(false);
   const [notifyEnabled, setNotifyEnabled] = useState(true);
   const [managedClientMode, setManagedClientMode] = useState<'cli-server' | 'managed-client' | 'managed-client-mcp-ws'>('cli-server');
-  const [workspaceRoot, setWorkspaceRoot] = useState('');
-  const [workspaceCurrentDir, setWorkspaceCurrentDir] = useState('');
-  const [workspaceArchiveDir, setWorkspaceArchiveDir] = useState('');
+  const [workspaceDirectory, setWorkspaceDirectory] = useState('');
 
   const mcpUrl = `http://localhost:${savedPort}/mcp`;
   const isServerMode = managedClientMode === 'cli-server';
@@ -32,9 +30,7 @@ export default function Settings() {
       setSavedPort(serverStatus.port);
       setNotifyEnabled(notificationEnabled);
       setManagedClientMode(bootstrapState.mode);
-      setWorkspaceRoot(bootstrapState.workspaceRoot);
-      setWorkspaceCurrentDir(bootstrapState.workspaceCurrentDir);
-      setWorkspaceArchiveDir(bootstrapState.workspaceArchiveDir);
+      setWorkspaceDirectory(bootstrapState.workspaceDirectory);
     });
   }, []);
 
@@ -176,16 +172,8 @@ export default function Settings() {
             <p className="text-xs text-slate-500">{t('settings.workspaceDescription')}</p>
             <div className="space-y-3 rounded-md border border-slate-800 bg-slate-950/80 p-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t('settings.workspaceRootLabel')}</div>
-                <code className="mt-1 block break-all text-xs text-blue-400">{workspaceRoot}</code>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t('settings.workspaceCurrentLabel')}</div>
-                <code className="mt-1 block break-all text-xs text-emerald-400">{workspaceCurrentDir}</code>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t('settings.workspaceArchiveLabel')}</div>
-                <code className="mt-1 block break-all text-xs text-amber-300">{workspaceArchiveDir}</code>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t('settings.workspaceDirectoryLabel')}</div>
+                <code className="mt-1 block break-all text-xs text-emerald-400">{workspaceDirectory}</code>
               </div>
             </div>
           </CardContent>

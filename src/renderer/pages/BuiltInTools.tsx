@@ -48,8 +48,8 @@ const SHELL_ALLOWED_EXECUTABLE_TEMPLATE = [
   'python3',
 ];
 
-function getRecommendedReadRoots(workspaceRoot: string, workspaceCurrentDir: string): string[] {
-  const roots = [workspaceCurrentDir, workspaceRoot]
+function getRecommendedReadRoots(workspaceDirectory: string): string[] {
+  const roots = [workspaceDirectory]
     .map((entry) => entry.trim())
     .filter(Boolean);
 
@@ -141,8 +141,7 @@ export default function BuiltInTools() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [managedClientMode, setManagedClientMode] = useState<ManagedClientBootstrapState['mode']>('cli-server');
-  const [workspaceRoot, setWorkspaceRoot] = useState('');
-  const [workspaceCurrentDir, setWorkspaceCurrentDir] = useState('');
+  const [workspaceDirectory, setWorkspaceDirectory] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -154,8 +153,7 @@ export default function BuiltInTools() {
         setSavedConfig(normalized);
         setFormState(configToFormState(normalized));
         setManagedClientMode(bootstrapState.mode);
-        setWorkspaceRoot(bootstrapState.workspaceRoot);
-        setWorkspaceCurrentDir(bootstrapState.workspaceCurrentDir);
+        setWorkspaceDirectory(bootstrapState.workspaceDirectory);
       })
       .catch((error) => {
         const fallback = normalizeConfig(DEFAULT_BUILT_IN_TOOLS_SECURITY_CONFIG);
@@ -170,8 +168,7 @@ export default function BuiltInTools() {
     const unsub = window.electronAPI.onServerEvent(async () => {
       const bootstrapState = await window.electronAPI.getManagedClientBootstrapState();
       setManagedClientMode(bootstrapState.mode);
-      setWorkspaceRoot(bootstrapState.workspaceRoot);
-      setWorkspaceCurrentDir(bootstrapState.workspaceCurrentDir);
+      setWorkspaceDirectory(bootstrapState.workspaceDirectory);
     });
 
     return unsub;
@@ -221,7 +218,7 @@ export default function BuiltInTools() {
   };
 
   const applyRecommendedReadRoots = () => {
-    const recommendedRoots = getRecommendedReadRoots(workspaceRoot, workspaceCurrentDir);
+    const recommendedRoots = getRecommendedReadRoots(workspaceDirectory);
     setFormState((current) => current ? {
       ...current,
       fileReadAllowedPaths: listToText(recommendedRoots),

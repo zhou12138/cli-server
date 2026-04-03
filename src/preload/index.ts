@@ -15,8 +15,7 @@ export interface ManagedClientBootstrapState {
   signinPageUrl: string | null;
   tlsServername: string | null;
   workspaceRoot: string;
-  workspaceCurrentDir: string;
-  workspaceArchiveDir: string;
+  workspaceDirectory: string;
   needsModeSelection: boolean;
   needsBaseUrl: boolean;
   running: boolean;

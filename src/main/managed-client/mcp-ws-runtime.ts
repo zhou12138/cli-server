@@ -495,9 +495,7 @@ export class ManagedClientMcpWsRuntime {
       wsUrl,
       hasAccessTokenQuery: Boolean(token),
       workspaceRoot: workspace.rootDir,
-      workspaceCurrentDir: workspace.currentDir,
-      workspaceArchiveDir: workspace.archiveDir,
-      archivedPreviousRun: workspace.archivedRunDir,
+      workspaceDirectory: workspace.workDir,
     });
 
     this.appendAuditEntry('[managed-client-mcp-ws] runtime start', {
@@ -505,10 +503,7 @@ export class ManagedClientMcpWsRuntime {
       wsUrl,
       hasAccessTokenQuery: Boolean(token),
       workspaceRoot: workspace.rootDir,
-      workspaceCurrentDir: workspace.currentDir,
-      workspaceArchiveDir: workspace.archiveDir,
-      archivedPreviousRun: workspace.archivedRunDir,
-      archiveWarning: workspace.archiveWarning,
+      workspaceDirectory: workspace.workDir,
       clientId: this.config.clientId,
       clientName: this.config.clientName,
       headless: this.config.headless,
@@ -518,29 +513,11 @@ export class ManagedClientMcpWsRuntime {
       wsUrl,
       hasAccessTokenQuery: Boolean(token),
       workspaceRoot: workspace.rootDir,
-      workspaceCurrentDir: workspace.currentDir,
-      workspaceArchiveDir: workspace.archiveDir,
-      archivedPreviousRun: workspace.archivedRunDir,
-      archiveWarning: workspace.archiveWarning,
+      workspaceDirectory: workspace.workDir,
       clientId: this.config.clientId,
       clientName: this.config.clientName,
       headless: this.config.headless,
     });
-
-    if (workspace.archiveWarning) {
-      this.appendAuditEntry('[managed-client-mcp-ws] workspace archive skipped', {
-        workspaceRoot: workspace.rootDir,
-        workspaceCurrentDir: workspace.currentDir,
-        workspaceArchiveDir: workspace.archiveDir,
-        warning: workspace.archiveWarning,
-      }, 1, workspace.archiveWarning);
-      emitServerEvent('managed-client-mcp-ws:workspace-archive-skipped', {
-        workspaceRoot: workspace.rootDir,
-        workspaceCurrentDir: workspace.currentDir,
-        workspaceArchiveDir: workspace.archiveDir,
-        warning: workspace.archiveWarning,
-      });
-    }
 
     while (!signal.aborted) {
       try {
@@ -576,7 +553,7 @@ export class ManagedClientMcpWsRuntime {
   ): Promise<void> {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const server = createMcpServer(this.sessionManager, 'managed-client-mcp-ws', {
-      defaultWorkingDirectory: workspace.currentDir,
+      defaultWorkingDirectory: workspace.workDir,
       enforcedWorkingDirectoryRoot: workspace.rootDir,
       requireShellAllowlist: true,
       exposeManagedAdminTool: true,
@@ -595,7 +572,7 @@ export class ManagedClientMcpWsRuntime {
       externalServerConfigs: this.config.mcpServers,
       version: this.config.version,
       workspaceRoot: workspace.rootDir,
-      defaultWorkingDirectory: workspace.currentDir,
+      defaultWorkingDirectory: workspace.workDir,
       logger: {
         info: (command, stdout) => this.appendAuditEntry(command, stdout, 0),
         error: (command, stdout, stderr) => this.appendAuditEntry(command, stdout, 1, stderr),
