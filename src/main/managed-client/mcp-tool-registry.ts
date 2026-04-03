@@ -197,6 +197,8 @@ export class ManagedClientMcpToolRegistry {
   static async testExternalServers(params: {
     externalServerConfigs: ManagedClientExternalMcpServerConfig[];
     version: string;
+    workspaceRoot?: string;
+    defaultWorkingDirectory?: string;
   }): Promise<ManagedClientMcpServerConnectionTestResult[]> {
     const results: ManagedClientMcpServerConnectionTestResult[] = [];
     const permissionProfile = getBuiltInToolsSecurityConfig().permissionProfile;
@@ -221,12 +223,17 @@ export class ManagedClientMcpToolRegistry {
         name: `cli-server-managed-client-mcp-ws-test-${serverConfig.name}`,
         version: params.version,
       });
+      const resolvedWorkingDirectory = resolveExternalServerWorkingDirectory(
+        serverConfig,
+        params.workspaceRoot,
+        params.defaultWorkingDirectory,
+      );
       const transport = serverConfig.transport === 'http'
         ? new StreamableHTTPClientTransport(new URL(serverConfig.url))
         : new StdioClientTransport({
           command: serverConfig.command,
           args: serverConfig.args,
-          cwd: serverConfig.cwd,
+          cwd: resolvedWorkingDirectory,
           env: serverConfig.env,
           stderr: 'pipe',
         });

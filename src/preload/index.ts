@@ -51,6 +51,7 @@ export interface ElectronAPI {
   startManagedClientSignin: (payload?: { signinPageUrl?: string | null; baseUrl?: string | null }) => Promise<{
     token: string;
     signinUrl: string;
+    baseUrl: string | null;
   }>;
   validateManagedClientTls: (payload: {
     baseUrl: string;

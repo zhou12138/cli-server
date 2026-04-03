@@ -1,4 +1,4 @@
-import { getBuiltInToolsSecurityConfig, getManagedClientMcpServersConfig, saveManagedClientMcpServersConfig } from './config';
+import { getBuiltInToolsSecurityConfig, getManagedClientMcpServersConfig, getManagedClientWorkspaceRoot, saveManagedClientMcpServersConfig } from './config';
 import type { ManagedClientFileMcpServerConfig } from './mcp-server-config';
 
 export interface ManagedMcpServerApplyResult {
@@ -114,7 +114,7 @@ function buildManagedMcpServerConfig(input: UpsertManagedMcpServerInput): Manage
     transport: 'stdio',
     command,
     args: Array.isArray(input.args) ? input.args.filter((value) => typeof value === 'string') : [],
-    cwd: trimOptionalString(input.cwd),
+    cwd: trimOptionalString(input.cwd) ?? getManagedClientWorkspaceRoot(),
     env: sanitizeEnv(input.env),
   };
 }

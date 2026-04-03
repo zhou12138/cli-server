@@ -819,8 +819,8 @@ export default function ExternalMcpServers() {
                         </label>
                       </div>
 
-                      <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end lg:self-start">
-                        <div className="inline-flex rounded-md border border-slate-700 bg-slate-900 p-0.5">
+                      <div className="flex shrink-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1 lg:justify-end lg:self-start lg:overflow-visible lg:pb-0">
+                        <div className="inline-flex shrink-0 rounded-md border border-slate-700 bg-slate-900 p-0.5">
                           <button
                             onClick={() => handleSwitchServerMode(server, 'form')}
                             className={`px-3 py-1.5 text-xs rounded transition-colors ${server.editorMode === 'form'
@@ -843,14 +843,14 @@ export default function ExternalMcpServers() {
                         <button
                           onClick={() => handleTestMcpServers(server)}
                           disabled={mcpTesting}
-                          className="px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="shrink-0 px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           {t('settings.externalMcpTestOne')}
                         </button>
                         <button
                           onClick={() => handleSaveMcpServer(server)}
                           disabled={!persistenceState.canSave || !persistenceState.dirty || savingServerId === server.id}
-                          className="min-w-[72px] px-3 py-1.5 text-center text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="min-w-[72px] shrink-0 px-3 py-1.5 text-center text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           {savingServerId === server.id
                             ? t('settings.externalMcpSaving')
@@ -860,7 +860,7 @@ export default function ExternalMcpServers() {
                         </button>
                         <button
                           onClick={() => handleDeleteMcpServer(server.id)}
-                          className="px-3 py-1.5 text-xs bg-red-950/50 border border-red-900 text-red-200 rounded hover:bg-red-900/40 transition-colors"
+                          className="shrink-0 px-3 py-1.5 text-xs bg-red-950/50 border border-red-900 text-red-200 rounded hover:bg-red-900/40 transition-colors"
                         >
                           {t('settings.externalMcpDelete')}
                         </button>

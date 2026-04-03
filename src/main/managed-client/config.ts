@@ -366,6 +366,17 @@ function getOrCreateManagedClientId(fileConfig: ManagedClientFileConfig): string
   return clientId;
 }
 
+export function getManagedClientWorkspaceRoot(args = process.argv): string {
+  const fileConfig = loadManagedClientFileConfig();
+  const workspaceRoot =
+    getArgValue(args, '--managed-client-workspace-root')
+    ?? process.env.MANAGED_CLIENT_WORKSPACE_ROOT
+    ?? fileConfig.workspaceRoot
+    ?? getDefaultManagedClientWorkspaceRoot();
+
+  return path.resolve(workspaceRoot);
+}
+
 export function getManagedClientRuntimeConfig(version: string, args = process.argv): ManagedClientRuntimeConfig {
   const fileConfig = loadManagedClientFileConfig();
   const explicitMode =
@@ -405,11 +416,7 @@ export function getManagedClientRuntimeConfig(version: string, args = process.ar
     ?? process.env.MANAGED_CLIENT_TLS_SERVERNAME
     ?? fileConfig.tlsServername
     ?? null;
-  const workspaceRoot =
-    getArgValue(args, '--managed-client-workspace-root')
-    ?? process.env.MANAGED_CLIENT_WORKSPACE_ROOT
-    ?? fileConfig.workspaceRoot
-    ?? getDefaultManagedClientWorkspaceRoot();
+  const workspaceRoot = getManagedClientWorkspaceRoot(args);
   const token = normalizeManagedClientToken(
     getArgValue(args, '--managed-client-token') ?? process.env.MANAGED_CLIENT_BEARER_TOKEN ?? null,
   );
@@ -432,7 +439,7 @@ export function getManagedClientRuntimeConfig(version: string, args = process.ar
     baseUrl: baseUrl ? baseUrl.replace(/\/+$/, '') : null,
     signinPageUrl: signinPageUrl ? signinPageUrl.replace(/\/+$/, '') : null,
     tlsServername: normalizeOptionalString(tlsServername),
-    workspaceRoot: path.resolve(workspaceRoot),
+    workspaceRoot,
     token,
     clientId,
     clientName,

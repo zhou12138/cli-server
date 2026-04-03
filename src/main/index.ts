@@ -14,6 +14,7 @@ import {
   getBuiltInToolsSecurityConfig,
   getManagedClientMcpServersConfig,
   getManagedClientRuntimeConfig,
+  getManagedClientWorkspaceRoot,
   saveBuiltInToolsSecurityConfig,
   saveManagedClientFileConfig,
   saveManagedClientMcpServersConfig,
@@ -415,9 +416,12 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle('managed-client:testMcpServersConfig', async (_e, payload: { mcpServers: Record<string, ManagedClientFileMcpServerConfig> }) => {
     const externalServers = parseManagedClientMcpServers(payload.mcpServers);
+    const workspacePaths = getManagedClientWorkspacePaths(getManagedClientWorkspaceRoot());
     const results = await ManagedClientMcpToolRegistry.testExternalServers({
       externalServerConfigs: externalServers,
       version: app.getVersion(),
+      workspaceRoot: workspacePaths.rootDir,
+      defaultWorkingDirectory: workspacePaths.workDir,
     });
     return { results };
   });

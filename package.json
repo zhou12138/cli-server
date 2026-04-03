@@ -1,9 +1,9 @@
 {
   "name": "cli-server",
-  "productName": "CLI Server",
+  "productName": "X  Claw Node",
   "version": "0.1.0",
   "description": "Local CLI execution gateway for web-based agents",
-  "author": "CLI Server",
+  "author": "X  Claw Node",
   "main": ".vite/build/index.js",
   "scripts": {
     "start": "electron-forge start",

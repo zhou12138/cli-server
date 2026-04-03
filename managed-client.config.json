@@ -21,8 +21,7 @@
     },
     "fileRead": {
       "allowedPaths": [
-        "C:\\edge_workspace\\cli-server\\managed-client-workspace\\current",
-        "C:\\edge_workspace\\cli-server\\managed-client-workspace"
+        "C:\\edge_workspace\\cli-server\\X Claw Node"
       ]
     }
   },

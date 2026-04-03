@@ -12,6 +12,15 @@ import Settings from './pages/Settings';
 import { Input } from './components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 
+function resolveManagedBaseUrl(localBaseUrl: string, signinBaseUrl?: string | null): string {
+  const resolvedBaseUrl = signinBaseUrl?.trim() || localBaseUrl.trim();
+  if (!resolvedBaseUrl) {
+    throw new Error('Managed MCP WebSocket base URL is required after browser sign-in. Provide it in the sign-in page or local settings.');
+  }
+
+  return resolvedBaseUrl;
+}
+
 export default function App() {
   const [bootstrap, setBootstrap] = useState<ManagedClientBootstrapState | null>(null);
   const [baseUrl, setBaseUrl] = useState('');
@@ -196,23 +205,19 @@ export default function App() {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <button
                           onClick={async () => {
-                            if (!baseUrl.trim()) {
-                              setError('MANAGED_CLIENT_BASE_URL is required');
-                              return;
-                            }
-
                             setSigninPending(true);
                             setError('');
 
                             try {
                               const signin = await window.electronAPI.startManagedClientSignin({
-                                baseUrl: baseUrl.trim(),
+                                baseUrl: baseUrl.trim() || null,
                                 signinPageUrl: signinPageUrl.trim() || null,
                               });
+                              const effectiveBaseUrl = resolveManagedBaseUrl(baseUrl, signin.baseUrl);
                               setToken(signin.token);
 
                               const next = await window.electronAPI.saveManagedClientBaseUrlAndStart({
-                                baseUrl: baseUrl.trim(),
+                                baseUrl: effectiveBaseUrl,
                                 signinPageUrl: signinPageUrl.trim() || null,
                                 tlsServername: tlsServername.trim() || null,
                                 token: signin.token,

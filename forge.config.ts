@@ -8,7 +8,7 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    name: 'CLI Server',
+    name: 'X  Claw Node',
   },
   makers: [
     new MakerSquirrel({ name: 'cli-server', authors: 'CLI Server' }),

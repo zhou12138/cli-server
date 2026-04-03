@@ -9,14 +9,25 @@ export interface ManagedClientWorkspacePaths {
 function getDefaultWorkspaceBaseDir(): string {
   const mainModuleFilename = typeof require !== 'undefined' ? require.main?.filename : undefined;
   if (typeof mainModuleFilename === 'string' && mainModuleFilename.trim()) {
-    return path.dirname(mainModuleFilename);
+    const normalizedMainModuleFilename = path.resolve(mainModuleFilename);
+    const asarSegment = `${path.sep}app.asar`;
+    const asarIndex = normalizedMainModuleFilename.toLowerCase().indexOf(asarSegment.toLowerCase());
+    if (asarIndex >= 0) {
+      return path.dirname(normalizedMainModuleFilename.slice(0, asarIndex + asarSegment.length));
+    }
+
+    return path.dirname(normalizedMainModuleFilename);
+  }
+
+  if (typeof process.execPath === 'string' && process.execPath.trim()) {
+    return path.dirname(path.resolve(process.execPath));
   }
 
   return process.cwd();
 }
 
 export function getDefaultManagedClientWorkspaceRoot(baseDir = getDefaultWorkspaceBaseDir()): string {
-  return path.resolve(baseDir, 'managed-client-workspace');
+  return path.resolve(baseDir, 'X Claw Node');
 }
 
 export function getManagedClientWorkspacePaths(rootDir: string): ManagedClientWorkspacePaths {

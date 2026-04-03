@@ -12,11 +12,14 @@ const DEFAULT_SIGNIN_PAGE_PATH = '/desktop-signin';
 interface SigninCallbackPayload {
   token?: unknown;
   nonce?: unknown;
+  baseUrl?: unknown;
+  bootstrapBaseUrl?: unknown;
 }
 
 export interface ManagedClientSigninResult {
   token: string;
   signinUrl: string;
+  baseUrl: string | null;
 }
 
 function normalizeSigninPageUrl(value: string): string {
@@ -124,6 +127,8 @@ function readCallbackBody(request: IncomingMessage): Promise<SigninCallbackPaylo
           resolve({
             token: form.get('token') ?? undefined,
             nonce: form.get('nonce') ?? undefined,
+            baseUrl: form.get('baseUrl') ?? form.get('bootstrapBaseUrl') ?? undefined,
+            bootstrapBaseUrl: form.get('bootstrapBaseUrl') ?? undefined,
           });
           return;
         }
@@ -185,11 +190,17 @@ export async function startManagedClientSignin(options?: {
         const payload = await readCallbackBody(request);
         const token = typeof payload.token === 'string' ? payload.token.trim() : '';
         const payloadNonce = typeof payload.nonce === 'string' ? payload.nonce.trim() : '';
+        const payloadBaseUrl = typeof payload.baseUrl === 'string'
+          ? payload.baseUrl.trim()
+          : typeof payload.bootstrapBaseUrl === 'string'
+            ? payload.bootstrapBaseUrl.trim()
+            : '';
 
         console.log('[managed-client signin] Received callback request', {
           path: url.pathname,
           hasToken: Boolean(token),
           nonceMatches: payloadNonce === nonce,
+          hasBaseUrl: Boolean(payloadBaseUrl),
         });
 
         if (!token) {
@@ -219,6 +230,7 @@ export async function startManagedClientSignin(options?: {
         resolve({
           token,
           signinUrl,
+          baseUrl: payloadBaseUrl || options?.baseUrl?.trim() || null,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid signin callback payload';

@@ -1,9 +1,20 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import type { ManagedClientBootstrapState } from '../../preload';
 import StatusBadge from './StatusBadge';
+import { Input } from './ui/input';
 import { useI18n } from '../hooks/useI18n';
 import { LayoutDashboard, ScrollText, Settings, PlugZap, Shield, Wrench, LogOut, LogIn } from 'lucide-react';
+
+function resolveManagedBaseUrl(localBaseUrl: string | null, signinBaseUrl?: string | null): string {
+  const resolvedBaseUrl = signinBaseUrl?.trim() || localBaseUrl?.trim() || '';
+  if (!resolvedBaseUrl) {
+    throw new Error('Managed MCP WebSocket base URL is required after browser sign-in. Provide it in the sign-in page or local settings.');
+  }
+
+  return resolvedBaseUrl;
+}
 
 export default function Layout() {
   const { t } = useI18n();
@@ -16,6 +27,10 @@ export default function Layout() {
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [showSignInForm, setShowSignInForm] = useState(false);
+  const [signinBaseUrl, setSigninBaseUrl] = useState('');
+  const [signinPageUrl, setSigninPageUrl] = useState('');
+  const [signinTlsServername, setSigninTlsServername] = useState('');
   const [managedClient, setManagedClient] = useState<ManagedClientBootstrapState>({
     mode: 'cli-server',
     headless: false,
@@ -93,29 +108,34 @@ export default function Layout() {
   const sessionLabel = managedClient.sessionIdentityLabel;
   const sessionDetail = managedClient.sessionIdentityDetail;
 
-  const handleManagedSignIn = async () => {
-    if (!managedClient.baseUrl?.trim()) {
-      setAuthError(t('settings.signInConfigMissing'));
-      return;
-    }
+  const openManagedSignInForm = () => {
+    setSigninBaseUrl(managedClient.baseUrl ?? '');
+    setSigninPageUrl(managedClient.signinPageUrl ?? managedClient.baseUrl ?? '');
+    setSigninTlsServername(managedClient.tlsServername ?? '');
+    setAuthError('');
+    setShowSignInForm(true);
+  };
 
+  const handleManagedSignIn = async () => {
     setSigningIn(true);
     setAuthError('');
 
     try {
       const signin = await window.electronAPI.startManagedClientSignin({
-        baseUrl: managedClient.baseUrl,
-        signinPageUrl: managedClient.signinPageUrl?.trim() || null,
+        baseUrl: signinBaseUrl.trim() || null,
+        signinPageUrl: signinPageUrl.trim() || null,
       });
+      const effectiveBaseUrl = resolveManagedBaseUrl(signinBaseUrl, signin.baseUrl);
 
       const next = await window.electronAPI.saveManagedClientBaseUrlAndStart({
-        baseUrl: managedClient.baseUrl,
-        signinPageUrl: managedClient.signinPageUrl?.trim() || null,
-        tlsServername: managedClient.tlsServername?.trim() || null,
+        baseUrl: effectiveBaseUrl,
+        signinPageUrl: signinPageUrl.trim() || null,
+        tlsServername: signinTlsServername.trim() || null,
         token: signin.token,
       });
 
       setManagedClient(next);
+      setShowSignInForm(false);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -179,7 +199,7 @@ export default function Layout() {
           )}
           {showManagedSignIn && (
             <button
-              onClick={handleManagedSignIn}
+              onClick={openManagedSignInForm}
               disabled={signingIn}
               className="flex w-full items-center justify-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -226,6 +246,96 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+
+      {showSignInForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl shadow-slate-950/60">
+            <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+              <div>
+                <div className="text-lg font-semibold text-white">Sign in with browser</div>
+                <p className="mt-1 text-sm text-slate-400">
+                  Fill in the client sign-in form first, then continue to the browser login page.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (!signingIn) {
+                    setShowSignInForm(false);
+                    setAuthError('');
+                  }
+                }}
+                disabled={signingIn}
+                className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition-colors hover:border-slate-500 hover:text-white disabled:opacity-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-5 px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="block text-xs text-slate-500">MANAGED_CLIENT_BASE_URL</label>
+                  <Input
+                    type="text"
+                    value={signinBaseUrl}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) => setSigninBaseUrl(event.target.value)}
+                    placeholder="https://dev3.societas-test.microsoft.com/api"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-xs text-slate-500">MANAGED_CLIENT_SIGNIN_PAGE_URL</label>
+                  <Input
+                    type="text"
+                    value={signinPageUrl}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) => setSigninPageUrl(event.target.value)}
+                    placeholder="https://dev3.societas-test.microsoft.com/desktop-signin"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs text-slate-500">MANAGED_CLIENT_TLS_SERVERNAME</label>
+                <Input
+                  type="text"
+                  value={signinTlsServername}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => setSigninTlsServername(event.target.value)}
+                  placeholder="Optional TLS server name override"
+                />
+              </div>
+
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs leading-5 text-slate-300">
+                The browser will open only after you confirm this form. If the sign-in page returns a base URL, the client will use it. Otherwise it falls back to the value entered here.
+              </div>
+
+              {authError && (
+                <div className="rounded-md border border-red-900 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+                  {authError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowSignInForm(false);
+                    setAuthError('');
+                  }}
+                  disabled={signingIn}
+                  className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-300 transition-colors hover:border-slate-500 hover:text-white disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleManagedSignIn}
+                  disabled={signingIn}
+                  className="inline-flex items-center justify-center rounded-md bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-emerald-300 disabled:opacity-50"
+                >
+                  {signingIn ? 'Waiting for browser sign-in...' : 'Continue In Browser'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
