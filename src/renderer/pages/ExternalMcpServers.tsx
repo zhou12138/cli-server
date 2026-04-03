@@ -173,7 +173,7 @@ function toEditableMcpServer(
     editorMode: 'form',
     jsonDraft: '',
     jsonTouched: false,
-    collapsed: false,
+    collapsed: true,
   };
 }
 
@@ -458,11 +458,28 @@ export default function ExternalMcpServers() {
 
   const globalPersistenceState = useMemo(() => {
     const states = Object.values(serverPersistenceState);
+    let currentConfigMatchesPersisted = false;
+
+    try {
+      const currentConfig = buildMcpServerConfig(sortServersByCreatedOrder(mcpServers));
+      const persistedNames = Object.keys(persistedMcpServers).sort();
+      const currentNames = Object.keys(currentConfig).sort();
+
+      currentConfigMatchesPersisted = persistedNames.length === currentNames.length
+        && persistedNames.every((name, index) => {
+          const currentName = currentNames[index];
+          return currentName === name
+            && getServerConfigSignature(currentConfig[name]) === getServerConfigSignature(persistedMcpServers[name]);
+        });
+    } catch {
+      currentConfigMatchesPersisted = false;
+    }
+
     return {
-      dirty: states.some((state) => state.dirty),
+      dirty: !currentConfigMatchesPersisted,
       canSave: states.every((state) => state.canSave),
     };
-  }, [serverPersistenceState]);
+  }, [mcpServers, persistedMcpServers, serverPersistenceState]);
 
   const currentPermissionProfile = builtInToolsConfig?.permissionProfile ?? DEFAULT_BUILT_IN_TOOLS_PERMISSION_PROFILE;
 
@@ -709,38 +726,39 @@ export default function ExternalMcpServers() {
               ]}
             />
 
-            <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <button
                   onClick={handleAddMcpServer}
-                  className="px-3 py-1.5 text-sm border border-dashed border-slate-700 text-slate-300 rounded hover:border-slate-500 hover:text-white transition-colors"
+                  className="self-start px-3 py-1.5 text-sm border border-dashed border-slate-700 text-slate-300 rounded hover:border-slate-500 hover:text-white transition-colors"
                 >
                   {t('settings.externalMcpAdd')}
                 </button>
-                <div className="text-xs text-slate-500">
-                  {isManagedMcpWsRunning ? t('settings.externalMcpLiveHint') : t('settings.externalMcpInactiveHint')}
+
+                <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                  <button
+                    onClick={() => handleTestMcpServers()}
+                    disabled={mcpTesting}
+                    className="px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {mcpTesting ? t('settings.externalMcpTesting') : t('settings.externalMcpTestAll')}
+                  </button>
+                  <button
+                    onClick={handleSaveMcpServers}
+                    disabled={mcpSaving || !globalPersistenceState.canSave || !globalPersistenceState.dirty}
+                    className="min-w-[72px] px-3 py-1.5 text-center text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {mcpSaving
+                      ? t('settings.externalMcpSaving')
+                      : globalPersistenceState.dirty
+                        ? t('settings.externalMcpSave')
+                        : t('settings.externalMcpSaved')}
+                  </button>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                <button
-                  onClick={() => handleTestMcpServers()}
-                  disabled={mcpTesting}
-                  className="px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  {mcpTesting ? t('settings.externalMcpTesting') : t('settings.externalMcpTestAll')}
-                </button>
-                <button
-                  onClick={handleSaveMcpServers}
-                  disabled={mcpSaving || !globalPersistenceState.canSave || !globalPersistenceState.dirty}
-                  className="min-w-[72px] px-3 py-1.5 text-center text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  {mcpSaving
-                    ? t('settings.externalMcpSaving')
-                    : globalPersistenceState.dirty
-                      ? t('settings.externalMcpSave')
-                      : t('settings.externalMcpSaved')}
-                </button>
+              <div className="mt-3 text-xs leading-5 text-slate-500">
+                {isManagedMcpWsRunning ? t('settings.externalMcpLiveHint') : t('settings.externalMcpInactiveHint')}
               </div>
             </div>
 
