@@ -1,55 +1,38 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import type { ManagedClientBootstrapState } from '../../preload';
 import StatusBadge from './StatusBadge';
 import { useI18n } from '../hooks/useI18n';
-import { LayoutDashboard, ScrollText, Settings, PlugZap, Shield } from 'lucide-react';
+import { LayoutDashboard, ScrollText, Settings, PlugZap, Shield, Wrench, LogOut, LogIn } from 'lucide-react';
 
 export default function Layout() {
   const { t } = useI18n();
-
-  const navItems = [
-    { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
-    { to: '/audit', label: t('nav.auditLog'), icon: ScrollText },
-    { to: '/mcp-servers', label: t('nav.mcpServers'), icon: PlugZap },
-    { to: '/built-in-tools', label: t('nav.builtInTools'), icon: Shield },
-    { to: '/settings', label: t('nav.settings'), icon: Settings },
-  ];
 
   const [status, setStatus] = useState<{ running: boolean; port: number; activeConnections: number }>({
     running: false,
     port: 19876,
     activeConnections: 0,
   });
-  const [managedClient, setManagedClient] = useState<{
-    mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws';
-    headless: boolean;
-    baseUrl: string | null;
-    workspaceRoot: string;
-    workspaceCurrentDir: string;
-    workspaceArchiveDir: string;
-    needsBaseUrl: boolean;
-    running: boolean;
-    pullStatus: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
-    pulledTaskCount: number;
-    emptyPollCount: number;
-    lastPollStatus: number | null;
-    lastTaskCommand: string | null;
-    lastPolledAt: string | null;
-    receivedEventCount: number;
-    pingCount: number;
-    pongSentCount: number;
-    lastEventAt: string | null;
-    lastEventName: string | null;
-    lastPingAt: string | null;
-  }>({
+  const [signingIn, setSigningIn] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [managedClient, setManagedClient] = useState<ManagedClientBootstrapState>({
     mode: 'cli-server',
     headless: false,
     baseUrl: null,
+    signinPageUrl: null,
+    tlsServername: null,
     workspaceRoot: '',
     workspaceCurrentDir: '',
     workspaceArchiveDir: '',
+    needsModeSelection: false,
     needsBaseUrl: false,
     running: false,
+    sessionAuthenticated: false,
+    clientId: null,
+    connectionId: null,
+    sessionIdentityLabel: null,
+    sessionIdentityDetail: null,
     pullStatus: 'idle',
     pulledTaskCount: 0,
     emptyPollCount: 0,
@@ -65,33 +48,95 @@ export default function Layout() {
   });
 
   useEffect(() => {
-    window.electronAPI.getServerStatus().then(setStatus);
+    Promise.all([
+      window.electronAPI.getServerStatus(),
+      window.electronAPI.getManagedClientBootstrapState(),
+    ]).then(([serverStatus, bootstrapState]) => {
+      setStatus(serverStatus);
+      setManagedClient((current) => ({
+        ...current,
+        ...bootstrapState,
+      }));
+    });
+
     const unsub = window.electronAPI.onServerEvent(() => {
       window.electronAPI.getServerStatus().then(setStatus);
+      window.electronAPI.getManagedClientBootstrapState().then((bootstrapState) => {
+        setManagedClient((current) => ({
+          ...current,
+          ...bootstrapState,
+        }));
+      });
     });
     return unsub;
   }, []);
 
   const isManagedClientMode = managedClient.mode !== 'cli-server';
   const isManagedMcpWsMode = managedClient.mode === 'managed-client-mcp-ws';
-  const modeLabel = managedClient.mode === 'cli-server'
-    ? t('mode.server')
-    : isManagedMcpWsMode ? t('mode.managedClientMcpWs') : t('mode.managedClient');
-  const modeSummary = isManagedClientMode
-    ? (managedClient.running
-      ? (isManagedMcpWsMode ? t('mode.managedClientMcpWsRunning') : t('mode.managedClientRunning'))
-      : t('mode.managedClientWaiting'))
-    : t('mode.serverSummary', { port: status.port });
-  const closeHint = isManagedClientMode ? t('mode.closeHintManaged') : t('mode.closeHint');
+  const navItems = isManagedMcpWsMode
+    ? [
+      { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
+      { to: '/audit', label: t('nav.auditLog'), icon: ScrollText },
+      { to: '/mcp-servers', label: t('nav.mcpServers'), icon: PlugZap },
+      { to: '/built-in-tools', label: t('nav.builtInTools'), icon: Wrench },
+      { to: '/permissions', label: t('nav.permissions'), icon: Shield },
+      { to: '/settings', label: t('nav.settings'), icon: Settings },
+    ]
+    : [
+      { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
+      { to: '/audit', label: t('nav.auditLog'), icon: ScrollText },
+      { to: '/built-in-tools', label: t('nav.builtInTools'), icon: Wrench },
+      { to: '/settings', label: t('nav.settings'), icon: Settings },
+    ];
+  const showManagedSignIn = isManagedMcpWsMode && !managedClient.running;
+  const showManagedSignOut = isManagedMcpWsMode && managedClient.running;
+  const appTitle = isManagedClientMode ? t('app.managedTitle') : t('app.title');
+  const sessionLabel = managedClient.sessionIdentityLabel;
+  const sessionDetail = managedClient.sessionIdentityDetail;
+
+  const handleManagedSignIn = async () => {
+    if (!managedClient.baseUrl?.trim()) {
+      setAuthError(t('settings.signInConfigMissing'));
+      return;
+    }
+
+    setSigningIn(true);
+    setAuthError('');
+
+    try {
+      const signin = await window.electronAPI.startManagedClientSignin({
+        baseUrl: managedClient.baseUrl,
+        signinPageUrl: managedClient.signinPageUrl?.trim() || null,
+      });
+
+      const next = await window.electronAPI.saveManagedClientBaseUrlAndStart({
+        baseUrl: managedClient.baseUrl,
+        signinPageUrl: managedClient.signinPageUrl?.trim() || null,
+        tlsServername: managedClient.tlsServername?.trim() || null,
+        token: signin.token,
+      });
+
+      setManagedClient(next);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSigningIn(false);
+    }
+  };
 
   return (
     <div className="flex h-screen">
       {/* Sidebar */}
       <aside className="w-56 bg-slate-900 border-r border-slate-800 flex flex-col">
         <div className="p-4 border-b border-slate-800">
-          <h1 className="text-lg font-bold text-white tracking-tight">{t('app.title')}</h1>
+          <h1 className="text-lg font-bold text-white tracking-tight">{appTitle}</h1>
           <div className="mt-2">
-            <StatusBadge running={status.running} port={status.port} />
+            <StatusBadge
+              mode={managedClient.mode}
+              running={isManagedClientMode ? managedClient.running : status.running}
+              port={status.port}
+              needsBaseUrl={managedClient.needsBaseUrl}
+            />
           </div>
         </div>
 
@@ -117,8 +162,62 @@ export default function Layout() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-800 text-xs text-slate-500">
-          {t('status.activeConnections', { count: status.activeConnections })}
+        <div className="border-t border-slate-800 p-4 space-y-3">
+          {isManagedMcpWsMode && sessionLabel && (
+            <div className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                {t('status.currentUser')}
+              </div>
+              <div className="mt-1 truncate text-sm font-medium text-slate-100" title={sessionLabel}>
+                {sessionLabel}
+              </div>
+              {sessionDetail && (
+                <div className="mt-0.5 truncate text-xs text-slate-400" title={sessionDetail}>
+                  {sessionDetail}
+                </div>
+              )}
+            </div>
+          )}
+          {showManagedSignIn && (
+            <button
+              onClick={handleManagedSignIn}
+              disabled={signingIn}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <LogIn className="h-4 w-4" />
+              {signingIn ? t('settings.signingIn') : t('settings.signIn')}
+            </button>
+          )}
+          {showManagedSignOut && (
+            <button
+              onClick={async () => {
+                setSigningOut(true);
+                setAuthError('');
+                try {
+                  const next = await window.electronAPI.signOutManagedClient();
+                  setManagedClient(next);
+                } finally {
+                  setSigningOut(false);
+                }
+              }}
+              disabled={signingOut}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <LogOut className="h-4 w-4" />
+              {signingOut ? t('settings.signingOut') : t('settings.signOut')}
+            </button>
+          )}
+          {authError && (
+            <div className="text-xs text-red-400">{authError}</div>
+          )}
+          <div className="text-xs text-slate-500 space-y-1">
+            {isManagedMcpWsMode && managedClient.connectionId && (
+              <div className="truncate" title={managedClient.connectionId}>
+                {t('status.connectionId', { id: managedClient.connectionId })}
+              </div>
+            )}
+            {!isManagedClientMode && t('status.activeConnections', { count: status.activeConnections })}
+          </div>
         </div>
       </aside>
 

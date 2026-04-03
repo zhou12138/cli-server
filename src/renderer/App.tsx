@@ -1,40 +1,16 @@
 import { useEffect, useState } from 'react';
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Navigate, Routes, Route } from 'react-router-dom';
 import { I18nProvider } from './hooks/useI18n';
+import type { ManagedClientBootstrapState } from '../preload';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import AuditLog from './pages/AuditLog';
 import ExternalMcpServers from './pages/ExternalMcpServers';
+import Permissions from './pages/Permissions';
 import BuiltInTools from './pages/BuiltInTools';
 import Settings from './pages/Settings';
 import { Input } from './components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
-
-interface ManagedClientBootstrapState {
-  mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws';
-  headless: boolean;
-  baseUrl: string | null;
-  signinPageUrl: string | null;
-  tlsServername: string | null;
-  workspaceRoot: string;
-  workspaceCurrentDir: string;
-  workspaceArchiveDir: string;
-  needsModeSelection: boolean;
-  needsBaseUrl: boolean;
-  running: boolean;
-  pullStatus: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
-  pulledTaskCount: number;
-  emptyPollCount: number;
-  lastPollStatus: number | null;
-  lastTaskCommand: string | null;
-  lastPolledAt: string | null;
-  receivedEventCount: number;
-  pingCount: number;
-  pongSentCount: number;
-  lastEventAt: string | null;
-  lastEventName: string | null;
-  lastPingAt: string | null;
-}
 
 export default function App() {
   const [bootstrap, setBootstrap] = useState<ManagedClientBootstrapState | null>(null);
@@ -59,6 +35,8 @@ export default function App() {
     return null;
   }
 
+  const showManagedDesktopPages = bootstrap.mode === 'managed-client-mcp-ws';
+
   if (!bootstrap.headless && bootstrap.needsModeSelection) {
     return (
       <I18nProvider>
@@ -71,7 +49,7 @@ export default function App() {
               <p className="text-sm text-slate-400">
                 Select how this app should run on this device. You can still change the saved mode later by editing the local config.
               </p>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <button
                   onClick={async () => {
                     setSaving(true);
@@ -91,32 +69,6 @@ export default function App() {
                   <div className="text-base font-semibold text-white">Server Mode</div>
                   <div className="mt-2 text-sm leading-6 text-slate-400">
                     Start the local MCP / CLI server and accept direct local connections.
-                  </div>
-                </button>
-
-                <button
-                  onClick={async () => {
-                    setSaving(true);
-                    setError('');
-                    try {
-                      const next = await window.electronAPI.selectManagedClientMode('managed-client');
-                      setBootstrap(next);
-                      setBaseUrl(next.baseUrl ?? '');
-                      setSigninPageUrl(next.signinPageUrl ?? next.baseUrl ?? '');
-                      setTlsServername(next.tlsServername ?? '');
-                      setToken('');
-                    } catch (saveError) {
-                      setError(saveError instanceof Error ? saveError.message : String(saveError));
-                    } finally {
-                      setSaving(false);
-                    }
-                  }}
-                  disabled={saving}
-                  className="rounded-lg border border-slate-800 bg-slate-900 p-5 text-left transition-colors hover:border-blue-500 hover:bg-slate-900/80 disabled:opacity-50"
-                >
-                  <div className="text-base font-semibold text-white">Managed Client Mode</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Connect this device to a remote backend, pull tasks, and execute them locally.
                   </div>
                 </button>
 
@@ -154,8 +106,8 @@ export default function App() {
     );
   }
 
-  if ((bootstrap.mode === 'managed-client' || bootstrap.mode === 'managed-client-mcp-ws') && !bootstrap.headless && bootstrap.needsBaseUrl) {
-    const isDesktopWsMode = bootstrap.mode === 'managed-client-mcp-ws';
+  if (bootstrap.mode === 'managed-client' && !bootstrap.headless && bootstrap.needsBaseUrl) {
+    const isDesktopWsMode = false;
     const isBusy = saving || signinPending;
     return (
       <I18nProvider>
@@ -396,7 +348,8 @@ export default function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/audit" element={<AuditLog />} />
-            <Route path="/mcp-servers" element={<ExternalMcpServers />} />
+            <Route path="/mcp-servers" element={showManagedDesktopPages ? <ExternalMcpServers /> : <Navigate to="/built-in-tools" replace />} />
+            <Route path="/permissions" element={showManagedDesktopPages ? <Permissions /> : <Navigate to="/built-in-tools" replace />} />
             <Route path="/built-in-tools" element={<BuiltInTools />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

@@ -146,27 +146,30 @@ function normalizeBuiltInToolsSecurityConfig(parsed: unknown): BuiltInToolsSecur
         typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { enabled?: unknown }).enabled : undefined,
         defaults.shellExecute.enabled,
       ),
-      blockedCommands: parseStringList(
-        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockedCommands?: unknown }).blockedCommands : undefined,
+      allowedExecutableNames: parseStringList(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { allowedExecutableNames?: unknown }).allowedExecutableNames : undefined,
       ),
-      blockedWorkingDirectories: parseStringList(
-        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockedWorkingDirectories?: unknown }).blockedWorkingDirectories : undefined,
+      allowedWorkingDirectories: parseStringList(
+        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { allowedWorkingDirectories?: unknown }).allowedWorkingDirectories : undefined,
       ),
-      blockedExecutableNames: parseStringList(
-        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockedExecutableNames?: unknown }).blockedExecutableNames : undefined,
-      ),
-      blockPipes: parseBooleanValue(
-        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockPipes?: unknown }).blockPipes : undefined,
-        defaults.shellExecute.blockPipes,
-      ),
-      blockRedirection: parseBooleanValue(
-        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockRedirection?: unknown }).blockRedirection : undefined,
-        defaults.shellExecute.blockRedirection,
-      ),
-      blockNetworkCommands: parseBooleanValue(
-        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockNetworkCommands?: unknown }).blockNetworkCommands : undefined,
-        defaults.shellExecute.blockNetworkCommands,
-      ),
+      allowPipes: typeof shellExecute === 'object' && shellExecute !== null && 'allowPipes' in shellExecute
+        ? parseBooleanValue((shellExecute as { allowPipes?: unknown }).allowPipes, defaults.shellExecute.allowPipes)
+        : !parseBooleanValue(
+          typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockPipes?: unknown }).blockPipes : undefined,
+          !defaults.shellExecute.allowPipes,
+        ),
+      allowRedirection: typeof shellExecute === 'object' && shellExecute !== null && 'allowRedirection' in shellExecute
+        ? parseBooleanValue((shellExecute as { allowRedirection?: unknown }).allowRedirection, defaults.shellExecute.allowRedirection)
+        : !parseBooleanValue(
+          typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockRedirection?: unknown }).blockRedirection : undefined,
+          !defaults.shellExecute.allowRedirection,
+        ),
+      allowNetworkCommands: typeof shellExecute === 'object' && shellExecute !== null && 'allowNetworkCommands' in shellExecute
+        ? parseBooleanValue((shellExecute as { allowNetworkCommands?: unknown }).allowNetworkCommands, defaults.shellExecute.allowNetworkCommands)
+        : !parseBooleanValue(
+          typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { blockNetworkCommands?: unknown }).blockNetworkCommands : undefined,
+          !defaults.shellExecute.allowNetworkCommands,
+        ),
       maxCommandLength: parsePositiveNumber(
         typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { maxCommandLength?: unknown }).maxCommandLength : undefined,
         defaults.shellExecute.maxCommandLength,
@@ -187,12 +190,6 @@ function normalizeBuiltInToolsSecurityConfig(parsed: unknown): BuiltInToolsSecur
       ),
       allowedPaths: parseStringList(
         typeof fileRead === 'object' && fileRead !== null ? (fileRead as { allowedPaths?: unknown }).allowedPaths : undefined,
-      ),
-      blockedPaths: parseStringList(
-        typeof fileRead === 'object' && fileRead !== null ? (fileRead as { blockedPaths?: unknown }).blockedPaths : undefined,
-      ),
-      blockedExtensions: parseStringList(
-        typeof fileRead === 'object' && fileRead !== null ? (fileRead as { blockedExtensions?: unknown }).blockedExtensions : undefined,
       ),
       maxBytesPerRead: parsePositiveNumber(
         typeof fileRead === 'object' && fileRead !== null ? (fileRead as { maxBytesPerRead?: unknown }).maxBytesPerRead : undefined,
@@ -238,7 +235,11 @@ export function saveManagedClientFileConfig(config: ManagedClientFileConfig): vo
     ...config,
   };
 
-  fs.writeFileSync(getManagedClientConfigPath(), JSON.stringify(next, null, 2), 'utf-8');
+  const sanitized = Object.fromEntries(
+    Object.entries(next).filter(([, value]) => value !== undefined),
+  );
+
+  fs.writeFileSync(getManagedClientConfigPath(), JSON.stringify(sanitized, null, 2), 'utf-8');
 }
 
 export function getBuiltInToolsSecurityConfig(): BuiltInToolsSecurityConfig {

@@ -3,6 +3,7 @@ import { useI18n } from '../hooks/useI18n';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
+import PermissionProfileSummary from '../components/PermissionProfileSummary';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { ManagedClientFileMcpServerConfig } from '../../main/managed-client/mcp-server-config';
 import {
@@ -52,8 +53,6 @@ interface McpTestResult {
   error?: string;
   blockedReason?: 'profile-too-low' | 'transport-blocked';
 }
-
-const PERMISSION_PROFILE_OPTIONS: BuiltInToolsPermissionProfile[] = ['command-only', 'interactive-trusted', 'full-local-admin'];
 
 function parseEnvText(text: string): Record<string, string> | undefined {
   const env: Record<string, string> = {};
@@ -324,7 +323,6 @@ export default function ExternalMcpServers() {
   const [mcpSaving, setMcpSaving] = useState(false);
   const [savingServerId, setSavingServerId] = useState<string | null>(null);
   const [mcpTesting, setMcpTesting] = useState(false);
-  const [mcpRefreshing, setMcpRefreshing] = useState(false);
   const [mcpMessage, setMcpMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [mcpTestResults, setMcpTestResults] = useState<Record<string, McpTestResult>>({});
   const [managedClientBootstrap, setManagedClientBootstrap] = useState<{
@@ -457,6 +455,14 @@ export default function ExternalMcpServers() {
       }
     }));
   }, [mcpServers, persistedMcpServers]);
+
+  const globalPersistenceState = useMemo(() => {
+    const states = Object.values(serverPersistenceState);
+    return {
+      dirty: states.some((state) => state.dirty),
+      canSave: states.every((state) => state.canSave),
+    };
+  }, [serverPersistenceState]);
 
   const currentPermissionProfile = builtInToolsConfig?.permissionProfile ?? DEFAULT_BUILT_IN_TOOLS_PERMISSION_PROFILE;
 
@@ -672,25 +678,6 @@ export default function ExternalMcpServers() {
     }
   };
 
-  const handleRefreshMcpTools = async () => {
-    setMcpRefreshing(true);
-    setMcpMessage(null);
-
-    try {
-      const result = await window.electronAPI.refreshManagedClientMcpTools();
-      setMcpMessage({
-        type: result.applied ? 'success' : 'info',
-        text: result.applied
-          ? t('settings.externalMcpRefreshApplied', { toolCount: result.toolCount })
-          : t('settings.externalMcpRefreshSkipped'),
-      });
-    } catch (err) {
-      setMcpMessage({ type: 'error', text: t('settings.externalMcpRefreshFailed', { error: String(err) }) });
-    } finally {
-      setMcpRefreshing(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">{t('settings.externalMcpTitle')}</h2>
@@ -707,348 +694,328 @@ export default function ExternalMcpServers() {
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={handleAddMcpServer}
-              className="px-3 py-1.5 text-sm border border-dashed border-slate-700 text-slate-300 rounded hover:border-slate-500 hover:text-white transition-colors"
-            >
-              {t('settings.externalMcpAdd')}
-            </button>
-            <div className="flex-1" />
-            <button
-              onClick={() => handleTestMcpServers()}
-              disabled={mcpTesting}
-              className="px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {mcpTesting ? t('settings.externalMcpTesting') : t('settings.externalMcpTestAll')}
-            </button>
-            <button
-              onClick={handleRefreshMcpTools}
-              disabled={mcpRefreshing}
-              className="px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {mcpRefreshing ? t('settings.externalMcpRefreshing') : t('settings.externalMcpRepublish')}
-            </button>
-            <button
-              onClick={handleSaveMcpServers}
-              disabled={mcpSaving}
-              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {mcpSaving ? t('settings.externalMcpSaving') : t('settings.externalMcpSave')}
-            </button>
-          </div>
-
-          {mcpMessage && <div className={`text-xs ${mcpStatusClassName}`}>{mcpMessage.text}</div>}
-
-          <div className="text-xs text-slate-500">
-            {isManagedMcpWsRunning ? t('settings.externalMcpLiveHint') : t('settings.externalMcpInactiveHint')}
-          </div>
-
-          <div className="rounded-md border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs text-slate-300">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-slate-500">{t('settings.externalMcpCurrentPermissionProfile')}</span>
-              <Badge variant="info">{t(`builtInTools.permissionProfile.${currentPermissionProfile}`)}</Badge>
-              <span className="text-slate-500">{allowedTransportSummary}</span>
-            </div>
-            <div className="mt-2 text-slate-500">
-              {t('settings.externalMcpEffectiveSummary', effectiveServersSummary)}
-            </div>
-          </div>
-
+        <CardContent>
           <div className="space-y-4">
-            {mcpServers.length === 0 && (
-              <div className="rounded-md border border-dashed border-slate-700 px-4 py-6 text-sm text-slate-500 text-center">
-                {t('settings.externalMcpEmpty')}
+            <PermissionProfileSummary
+              title={t('settings.externalMcpCurrentPermissionProfileTitle')}
+              description={t('settings.externalMcpPermissionsDescription')}
+              currentLabel={t('settings.externalMcpCurrentPermissionProfile')}
+              currentProfile={currentPermissionProfile}
+              currentProfileLabel={t(`builtInTools.permissionProfile.${currentPermissionProfile}`)}
+              linkLabel={t('settings.externalMcpOpenPermissionsPage')}
+              extraLines={[
+                allowedTransportSummary,
+                t('settings.externalMcpEffectiveSummary', effectiveServersSummary),
+              ]}
+            />
+
+            <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleAddMcpServer}
+                  className="px-3 py-1.5 text-sm border border-dashed border-slate-700 text-slate-300 rounded hover:border-slate-500 hover:text-white transition-colors"
+                >
+                  {t('settings.externalMcpAdd')}
+                </button>
+                <div className="text-xs text-slate-500">
+                  {isManagedMcpWsRunning ? t('settings.externalMcpLiveHint') : t('settings.externalMcpInactiveHint')}
+                </div>
               </div>
-            )}
 
-            {mcpServers.map((server, index) => {
-              const testResult = mcpTestResults[server.id];
-              const persistenceState = serverPersistenceState[server.id] ?? { dirty: true, canSave: false };
-              const accessDecision = getExternalMcpAccessDecision(
-                currentPermissionProfile,
-                server.transport,
-                server.requiredPermissionProfile,
-              );
-              const statusTone = !server.enabled
-                ? 'border-slate-700 bg-slate-900/60 text-slate-400'
-                : accessDecision.allowed
-                  ? 'border-green-900 bg-green-950/30 text-green-300'
-                  : 'border-amber-900 bg-amber-950/30 text-amber-200';
-              const statusText = !server.enabled
-                ? t('settings.externalMcpStatusDisabled')
-                : accessDecision.allowed
-                  ? t('settings.externalMcpStatusActive')
-                  : getBlockedReasonText(accessDecision.blockedReason);
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <button
+                  onClick={() => handleTestMcpServers()}
+                  disabled={mcpTesting}
+                  className="px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {mcpTesting ? t('settings.externalMcpTesting') : t('settings.externalMcpTestAll')}
+                </button>
+                <button
+                  onClick={handleSaveMcpServers}
+                  disabled={mcpSaving || !globalPersistenceState.canSave || !globalPersistenceState.dirty}
+                  className="min-w-[72px] px-3 py-1.5 text-center text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {mcpSaving
+                    ? t('settings.externalMcpSaving')
+                    : globalPersistenceState.dirty
+                      ? t('settings.externalMcpSave')
+                      : t('settings.externalMcpSaved')}
+                </button>
+              </div>
+            </div>
 
-              return (
-                <div key={server.id} className="rounded-lg border border-slate-800 bg-slate-950/50 p-4 space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => handleToggleCollapsed(server.id)}
-                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
-                      aria-label={server.collapsed ? t('settings.externalMcpExpand') : t('settings.externalMcpCollapse')}
-                      title={server.collapsed ? t('settings.externalMcpExpand') : t('settings.externalMcpCollapse')}
-                    >
-                      {server.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
-                    <div className="text-sm font-medium text-slate-100">
-                      {getServerDisplayTitle(server, t('settings.externalMcpServerCard', { index: server.createdOrder }))}
-                    </div>
-                    <div className={`rounded-full border px-2 py-1 text-[11px] ${statusTone}`}>
-                      {statusText}
-                    </div>
-                    <div className="flex-1" />
-                    <button
-                      onClick={() => handleSwitchServerMode(server, 'form')}
-                      className={`px-3 py-1.5 text-xs rounded transition-colors ${server.editorMode === 'form'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200'
-                        }`}
-                    >
-                      {t('settings.externalMcpFormMode')}
-                    </button>
-                    <button
-                      onClick={() => handleSwitchServerMode(server, 'json')}
-                      className={`px-3 py-1.5 text-xs rounded transition-colors ${server.editorMode === 'json'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200'
-                        }`}
-                    >
-                      {t('settings.externalMcpJsonMode')}
-                    </button>
-                    <label className="flex items-center gap-2 text-xs text-slate-400">
-                      <input
-                        type="checkbox"
-                        checked={server.enabled}
-                        onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, enabled: event.target.checked }))}
-                      />
-                      {t('settings.externalMcpEnabled')}
-                    </label>
-                    <button
-                      onClick={() => handleTestMcpServers(server)}
-                      disabled={mcpTesting}
-                      className="px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {t('settings.externalMcpTestOne')}
-                    </button>
-                    <button
-                      onClick={() => handleSaveMcpServer(server)}
-                      disabled={!persistenceState.canSave || !persistenceState.dirty || savingServerId === server.id}
-                      className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {savingServerId === server.id
-                        ? t('settings.externalMcpSaving')
-                        : persistenceState.dirty
-                          ? t('settings.externalMcpSave')
-                          : t('settings.externalMcpSaved')}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteMcpServer(server.id)}
-                      className="px-3 py-1.5 text-xs bg-red-950/50 border border-red-900 text-red-200 rounded hover:bg-red-900/40 transition-colors"
-                    >
-                      {t('settings.externalMcpDelete')}
-                    </button>
-                  </div>
+            {mcpMessage && <div className={`text-xs ${mcpStatusClassName}`}>{mcpMessage.text}</div>}
 
-                  {server.collapsed ? null : (
-                    <>
+            <div className="space-y-4">
+              {mcpServers.length === 0 && (
+                <div className="rounded-md border border-dashed border-slate-700 px-4 py-6 text-sm text-slate-500 text-center">
+                  {t('settings.externalMcpEmpty')}
+                </div>
+              )}
 
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="block text-xs text-slate-500">{t('settings.externalMcpName')}</label>
-                        <Input
-                          value={server.name}
-                          onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, name: event.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-xs text-slate-500">{t('settings.externalMcpToolPrefix')}</label>
-                        <Input
-                          value={server.toolPrefix}
-                          onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, toolPrefix: event.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-2 md:col-span-2">
-                        <label className="block text-xs text-slate-500">{t('settings.externalMcpRequiredPermissionProfile')}</label>
-                        <div className="flex flex-wrap gap-2">
-                          {PERMISSION_PROFILE_OPTIONS.map((profile) => (
-                            <button
-                              key={profile}
-                              type="button"
-                              onClick={() => updateMcpServer(server.id, (current) => ({ ...current, requiredPermissionProfile: profile }))}
-                              className={`px-3 py-1.5 text-xs rounded transition-colors ${server.requiredPermissionProfile === profile
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200'
-                                }`}
-                            >
-                              {t(`builtInTools.permissionProfile.${profile}`)}
-                            </button>
-                          ))}
+              {mcpServers.map((server) => {
+                const testResult = mcpTestResults[server.id];
+                const persistenceState = serverPersistenceState[server.id] ?? { dirty: true, canSave: false };
+                const accessDecision = getExternalMcpAccessDecision(
+                  currentPermissionProfile,
+                  server.transport,
+                  server.requiredPermissionProfile,
+                );
+                const statusTone = !server.enabled
+                  ? 'border-slate-700 bg-slate-900/60 text-slate-400'
+                  : accessDecision.allowed
+                    ? 'border-green-900 bg-green-950/30 text-green-300'
+                    : 'border-amber-900 bg-amber-950/30 text-amber-200';
+                const statusText = !server.enabled
+                  ? t('settings.externalMcpStatusDisabled')
+                  : accessDecision.allowed
+                    ? t('settings.externalMcpStatusActive')
+                    : getBlockedReasonText(accessDecision.blockedReason);
+
+                return (
+                  <div key={server.id} className="rounded-lg border border-slate-800 bg-slate-950/50 p-4 space-y-4">
+                    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-4">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => handleToggleCollapsed(server.id)}
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                          aria-label={server.collapsed ? t('settings.externalMcpExpand') : t('settings.externalMcpCollapse')}
+                          title={server.collapsed ? t('settings.externalMcpExpand') : t('settings.externalMcpCollapse')}
+                        >
+                          {server.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                        <div className="min-w-0 break-all text-sm font-medium text-slate-100">
+                          {getServerDisplayTitle(server, t('settings.externalMcpServerCard', { index: server.createdOrder }))}
                         </div>
-                        <p className="text-xs text-slate-500">
-                          {t('settings.externalMcpRequiredPermissionProfileHint', {
-                            current: t(`builtInTools.permissionProfile.${currentPermissionProfile}`),
-                            required: t(`builtInTools.permissionProfile.${server.requiredPermissionProfile}`),
-                          })}
-                        </p>
-                      </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="block text-xs text-slate-500">{t('settings.externalMcpTools')}</label>
-                          <textarea
-                            value={server.toolsText}
-                            onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, toolsText: event.target.value }))}
-                            rows={3}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 resize-y focus:outline-none focus:border-slate-600"
-                            placeholder="*&#10;query&#10;list_tables"
+                        <div className={`rounded-full border px-2 py-1 text-[11px] ${statusTone}`}>
+                          {statusText}
+                        </div>
+                        <label className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={server.enabled}
+                            onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, enabled: event.target.checked }))}
+                            className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950 text-blue-500 focus:ring-blue-500"
                           />
+                          <span>{t('settings.externalMcpEnabled')}</span>
+                        </label>
+                      </div>
+
+                      <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end lg:self-start">
+                        <div className="inline-flex rounded-md border border-slate-700 bg-slate-900 p-0.5">
+                          <button
+                            onClick={() => handleSwitchServerMode(server, 'form')}
+                            className={`px-3 py-1.5 text-xs rounded transition-colors ${server.editorMode === 'form'
+                              ? 'bg-blue-600 text-white'
+                              : 'text-slate-400 hover:text-slate-200'
+                              }`}
+                          >
+                            {t('settings.externalMcpFormMode')}
+                          </button>
+                          <button
+                            onClick={() => handleSwitchServerMode(server, 'json')}
+                            className={`px-3 py-1.5 text-xs rounded transition-colors ${server.editorMode === 'json'
+                              ? 'bg-blue-600 text-white'
+                              : 'text-slate-400 hover:text-slate-200'
+                              }`}
+                          >
+                            {t('settings.externalMcpJsonMode')}
+                          </button>
                         </div>
+                        <button
+                          onClick={() => handleTestMcpServers(server)}
+                          disabled={mcpTesting}
+                          className="px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {t('settings.externalMcpTestOne')}
+                        </button>
+                        <button
+                          onClick={() => handleSaveMcpServer(server)}
+                          disabled={!persistenceState.canSave || !persistenceState.dirty || savingServerId === server.id}
+                          className="min-w-[72px] px-3 py-1.5 text-center text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {savingServerId === server.id
+                            ? t('settings.externalMcpSaving')
+                            : persistenceState.dirty
+                              ? t('settings.externalMcpSave')
+                              : t('settings.externalMcpSaved')}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMcpServer(server.id)}
+                          className="px-3 py-1.5 text-xs bg-red-950/50 border border-red-900 text-red-200 rounded hover:bg-red-900/40 transition-colors"
+                        >
+                          {t('settings.externalMcpDelete')}
+                        </button>
+                      </div>
                     </div>
 
-                    {server.editorMode === 'json' ? (
-                      <div className="space-y-2">
-                        <label className="block text-xs text-slate-500">{t('settings.externalMcpJsonLabel')}</label>
-                        <textarea
-                          value={server.jsonDraft}
-                          onChange={(event) => updateMcpServer(
-                            server.id,
-                            (current) => {
-                              const nextDraft = event.target.value;
-                              let next = {
-                                ...current,
-                                jsonDraft: nextDraft,
-                                jsonTouched: true,
-                              };
-                              try {
-                                next = applyConfigToEditableServer(next, parseSingleServerJson(nextDraft));
-                              } catch {
-                                // Keep the raw draft while the JSON is incomplete or invalid.
-                              }
-
-                              return next;
-                            },
-                            { syncJsonFromFields: false },
-                          )}
-                          rows={14}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm font-mono text-slate-200 resize-y focus:outline-none focus:border-slate-600"
-                          spellCheck={false}
-                        />
-                      </div>
-                    ) : (
+                    {server.collapsed ? null : (
                       <>
-                        <div className="space-y-2">
-                          <label className="block text-xs text-slate-500">{t('settings.externalMcpTransport')}</label>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => updateMcpServer(server.id, (current) => ({ ...current, transport: 'http' }))}
-                              className={`px-3 py-1.5 text-sm rounded transition-colors ${server.transport === 'http'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200'
-                                }`}
-                            >
-                              HTTP
-                            </button>
-                            <button
-                              onClick={() => updateMcpServer(server.id, (current) => ({ ...current, transport: 'stdio' }))}
-                              className={`px-3 py-1.5 text-sm rounded transition-colors ${server.transport === 'stdio'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200'
-                                }`}
-                            >
-                              STDIO
-                            </button>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="space-y-1">
+                            <label className="block text-xs text-slate-500">{t('settings.externalMcpName')}</label>
+                            <Input
+                              value={server.name}
+                              onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, name: event.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-xs text-slate-500">{t('settings.externalMcpToolPrefix')}</label>
+                            <Input
+                              value={server.toolPrefix}
+                              onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, toolPrefix: event.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="block text-xs text-slate-500">{t('settings.externalMcpTools')}</label>
+                            <textarea
+                              value={server.toolsText}
+                              onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, toolsText: event.target.value }))}
+                              rows={3}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 resize-y focus:outline-none focus:border-slate-600"
+                              placeholder="*&#10;query&#10;list_tables"
+                            />
                           </div>
                         </div>
 
-                        {server.transport === 'http' ? (
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <div className="space-y-1 md:col-span-2">
-                              <label className="block text-xs text-slate-500">URL</label>
-                              <Input
-                                value={server.url}
-                                onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, url: event.target.value }))}
-                                placeholder="http://localhost:4000/mcp"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="block text-xs text-slate-500">{t('settings.externalMcpTimeout')}</label>
-                              <Input
-                                value={server.timeout}
-                                onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, timeout: event.target.value }))}
-                                placeholder="30000"
-                              />
-                            </div>
+                        {server.editorMode === 'json' ? (
+                          <div className="space-y-2">
+                            <label className="block text-xs text-slate-500">{t('settings.externalMcpJsonLabel')}</label>
+                            <textarea
+                              value={server.jsonDraft}
+                              onChange={(event) => updateMcpServer(
+                                server.id,
+                                (current) => {
+                                  const nextDraft = event.target.value;
+                                  let next = {
+                                    ...current,
+                                    jsonDraft: nextDraft,
+                                    jsonTouched: true,
+                                  };
+
+                                  try {
+                                    next = applyConfigToEditableServer(next, parseSingleServerJson(nextDraft));
+                                  } catch {
+                                    // Keep the raw draft while the JSON is incomplete or invalid.
+                                  }
+
+                                  return next;
+                                },
+                                { syncJsonFromFields: false },
+                              )}
+                              rows={14}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm font-mono text-slate-200 resize-y focus:outline-none focus:border-slate-600"
+                              spellCheck={false}
+                            />
                           </div>
                         ) : (
-                          <div className="space-y-3">
-                            <div className="grid gap-3 md:grid-cols-2">
-                              <div className="space-y-1 md:col-span-2">
-                                <label className="block text-xs text-slate-500">{t('settings.externalMcpCommand')}</label>
-                                <Input
-                                  value={server.command}
-                                  onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, command: event.target.value }))}
-                                  placeholder="npx"
-                                />
-                              </div>
-                              <div className="space-y-1 md:col-span-2">
-                                <label className="block text-xs text-slate-500">{t('settings.externalMcpArgs')}</label>
-                                <textarea
-                                  value={server.argsText}
-                                  onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, argsText: event.target.value }))}
-                                  rows={4}
-                                  className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 resize-y focus:outline-none focus:border-slate-600"
-                                  placeholder="-y&#10;@modelcontextprotocol/server-filesystem&#10;C:/workspace"
-                                />
-                              </div>
-                              <div className="space-y-1 md:col-span-2">
-                                <label className="block text-xs text-slate-500">{t('settings.externalMcpCwd')}</label>
-                                <Input
-                                  value={server.cwd}
-                                  onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, cwd: event.target.value }))}
-                                  placeholder="C:/workspace"
-                                />
-                              </div>
-                              <div className="space-y-1 md:col-span-2">
-                                <label className="block text-xs text-slate-500">{t('settings.externalMcpEnv')}</label>
-                                <textarea
-                                  value={server.envText}
-                                  onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, envText: event.target.value }))}
-                                  rows={4}
-                                  className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 resize-y focus:outline-none focus:border-slate-600"
-                                  placeholder="API_KEY=demo-token&#10;LOG_LEVEL=debug"
-                                />
+                          <>
+                            <div className="space-y-2">
+                              <label className="block text-xs text-slate-500">{t('settings.externalMcpTransport')}</label>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => updateMcpServer(server.id, (current) => ({ ...current, transport: 'http' }))}
+                                  className={`px-3 py-1.5 text-sm rounded transition-colors ${server.transport === 'http'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200'
+                                    }`}
+                                >
+                                  HTTP
+                                </button>
+                                <button
+                                  onClick={() => updateMcpServer(server.id, (current) => ({ ...current, transport: 'stdio' }))}
+                                  className={`px-3 py-1.5 text-sm rounded transition-colors ${server.transport === 'stdio'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200'
+                                    }`}
+                                >
+                                  STDIO
+                                </button>
                               </div>
                             </div>
+
+                            {server.transport === 'http' ? (
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div className="space-y-1 md:col-span-2">
+                                  <label className="block text-xs text-slate-500">URL</label>
+                                  <Input
+                                    value={server.url}
+                                    onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, url: event.target.value }))}
+                                    placeholder="http://localhost:4000/mcp"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="block text-xs text-slate-500">{t('settings.externalMcpTimeout')}</label>
+                                  <Input
+                                    value={server.timeout}
+                                    onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, timeout: event.target.value }))}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div className="space-y-1 md:col-span-2">
+                                  <label className="block text-xs text-slate-500">{t('settings.externalMcpCommand')}</label>
+                                  <Input
+                                    value={server.command}
+                                    onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, command: event.target.value }))}
+                                    placeholder="npx"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="block text-xs text-slate-500">{t('settings.externalMcpArgs')}</label>
+                                  <textarea
+                                    value={server.argsText}
+                                    onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, argsText: event.target.value }))}
+                                    rows={4}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 resize-y focus:outline-none focus:border-slate-600"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="block text-xs text-slate-500">{t('settings.externalMcpCwd')}</label>
+                                  <Input
+                                    value={server.cwd}
+                                    onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, cwd: event.target.value }))}
+                                    placeholder="C:\\path\\to\\workspace"
+                                  />
+                                </div>
+                                <div className="space-y-1 md:col-span-2">
+                                  <label className="block text-xs text-slate-500">{t('settings.externalMcpEnv')}</label>
+                                  <textarea
+                                    value={server.envText}
+                                    onChange={(event) => updateMcpServer(server.id, (current) => ({ ...current, envText: event.target.value }))}
+                                    rows={4}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 resize-y focus:outline-none focus:border-slate-600"
+                                    placeholder="API_KEY=value"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {testResult && (
+                          <div className={`rounded-md border px-3 py-2 text-xs ${testResult.success
+                            ? 'border-green-900 bg-green-950/30 text-green-300'
+                            : 'border-amber-900 bg-amber-950/30 text-amber-200'
+                            }`}>
+                            {testResult.success
+                              ? t('settings.externalMcpTestSuccess', { toolCount: testResult.toolCount })
+                              : testResult.blockedReason
+                                ? t('settings.externalMcpTestBlocked', {
+                                  reason: getBlockedReasonText(testResult.blockedReason),
+                                  required: t(`builtInTools.permissionProfile.${testResult.requiredPermissionProfile}`),
+                                  current: t(`builtInTools.permissionProfile.${currentPermissionProfile}`),
+                                })
+                                : t('settings.externalMcpTestError', { error: testResult.error ?? 'Unknown error' })}
                           </div>
                         )}
                       </>
                     )}
-
-                    {testResult && (
-                      <div className={`rounded-md border px-3 py-2 text-xs ${testResult.success
-                        ? 'border-green-900 bg-green-950/30 text-green-300'
-                        : testResult.blockedReason
-                          ? 'border-amber-900 bg-amber-950/30 text-amber-200'
-                          : 'border-red-900 bg-red-950/30 text-red-300'
-                        }`}>
-                        {testResult.success
-                          ? t('settings.externalMcpTestSuccess', { toolCount: testResult.toolCount })
-                          : testResult.blockedReason
-                            ? t('settings.externalMcpTestBlocked', {
-                              required: t(`builtInTools.permissionProfile.${testResult.requiredPermissionProfile}`),
-                              current: t(`builtInTools.permissionProfile.${currentPermissionProfile}`),
-                              reason: getBlockedReasonText(testResult.blockedReason),
-                            })
-                          : t('settings.externalMcpTestError', { error: testResult.error ?? 'Unknown error' })}
-                      </div>
-                    )}
-                  </>
-                  )}
-                </div>
-              );
-            })}
-
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </CardContent>
       </Card>

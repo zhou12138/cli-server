@@ -60,6 +60,11 @@ export class ManagedClientRuntime {
     this.abortController?.abort();
   }
 
+  async stopAndWait(): Promise<void> {
+    this.stop();
+    await this.loopPromise?.catch(() => undefined);
+  }
+
   getStatus(): { enabled: boolean; running: boolean; clientId: string | null; baseUrl: string | null } {
     return {
       enabled: this.config.enabled,

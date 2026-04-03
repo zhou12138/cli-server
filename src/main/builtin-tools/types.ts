@@ -1,11 +1,10 @@
 export interface ShellExecuteSecurityConfig {
   enabled: boolean;
-  blockedCommands: string[];
-  blockedWorkingDirectories: string[];
-  blockedExecutableNames: string[];
-  blockPipes: boolean;
-  blockRedirection: boolean;
-  blockNetworkCommands: boolean;
+  allowedExecutableNames: string[];
+  allowedWorkingDirectories: string[];
+  allowPipes: boolean;
+  allowRedirection: boolean;
+  allowNetworkCommands: boolean;
   maxCommandLength: number;
   maxTimeoutSeconds: number;
 }
@@ -14,8 +13,6 @@ export interface FileReadSecurityConfig {
   enabled: boolean;
   allowRelativePaths: boolean;
   allowedPaths: string[];
-  blockedPaths: string[];
-  blockedExtensions: string[];
   maxBytesPerRead: number;
   maxFileSizeBytes: number;
 }
@@ -52,8 +49,6 @@ const FULL_LOCAL_ADMIN_DESKTOP_TOOL_NAMES = new Set([
   'session_read_output',
 ]);
 
-const SENSITIVE_FILE_EXTENSIONS = ['.env', '.key', '.pem', '.p12', '.pfx', '.ppk', '.kdbx'];
-
 export function getBuiltInToolsSecurityConfigForProfile(
   permissionProfile: BuiltInToolsPermissionProfile,
 ): BuiltInToolsSecurityConfig {
@@ -63,12 +58,11 @@ export function getBuiltInToolsSecurityConfigForProfile(
         permissionProfile,
         shellExecute: {
           enabled: true,
-          blockedCommands: [],
-          blockedWorkingDirectories: [],
-          blockedExecutableNames: [],
-          blockPipes: true,
-          blockRedirection: true,
-          blockNetworkCommands: true,
+          allowedExecutableNames: [],
+          allowedWorkingDirectories: [],
+          allowPipes: false,
+          allowRedirection: false,
+          allowNetworkCommands: false,
           maxCommandLength: 1000,
           maxTimeoutSeconds: 30,
         },
@@ -76,8 +70,6 @@ export function getBuiltInToolsSecurityConfigForProfile(
           enabled: false,
           allowRelativePaths: false,
           allowedPaths: [],
-          blockedPaths: [],
-          blockedExtensions: [...SENSITIVE_FILE_EXTENSIONS],
           maxBytesPerRead: 32 * 1024,
           maxFileSizeBytes: 1 * 1024 * 1024,
         },
@@ -92,12 +84,11 @@ export function getBuiltInToolsSecurityConfigForProfile(
         permissionProfile,
         shellExecute: {
           enabled: true,
-          blockedCommands: [],
-          blockedWorkingDirectories: [],
-          blockedExecutableNames: [],
-          blockPipes: false,
-          blockRedirection: false,
-          blockNetworkCommands: true,
+          allowedExecutableNames: [],
+          allowedWorkingDirectories: [],
+          allowPipes: true,
+          allowRedirection: true,
+          allowNetworkCommands: false,
           maxCommandLength: 2000,
           maxTimeoutSeconds: 120,
         },
@@ -105,8 +96,6 @@ export function getBuiltInToolsSecurityConfigForProfile(
           enabled: false,
           allowRelativePaths: false,
           allowedPaths: [],
-          blockedPaths: [],
-          blockedExtensions: [...SENSITIVE_FILE_EXTENSIONS],
           maxBytesPerRead: 32 * 1024,
           maxFileSizeBytes: 1 * 1024 * 1024,
         },
@@ -121,12 +110,11 @@ export function getBuiltInToolsSecurityConfigForProfile(
         permissionProfile,
         shellExecute: {
           enabled: true,
-          blockedCommands: [],
-          blockedWorkingDirectories: [],
-          blockedExecutableNames: [],
-          blockPipes: false,
-          blockRedirection: false,
-          blockNetworkCommands: false,
+          allowedExecutableNames: [],
+          allowedWorkingDirectories: [],
+          allowPipes: true,
+          allowRedirection: true,
+          allowNetworkCommands: true,
           maxCommandLength: 4000,
           maxTimeoutSeconds: 120,
         },
@@ -134,8 +122,6 @@ export function getBuiltInToolsSecurityConfigForProfile(
           enabled: true,
           allowRelativePaths: true,
           allowedPaths: [],
-          blockedPaths: [],
-          blockedExtensions: [],
           maxBytesPerRead: 64 * 1024,
           maxFileSizeBytes: 2 * 1024 * 1024,
         },
@@ -295,9 +281,9 @@ export function applyPermissionProfileGuards(config: BuiltInToolsSecurityConfig)
       ...config,
       shellExecute: {
         ...config.shellExecute,
-        blockPipes: true,
-        blockRedirection: true,
-        blockNetworkCommands: true,
+        allowPipes: false,
+        allowRedirection: false,
+        allowNetworkCommands: false,
       },
       fileRead: {
         ...config.fileRead,
@@ -322,7 +308,7 @@ export function applyPermissionProfileGuards(config: BuiltInToolsSecurityConfig)
       },
       shellExecute: {
         ...config.shellExecute,
-        blockNetworkCommands: true,
+        allowNetworkCommands: false,
       },
       managedMcpServerAdmin: {
         enabled: false,

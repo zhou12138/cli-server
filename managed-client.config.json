@@ -3,20 +3,28 @@
   "bootstrapBaseUrl": "wss://dev3.societas-test.microsoft.com",
   "clientId": "77beb318-af3d-42ed-b781-ff7093577f98",
   "enabled": true,
-  "mode": "managed-client-mcp-ws",
   "signinPageUrl": "https://dev3.societas-test.microsoft.com",
   "tlsServername": "dev3.societas-test.microsoft.com",
   "builtInTools": {
     "permissionProfile": "full-local-admin",
     "shellExecute": {
-      "blockedCommands": [],
-      "blockedWorkingDirectories": [],
-      "blockedExecutableNames": []
+      "allowedExecutableNames": [
+        "git",
+        "node",
+        "npm",
+        "npx",
+        "python",
+        "python3",
+        "copilot"
+      ],
+      "allowedWorkingDirectories": []
     },
     "fileRead": {
-      "allowedPaths": [],
-      "blockedPaths": [],
-      "blockedExtensions": []
+      "allowedPaths": [
+        "C:\\edge_workspace\\cli-server\\managed-client-workspace\\current",
+        "C:\\edge_workspace\\cli-server\\managed-client-workspace"
+      ]
     }
-  }
+  },
+  "mode": "managed-client-mcp-ws"
 }

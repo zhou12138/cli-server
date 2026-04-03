@@ -355,6 +355,11 @@ export class ManagedClientMcpWsRuntime {
     }
   }
 
+  async stopAndWait(): Promise<void> {
+    this.stop();
+    await this.loopPromise?.catch(() => undefined);
+  }
+
   async updateMcpServers(mcpServers: ManagedClientRuntimeConfig['mcpServers']): Promise<{
     applied: boolean;
     toolCount: number;
@@ -444,6 +449,7 @@ export class ManagedClientMcpWsRuntime {
     enabled: boolean;
     running: boolean;
     clientId: string | null;
+    connectionId: string | null;
     baseUrl: string | null;
     pullStatus: 'idle' | 'waiting' | 'task-assigned' | 'task-completed' | 'task-failed';
     pulledTaskCount: number;
@@ -462,6 +468,7 @@ export class ManagedClientMcpWsRuntime {
       enabled: this.config.enabled,
       running: this.running,
       clientId: this.config.clientId,
+      connectionId: this.connectionId,
       baseUrl: this.config.baseUrl,
       pullStatus: this.pullStatus,
       pulledTaskCount: this.pulledTaskCount,
@@ -571,6 +578,8 @@ export class ManagedClientMcpWsRuntime {
     const server = createMcpServer(this.sessionManager, 'managed-client-mcp-ws', {
       defaultWorkingDirectory: workspace.currentDir,
       enforcedWorkingDirectoryRoot: workspace.rootDir,
+      requireShellAllowlist: true,
+      exposeManagedAdminTool: true,
     });
     const client = new Client({
       name: 'cli-server-managed-client-mcp-ws',

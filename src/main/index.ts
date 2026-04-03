@@ -182,6 +182,93 @@ let currentMode: 'cli-server' | ManagedClientMode = managedClientConfig.enabled 
 let needsModeSelection = false;
 let managedClientSigninPromise: Promise<{ token: string; signinUrl: string }> | null = null;
 
+async function stopManagedClientRuntime(): Promise<void> {
+  const runtime = managedClientRuntime;
+  if (!runtime) {
+    return;
+  }
+
+  managedClientRuntime = null;
+  await runtime.stopAndWait();
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split('.');
+  if (parts.length < 2 || !parts[1]) {
+    return null;
+  }
+
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const json = Buffer.from(padded, 'base64').toString('utf8');
+    const payload = JSON.parse(json);
+    return typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+function firstStringClaim(payload: Record<string, unknown> | null, keys: string[]): string | null {
+  if (!payload) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function getManagedClientSessionIdentity(token: string | null): {
+  label: string | null;
+  detail: string | null;
+} {
+  const normalizedToken = token?.trim();
+  if (!normalizedToken) {
+    return {
+      label: null,
+      detail: null,
+    };
+  }
+
+  const payload = decodeJwtPayload(normalizedToken);
+  const username = firstStringClaim(payload, ['preferred_username', 'email', 'upn']);
+  const displayName = firstStringClaim(payload, ['name', 'given_name']);
+  const subject = firstStringClaim(payload, ['sub']);
+
+  if (username) {
+    return {
+      label: username,
+      detail: displayName && displayName !== username ? displayName : null,
+    };
+  }
+
+  if (displayName) {
+    return {
+      label: displayName,
+      detail: subject && subject !== displayName ? subject : null,
+    };
+  }
+
+  return {
+    label: subject,
+    detail: null,
+  };
+}
+
+function canClearAuditHistory(): boolean {
+  if (currentMode !== 'managed-client-mcp-ws') {
+    return true;
+  }
+
+  return Boolean(managedClientSessionToken) || Boolean(managedClientRuntime?.getStatus().running);
+}
+
 // Session notification setting
 let sessionNotificationEnabled = true;
 
@@ -191,6 +278,7 @@ function buildBootstrapState() {
     ? managedClientRuntime.getStatus()
     : null;
   const workspacePaths = getManagedClientWorkspacePaths(managedClientConfig.workspaceRoot);
+  const sessionIdentity = getManagedClientSessionIdentity(managedClientSessionToken);
 
   return {
     mode: currentMode,
@@ -204,6 +292,11 @@ function buildBootstrapState() {
     needsModeSelection,
     needsBaseUrl: currentMode !== 'cli-server' && !managedClientConfig.headless && !needsModeSelection && !(runtimeStatus?.running ?? false),
     running: runtimeStatus?.running ?? false,
+    sessionAuthenticated: Boolean(managedClientSessionToken) || Boolean(runtimeStatus?.running),
+    clientId: runtimeStatus?.clientId ?? managedClientConfig.clientId,
+    connectionId: mcpWsStatus?.connectionId ?? null,
+    sessionIdentityLabel: sessionIdentity.label,
+    sessionIdentityDetail: sessionIdentity.detail,
     pullStatus: mcpWsStatus?.pullStatus ?? 'idle',
     pulledTaskCount: mcpWsStatus?.pulledTaskCount ?? 0,
     emptyPollCount: mcpWsStatus?.emptyPollCount ?? 0,
@@ -376,8 +469,7 @@ app.whenReady().then(async () => {
     return managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers);
   });
   ipcMain.handle('managed-client:selectMode', async (_e, mode: 'cli-server' | ManagedClientMode) => {
-    managedClientRuntime?.stop();
-    managedClientRuntime = null;
+    await stopManagedClientRuntime();
     await stopServer();
 
     saveManagedClientFileConfig({
@@ -406,8 +498,7 @@ app.whenReady().then(async () => {
     const normalizedSigninPageUrl = payload.signinPageUrl?.trim();
     const normalizedTlsServername = payload.tlsServername?.trim();
 
-    managedClientRuntime?.stop();
-    managedClientRuntime = null;
+    await stopManagedClientRuntime();
 
     saveManagedClientFileConfig({
       bootstrapBaseUrl: payload.baseUrl,
@@ -432,8 +523,9 @@ app.whenReady().then(async () => {
     return buildBootstrapState();
   });
   ipcMain.handle('managed-client:signOut', async () => {
-    managedClientRuntime?.stop();
-    managedClientRuntime = null;
+    managedClientSessionToken = null;
+    saveManagedClientFileConfig({ token: undefined });
+    await stopManagedClientRuntime();
     managedClientSessionToken = null;
     managedClientConfig = {
       ...getManagedClientRuntimeConfig(app.getVersion()),
@@ -464,7 +556,7 @@ app.whenReady().then(async () => {
 
   // Register IPC handlers
   if (mainWindow) {
-    registerIpcHandlers(mainWindow, sessionManager, () => sessionNotificationEnabled);
+    registerIpcHandlers(mainWindow, sessionManager, () => sessionNotificationEnabled, canClearAuditHistory);
   }
 
   if (!managedClientConfig.headless && currentMode === 'cli-server' && !needsModeSelection) {
@@ -516,7 +608,7 @@ app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
     if (mainWindow) {
-      registerIpcHandlers(mainWindow, sessionManager, () => sessionNotificationEnabled);
+      registerIpcHandlers(mainWindow, sessionManager, () => sessionNotificationEnabled, canClearAuditHistory);
     }
   } else {
     mainWindow.show();
@@ -525,4 +617,5 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   managedClientRuntime?.stop();
+  managedClientRuntime = null;
 });

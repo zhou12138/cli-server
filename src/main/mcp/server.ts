@@ -17,48 +17,40 @@ function json(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
 }
 
-function error(message: string) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }], isError: true as const };
+function error(message: string, details?: Record<string, unknown>) {
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify({ error: message, ...details }) }],
+    isError: true as const,
+  };
+}
+
+function buildShellAllowlistDetails() {
+  const shellConfig = getBuiltInToolsSecurityConfig().shellExecute;
+  return {
+    localAllowlist: {
+      allowedExecutableNames: shellConfig.allowedExecutableNames,
+      allowedWorkingDirectories: shellConfig.allowedWorkingDirectories,
+    },
+  };
+}
+
+function buildFileReadAllowlistDetails() {
+  const fileReadConfig = getBuiltInToolsSecurityConfig().fileRead;
+  return {
+    localAllowlist: {
+      allowedPaths: fileReadConfig.allowedPaths,
+    },
+  };
 }
 
 function normalizeForComparison(value: string): string {
   return process.platform === 'win32' ? value.toLowerCase() : value;
 }
 
-function isBlockedBySubstring(value: string, blockedEntries: string[]): string | null {
-  const normalizedValue = normalizeForComparison(value);
-
-  for (const entry of blockedEntries) {
-    const normalizedEntry = normalizeForComparison(entry.trim());
-    if (normalizedEntry && normalizedValue.includes(normalizedEntry)) {
-      return entry;
-    }
-  }
-
-  return null;
-}
-
 function pathMatchesRoot(candidatePath: string, rootPath: string): boolean {
   const resolvedCandidate = normalizeForComparison(pathModule.resolve(candidatePath));
   const resolvedRoot = normalizeForComparison(pathModule.resolve(rootPath));
   return resolvedCandidate === resolvedRoot || resolvedCandidate.startsWith(`${resolvedRoot}${pathModule.sep}`);
-}
-
-function isBlockedPath(candidatePath: string, blockedPaths: string[]): string | null {
-  const resolvedCandidate = normalizeForComparison(pathModule.resolve(candidatePath));
-
-  for (const entry of blockedPaths) {
-    const resolvedEntry = normalizeForComparison(pathModule.resolve(entry.trim()));
-    if (!resolvedEntry) {
-      continue;
-    }
-
-    if (resolvedCandidate === resolvedEntry || resolvedCandidate.startsWith(`${resolvedEntry}${pathModule.sep}`)) {
-      return entry;
-    }
-  }
-
-  return null;
 }
 
 function isAllowedPath(candidatePath: string, allowedPaths: string[]): string | null {
@@ -99,6 +91,8 @@ function isNetworkCommand(executableName: string): boolean {
 interface McpServerOptions {
   defaultWorkingDirectory?: string;
   enforcedWorkingDirectoryRoot?: string;
+  requireShellAllowlist?: boolean;
+  exposeManagedAdminTool?: boolean;
 }
 
 function resolveWorkingDirectory(cwd: string | undefined, options?: McpServerOptions): string | undefined {
@@ -138,37 +132,36 @@ function validateShellExecutionRequest(
     return `Command length exceeds limit (${shellConfig.maxCommandLength} characters)`;
   }
 
-  const blockedCommand = isBlockedBySubstring(command, shellConfig.blockedCommands);
-  if (blockedCommand) {
-    return `Command blocked by policy: ${blockedCommand}`;
+  const executableName = getCommandExecutableName(command);
+  if (options?.requireShellAllowlist && shellConfig.allowedExecutableNames.length === 0) {
+    return 'shell_execute requires at least one allowed executable name in managed-client-mcp-ws mode';
   }
 
-  const executableName = getCommandExecutableName(command);
-  if (executableName) {
-    const blockedExecutable = shellConfig.blockedExecutableNames
+  if (shellConfig.allowedExecutableNames.length > 0) {
+    const normalizedAllowedExecutables = shellConfig.allowedExecutableNames
       .map((entry) => entry.trim().toLowerCase())
-      .find((entry) => entry && entry === executableName);
-    if (blockedExecutable) {
-      return `Executable blocked by policy: ${blockedExecutable}`;
+      .filter(Boolean);
+
+    if (!executableName || !normalizedAllowedExecutables.includes(executableName)) {
+      return `Executable is outside the allowlist${executableName ? `: ${executableName}` : ''}`;
     }
   }
 
-  if (shellConfig.blockPipes && hasShellPipes(command)) {
+  if (!shellConfig.allowPipes && hasShellPipes(command)) {
     return 'Command blocked by policy: shell pipes are not allowed';
   }
 
-  if (shellConfig.blockRedirection && hasShellRedirection(command)) {
+  if (!shellConfig.allowRedirection && hasShellRedirection(command)) {
     return 'Command blocked by policy: shell redirection is not allowed';
   }
 
-  if (shellConfig.blockNetworkCommands && executableName && isNetworkCommand(executableName)) {
+  if (!shellConfig.allowNetworkCommands && executableName && isNetworkCommand(executableName)) {
     return `Executable blocked by policy: network command ${executableName} is not allowed`;
   }
 
   if (cwd) {
-    const blockedDirectory = isBlockedPath(cwd, shellConfig.blockedWorkingDirectories);
-    if (blockedDirectory) {
-      return `Working directory blocked by policy: ${blockedDirectory}`;
+    if (shellConfig.allowedWorkingDirectories.length > 0 && !isAllowedPath(cwd, shellConfig.allowedWorkingDirectories)) {
+      return 'Working directory is outside the allowed roots';
     }
 
     if (options?.enforcedWorkingDirectoryRoot && !pathMatchesRoot(cwd, options.enforcedWorkingDirectoryRoot)) {
@@ -205,7 +198,7 @@ export function createMcpServer(sessionManager: SessionManager, clientIp: string
         const effectiveCwd = resolveWorkingDirectory(cwd, options);
         const validationError = validateShellExecutionRequest(command, effectiveCwd, options);
         if (validationError) {
-          return error(validationError);
+          return error(validationError, buildShellAllowlistDetails());
         }
 
         const requestedTimeoutSeconds = Math.max(1, timeout_seconds ?? 120);
@@ -258,34 +251,23 @@ export function createMcpServer(sessionManager: SessionManager, clientIp: string
         const fileReadConfig = securityConfig.fileRead;
         const resolvedPath = resolveFilePath(path, options);
         if (!fileReadConfig.enabled) {
-          return error('file_read is disabled by built-in tool policy');
+          return error('file_read is disabled by built-in tool policy', buildFileReadAllowlistDetails());
         }
 
         if (!fileReadConfig.allowRelativePaths && !pathModule.isAbsolute(path)) {
-          return error('Relative paths are disabled by built-in tool policy');
+          return error('Relative paths are disabled by built-in tool policy', buildFileReadAllowlistDetails());
+        }
+
+        if (securityConfig.permissionProfile === 'full-local-admin' && fileReadConfig.allowedPaths.length === 0) {
+          return error('file_read requires at least one allowed read root in full-local-admin mode', buildFileReadAllowlistDetails());
         }
 
         if (isWorkspaceScopedPermissionProfile(securityConfig.permissionProfile) && options?.enforcedWorkingDirectoryRoot && !pathMatchesRoot(resolvedPath, options.enforcedWorkingDirectoryRoot)) {
-          return error(`Path must stay inside managed workspace: ${options.enforcedWorkingDirectoryRoot}`);
+          return error(`Path must stay inside managed workspace: ${options.enforcedWorkingDirectoryRoot}`, buildFileReadAllowlistDetails());
         }
 
         if (fileReadConfig.allowedPaths.length > 0 && !isAllowedPath(resolvedPath, fileReadConfig.allowedPaths)) {
-          return error('Path is outside the allowed read roots');
-        }
-
-        const blockedPath = isBlockedPath(resolvedPath, fileReadConfig.blockedPaths);
-        if (blockedPath) {
-          return error(`Path blocked by policy: ${blockedPath}`);
-        }
-
-        const fileExtension = pathModule.extname(resolvedPath).toLowerCase();
-        if (fileExtension) {
-          const blockedExtension = fileReadConfig.blockedExtensions
-            .map((extension) => extension.trim().toLowerCase())
-            .find((extension) => extension && extension === fileExtension);
-          if (blockedExtension) {
-            return error(`File extension blocked by policy: ${blockedExtension}`);
-          }
+          return error('Path is outside the allowed read roots', buildFileReadAllowlistDetails());
         }
 
         const selectedEncoding = (encoding ?? 'utf-8') as BufferEncoding;
@@ -312,52 +294,54 @@ export function createMcpServer(sessionManager: SessionManager, clientIp: string
     },
   );
 
-  server.tool(
-    'managed_mcp_server_upsert',
-    'Create or update a managed external MCP server configuration on this desktop node. This is the official supported path for adding MCP servers locally when the built-in policy enables it.',
-    {
-      name: z.string().describe('Unique MCP server name used as the local config key'),
-      transport: z.enum(['http', 'stdio']).describe('Transport type for the external MCP server'),
-      enabled: z.boolean().optional().describe('Whether the configured MCP server is enabled locally (default: true)'),
-      tool_prefix: z.string().optional().describe('Optional advertised tool prefix. Defaults to the server name.'),
-      tools: z.array(z.string()).optional().describe('Optional allow-list of tools for this server. Use ["*"] to allow all tools.'),
-      url: z.string().optional().describe('HTTP server URL when transport=http'),
-      timeout: z.number().int().positive().optional().describe('Optional HTTP timeout in milliseconds when transport=http'),
-      command: z.string().optional().describe('Command to launch when transport=stdio'),
-      args: z.array(z.string()).optional().describe('Arguments for stdio transport'),
-      cwd: z.string().optional().describe('Working directory for stdio transport'),
-      env: z.record(z.string(), z.string()).optional().describe('Environment variables for stdio transport'),
-    },
-    async ({ name, transport, enabled, tool_prefix, tools, url, timeout, command, args, cwd, env }) => {
-      try {
-        const result = await upsertManagedMcpServer({
-          name,
-          transport,
-          enabled,
-          toolPrefix: tool_prefix,
-          tools,
-          url,
-          timeout,
-          command,
-          args,
-          cwd,
-          env,
-        });
+  if (options?.exposeManagedAdminTool) {
+    server.tool(
+      'managed_mcp_server_upsert',
+      'Create or update a managed external MCP server configuration on this desktop node. This is the official supported path for adding MCP servers locally when the built-in policy enables it.',
+      {
+        name: z.string().describe('Unique MCP server name used as the local config key'),
+        transport: z.enum(['http', 'stdio']).describe('Transport type for the external MCP server'),
+        enabled: z.boolean().optional().describe('Whether the configured MCP server is enabled locally (default: true)'),
+        tool_prefix: z.string().optional().describe('Optional advertised tool prefix. Defaults to the server name.'),
+        tools: z.array(z.string()).optional().describe('Optional allow-list of tools for this server. Use ["*"] to allow all tools.'),
+        url: z.string().optional().describe('HTTP server URL when transport=http'),
+        timeout: z.number().int().positive().optional().describe('Optional HTTP timeout in milliseconds when transport=http'),
+        command: z.string().optional().describe('Command to launch when transport=stdio'),
+        args: z.array(z.string()).optional().describe('Arguments for stdio transport'),
+        cwd: z.string().optional().describe('Working directory for stdio transport'),
+        env: z.record(z.string(), z.string()).optional().describe('Environment variables for stdio transport'),
+      },
+      async ({ name, transport, enabled, tool_prefix, tools, url, timeout, command, args, cwd, env }) => {
+        try {
+          const result = await upsertManagedMcpServer({
+            name,
+            transport,
+            enabled,
+            toolPrefix: tool_prefix,
+            tools,
+            url,
+            timeout,
+            command,
+            args,
+            cwd,
+            env,
+          });
 
-        return json({
-          name: result.name,
-          created: result.created,
-          config: result.config,
-          applied: result.applied,
-          tool_count: result.toolCount,
-          tools: result.tools,
-          reason: result.reason ?? null,
-        });
-      } catch (err) {
-        return error(String(err));
-      }
-    },
-  );
+          return json({
+            name: result.name,
+            created: result.created,
+            config: result.config,
+            applied: result.applied,
+            tool_count: result.toolCount,
+            tools: result.tools,
+            reason: result.reason ?? null,
+          });
+        } catch (err) {
+          return error(String(err));
+        }
+      },
+    );
+  }
 
   // ── Tool: session_create ──
   server.tool(
@@ -383,7 +367,7 @@ After creating a session, use session_wait with idleMs (e.g. 5000-15000) to poll
         const effectiveCwd = resolveWorkingDirectory(cwd, options);
         const validationError = validateShellExecutionRequest(command, effectiveCwd, options);
         if (validationError) {
-          return error(validationError);
+          return error(validationError, buildShellAllowlistDetails());
         }
 
         const info = sessionManager.create(command, effectiveCwd, clientIp, enableStdin ?? false);
