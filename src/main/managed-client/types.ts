@@ -1,12 +1,15 @@
 import type { BuiltInToolsPermissionProfile } from '../builtin-tools/types';
 
 export type ManagedClientMode = 'managed-client' | 'managed-client-mcp-ws';
+export type ManagedClientExternalMcpTrustLevel = 'trusted' | 'internal-reviewed' | 'experimental' | 'blocked';
 
 export interface ManagedClientExternalMcpServerBaseConfig {
   name: string;
   toolPrefix?: string;
   tools?: string[];
   requiredPermissionProfile: BuiltInToolsPermissionProfile;
+  trustLevel: ManagedClientExternalMcpTrustLevel;
+  publishedRemotely: boolean;
 }
 
 export interface ManagedClientExternalMcpHttpServerConfig extends ManagedClientExternalMcpServerBaseConfig {

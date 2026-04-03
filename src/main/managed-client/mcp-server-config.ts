@@ -2,6 +2,7 @@ import type {
   ManagedClientExternalMcpServerConfig,
   ManagedClientExternalMcpHttpServerConfig,
   ManagedClientExternalMcpStdioServerConfig,
+  ManagedClientExternalMcpTrustLevel,
 } from './types';
 import {
   normalizeExternalMcpPermissionProfile,
@@ -20,6 +21,59 @@ export interface ManagedClientFileMcpServerConfig {
   enabled?: boolean;
   toolPrefix?: string;
   requiredPermissionProfile?: BuiltInToolsPermissionProfile;
+  trustLevel?: ManagedClientExternalMcpTrustLevel;
+  publishedRemotely?: boolean;
+}
+
+export type ManagedClientExternalMcpPublicationBlockedReason = 'not-published-remotely' | 'trust-level-blocked' | 'tool-list-required' | 'wildcard-tools-blocked';
+
+const REMOTE_PUBLICATION_ALLOWED_TRUST_LEVELS = new Set<ManagedClientExternalMcpTrustLevel>(['trusted', 'internal-reviewed']);
+
+export function normalizeManagedClientExternalMcpTrustLevel(value: unknown): ManagedClientExternalMcpTrustLevel {
+  if (value === 'trusted' || value === 'internal-reviewed' || value === 'experimental' || value === 'blocked') {
+    return value;
+  }
+
+  return 'experimental';
+}
+
+export function getExternalMcpRemotePublicationDecision(serverConfig: {
+  publishedRemotely?: boolean;
+  trustLevel?: ManagedClientExternalMcpTrustLevel;
+  tools?: string[];
+}): {
+  allowed: boolean;
+  blockedReason?: ManagedClientExternalMcpPublicationBlockedReason;
+} {
+  if (!serverConfig.publishedRemotely) {
+    return {
+      allowed: false,
+      blockedReason: 'not-published-remotely',
+    };
+  }
+
+  if (!REMOTE_PUBLICATION_ALLOWED_TRUST_LEVELS.has(normalizeManagedClientExternalMcpTrustLevel(serverConfig.trustLevel))) {
+    return {
+      allowed: false,
+      blockedReason: 'trust-level-blocked',
+    };
+  }
+
+  if (!Array.isArray(serverConfig.tools) || serverConfig.tools.length === 0) {
+    return {
+      allowed: false,
+      blockedReason: 'tool-list-required',
+    };
+  }
+
+  if (Array.isArray(serverConfig.tools) && serverConfig.tools.includes('*')) {
+    return {
+      allowed: false,
+      blockedReason: 'wildcard-tools-blocked',
+    };
+  }
+
+  return { allowed: true };
 }
 
 export function parseManagedClientMcpServers(
@@ -42,6 +96,8 @@ export function parseManagedClientMcpServers(
     const tools = Array.isArray(server.tools)
       ? server.tools.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
       : undefined;
+    const trustLevel = normalizeManagedClientExternalMcpTrustLevel(server.trustLevel);
+    const publishedRemotely = server.publishedRemotely === true;
 
     if (server.transport === 'http') {
       if (typeof server.url !== 'string' || !server.url.trim()) {
@@ -56,6 +112,8 @@ export function parseManagedClientMcpServers(
         toolPrefix,
         tools,
         requiredPermissionProfile: normalizeExternalMcpPermissionProfile(server.requiredPermissionProfile, 'http'),
+        trustLevel,
+        publishedRemotely,
       } satisfies ManagedClientExternalMcpHttpServerConfig);
       continue;
     }
@@ -76,6 +134,8 @@ export function parseManagedClientMcpServers(
       toolPrefix,
       tools,
       requiredPermissionProfile: normalizeExternalMcpPermissionProfile(server.requiredPermissionProfile, 'stdio'),
+      trustLevel,
+      publishedRemotely,
     } satisfies ManagedClientExternalMcpStdioServerConfig);
   }
 

@@ -438,6 +438,7 @@ app.whenReady().then(async () => {
     let applied = false;
     let toolCount = 0;
     let tools: string[] = [];
+    let reason: 'runtime-inactive' | 'bridge-not-ready' | undefined;
 
     const shouldApply = payload.apply !== false;
 
@@ -446,6 +447,9 @@ app.whenReady().then(async () => {
       applied = result.applied;
       toolCount = result.toolCount;
       tools = result.tools;
+      reason = result.reason;
+    } else if (shouldApply) {
+      reason = 'runtime-inactive';
     }
 
     return {
@@ -453,6 +457,7 @@ app.whenReady().then(async () => {
       applied,
       toolCount,
       tools,
+      reason,
     };
   });
   ipcMain.handle('managed-client:refreshMcpTools', async () => {

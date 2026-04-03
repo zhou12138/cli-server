@@ -3,6 +3,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import path from 'node:path';
 import type { ManagedClientExternalMcpServerConfig } from './types';
+import { getExternalMcpRemotePublicationDecision, type ManagedClientExternalMcpPublicationBlockedReason } from './mcp-server-config';
 import { getBuiltInToolsSecurityConfig } from './config';
 import {
   getExternalMcpAccessDecision,
@@ -91,7 +92,7 @@ export interface ManagedClientMcpServerConnectionTestResult {
   toolCount: number;
   tools: string[];
   error?: string;
-  blockedReason?: ExternalMcpAccessBlockedReason;
+  blockedReason?: ExternalMcpAccessBlockedReason | ManagedClientExternalMcpPublicationBlockedReason;
 }
 
 interface ConnectedExternalMcpServer {
@@ -159,6 +160,13 @@ function filterToolsByConfig<T extends { name: string }>(
   }
 
   return tools.filter((tool) => allowedTools.has(tool.name));
+}
+
+function shouldPublishExternalServerRemotely(serverConfig: ManagedClientExternalMcpServerConfig): {
+  allowed: boolean;
+  blockedReason?: ManagedClientExternalMcpPublicationBlockedReason;
+} {
+  return getExternalMcpRemotePublicationDecision(serverConfig);
 }
 
 function getExternalAdvertisedToolName(config: ManagedClientExternalMcpServerConfig, toolName: string): string {
@@ -335,6 +343,11 @@ export class ManagedClientMcpToolRegistry {
     }
 
     for (const externalServer of this.externalServers) {
+      const publicationDecision = shouldPublishExternalServerRemotely(externalServer.config);
+      if (!publicationDecision.allowed) {
+        continue;
+      }
+
       const toolList = await externalServer.client.listTools();
       const filteredTools = filterToolsByConfig(externalServer.config, toolList.tools);
       for (const tool of filteredTools) {
@@ -395,6 +408,8 @@ export class ManagedClientMcpToolRegistry {
         logger.info('[managed-client-mcp-ws] external mcp server connected', {
           name: serverConfig.name,
           transport: serverConfig.transport,
+          publishedRemotely: serverConfig.publishedRemotely,
+          trustLevel: serverConfig.trustLevel,
           command: serverConfig.transport === 'stdio' ? serverConfig.command : undefined,
           args: serverConfig.transport === 'stdio' ? serverConfig.args : undefined,
           cwd: serverConfig.transport === 'stdio' ? resolvedWorkingDirectory : undefined,
@@ -407,6 +422,8 @@ export class ManagedClientMcpToolRegistry {
         logger.error('[managed-client-mcp-ws] external mcp server failed', {
           name: serverConfig.name,
           transport: serverConfig.transport,
+          publishedRemotely: serverConfig.publishedRemotely,
+          trustLevel: serverConfig.trustLevel,
           command: serverConfig.transport === 'stdio' ? serverConfig.command : undefined,
           args: serverConfig.transport === 'stdio' ? serverConfig.args : undefined,
           cwd: serverConfig.transport === 'stdio' ? resolvedWorkingDirectory : undefined,

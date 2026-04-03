@@ -1,10 +1,10 @@
 {
   "baseUrl": "http://0.0.0.0:8000/api",
-  "bootstrapBaseUrl": "wss://dev3.societas-test.microsoft.com",
+  "bootstrapBaseUrl": "ws://127.0.0.1:8000",
   "clientId": "77beb318-af3d-42ed-b781-ff7093577f98",
   "enabled": true,
-  "signinPageUrl": "https://dev3.societas-test.microsoft.com",
-  "tlsServername": "dev3.societas-test.microsoft.com",
+  "signinPageUrl": "http://127.0.0.1:3000",
+  "tlsServername": "127.0.0.1",
   "builtInTools": {
     "permissionProfile": "full-local-admin",
     "shellExecute": {

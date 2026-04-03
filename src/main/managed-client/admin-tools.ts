@@ -1,5 +1,6 @@
 import { getBuiltInToolsSecurityConfig, getManagedClientMcpServersConfig, getManagedClientWorkspaceRoot, saveManagedClientMcpServersConfig } from './config';
-import type { ManagedClientFileMcpServerConfig } from './mcp-server-config';
+import { normalizeManagedClientExternalMcpTrustLevel, type ManagedClientFileMcpServerConfig } from './mcp-server-config';
+import type { ManagedClientExternalMcpTrustLevel } from './types';
 
 export interface ManagedMcpServerApplyResult {
   applied: boolean;
@@ -14,6 +15,8 @@ export interface UpsertManagedMcpServerInput {
   enabled?: boolean;
   toolPrefix?: string;
   tools?: string[];
+  trustLevel?: ManagedClientExternalMcpTrustLevel;
+  publishedRemotely?: boolean;
   url?: string;
   timeout?: number;
   command?: string;
@@ -67,7 +70,9 @@ function buildManagedMcpServerConfig(input: UpsertManagedMcpServerInput): Manage
     enabled: input.enabled ?? true,
     toolPrefix: trimOptionalString(input.toolPrefix),
     tools: sanitizeStringList(input.tools),
-  } satisfies Pick<ManagedClientFileMcpServerConfig, 'enabled' | 'toolPrefix' | 'tools'>;
+    trustLevel: normalizeManagedClientExternalMcpTrustLevel(input.trustLevel),
+    publishedRemotely: input.publishedRemotely === true,
+  } satisfies Pick<ManagedClientFileMcpServerConfig, 'enabled' | 'toolPrefix' | 'tools' | 'trustLevel' | 'publishedRemotely'>;
 
   if (input.transport === 'http') {
     if (!securityConfig.allowHttpServers) {

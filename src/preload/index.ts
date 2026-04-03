@@ -77,7 +77,7 @@ export interface ElectronAPI {
       toolCount: number;
       tools: string[];
       error?: string;
-      blockedReason?: ExternalMcpAccessBlockedReason;
+      blockedReason?: ExternalMcpAccessBlockedReason | 'not-published-remotely' | 'trust-level-blocked' | 'wildcard-tools-blocked';
     }>;
   }>;
   saveManagedClientMcpServersConfig: (payload: {
@@ -88,6 +88,7 @@ export interface ElectronAPI {
     applied: boolean;
     toolCount: number;
     tools: string[];
+    reason?: 'runtime-inactive' | 'bridge-not-ready';
   }>;
   refreshManagedClientMcpTools: () => Promise<{
     applied: boolean;

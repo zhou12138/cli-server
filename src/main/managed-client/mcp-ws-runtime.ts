@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, createPublicKey, randomUUID, verify } from 'node:crypto';
 import tls from 'node:tls';
 import type { ClientOptions as WebSocketClientOptions } from 'ws';
 import { WebSocket } from 'ws';
@@ -17,6 +17,7 @@ import { getManagedClientToolResultMode } from '../builtin-tools/types';
 
 type DesktopWsMessage = Record<string, unknown>;
 const HANDSHAKE_TIMEOUT_MS = 10_000;
+const TOOL_CALL_CLOCK_SKEW_MS = 30_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -112,7 +113,29 @@ function getManagedClientTlsOptions(
   return tlsOptions as WebSocketClientOptions & tls.ConnectionOptions;
 }
 
-function getDesktopWebSocketUrl(baseUrl: string, token: string | null): string {
+function getManagedClientWebSocketOptions(
+  wsUrl: string,
+  config: Pick<ManagedClientRuntimeConfig, 'tlsServername'>,
+  token: string | null,
+): (WebSocketClientOptions & tls.ConnectionOptions) | undefined {
+  const tlsOptions = getManagedClientTlsOptions(wsUrl, config);
+  const headers = token
+    ? {
+        Authorization: `Bearer ${token}`,
+      }
+    : undefined;
+
+  if (!tlsOptions) {
+    return headers ? ({ headers } as WebSocketClientOptions & tls.ConnectionOptions) : undefined;
+  }
+
+  return {
+    ...tlsOptions,
+    ...(headers ? { headers } : {}),
+  } as WebSocketClientOptions & tls.ConnectionOptions;
+}
+
+function getDesktopWebSocketUrl(baseUrl: string): string {
   const url = new URL(baseUrl);
   const isLoopback = isLoopbackHostname(url.hostname);
 
@@ -140,11 +163,7 @@ function getDesktopWebSocketUrl(baseUrl: string, token: string | null): string {
   }
 
   url.hash = '';
-  if (token) {
-    url.searchParams.set('access_token', token);
-  } else {
-    url.searchParams.delete('access_token');
-  }
+  url.searchParams.delete('access_token');
 
   return url.toString();
 }
@@ -160,7 +179,7 @@ export async function validateManagedClientTlsConfig(config: Pick<ManagedClientR
     throw new Error('MANAGED_CLIENT_BASE_URL is required');
   }
 
-  const wsUrl = getDesktopWebSocketUrl(config.baseUrl, null);
+  const wsUrl = getDesktopWebSocketUrl(config.baseUrl);
   const url = new URL(wsUrl);
   const servername = config.tlsServername?.trim() || url.hostname;
 
@@ -216,6 +235,78 @@ export async function validateManagedClientTlsConfig(config: Pick<ManagedClientR
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function sortJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sortJsonValue(item));
+  }
+
+  if (!isJsonObject(value)) {
+    return value;
+  }
+
+  return Object.keys(value)
+    .sort((left, right) => left.localeCompare(right))
+    .reduce<Record<string, unknown>>((result, key) => {
+      result[key] = sortJsonValue(value[key]);
+      return result;
+    }, {});
+}
+
+function canonicalizeJson(value: unknown): string {
+  return JSON.stringify(sortJsonValue(value));
+}
+
+function toBase64Url(buffer: Buffer): string {
+  return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function fromBase64Url(value: string): Buffer {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const paddingLength = (4 - (normalized.length % 4)) % 4;
+  return Buffer.from(`${normalized}${'='.repeat(paddingLength)}`, 'base64');
+}
+
+function parseIsoTimestamp(value: unknown): number | null {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function computeToolCallBodySha256(toolName: string, argumentsPayload: Record<string, unknown>): string {
+  return toBase64Url(
+    createHash('sha256')
+      .update(canonicalizeJson({
+        tool_name: toolName,
+        arguments: argumentsPayload,
+      }), 'utf-8')
+      .digest(),
+  );
+}
+
+function buildToolCallSignaturePayload(
+  requestId: string,
+  meta: Record<string, unknown>,
+  toolName: string,
+  argumentsPayload: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    schema_version: meta.schema_version,
+    request_id: requestId,
+    session_id: meta.session_id,
+    connection_id: meta.connection_id,
+    user_id: meta.user_id,
+    client_id: meta.client_id,
+    iat: meta.iat,
+    exp: meta.exp,
+    nonce: meta.nonce,
+    tool_name: toolName,
+    arguments: argumentsPayload,
+  };
 }
 
 function flattenToolResult(result: Record<string, unknown>): string {
@@ -312,6 +403,13 @@ export class ManagedClientMcpWsRuntime {
   private lastEventName: string | null = null;
   private lastPingAt: string | null = null;
   private connectionId: string | null = null;
+  private expectedUserId: string | null = null;
+  private expectedClientId: string | null = null;
+  private expectedSessionId: string | null = null;
+  private expectedServerKeyId: string | null = null;
+  private expectedServerPublicKeyPem: string | null = null;
+  private serverClockOffsetMs = 0;
+  private readonly replayCache = new Map<string, number>();
   private toolRegistry: ManagedClientMcpToolRegistry | null = null;
   private localClient: Client | null = null;
   private activeConnectionSignal: AbortSignal | null = null;
@@ -485,15 +583,207 @@ export class ManagedClientMcpWsRuntime {
     };
   }
 
+  private resetConnectionSecurityContext(): void {
+    this.connectionId = null;
+    this.expectedUserId = null;
+    this.expectedClientId = null;
+    this.expectedSessionId = null;
+    this.expectedServerKeyId = null;
+    this.expectedServerPublicKeyPem = null;
+    this.serverClockOffsetMs = 0;
+    this.replayCache.clear();
+  }
+
+  private purgeExpiredReplayCache(referenceTimeMs: number): void {
+    for (const [key, expirationTimeMs] of this.replayCache.entries()) {
+      if (expirationTimeMs + TOOL_CALL_CLOCK_SKEW_MS < referenceTimeMs) {
+        this.replayCache.delete(key);
+      }
+    }
+  }
+
+  private validateToolCallSecurity(
+    requestId: string,
+    toolName: string,
+    argumentsPayload: Record<string, unknown>,
+    payload: Record<string, unknown>,
+  ): { valid: true } | { valid: false; code: string; message: string; details: Record<string, unknown> } {
+    const meta = isJsonObject(payload.meta) ? payload.meta : null;
+    if (!meta) {
+      return {
+        valid: false,
+        code: 'missing_binding',
+        message: 'tool_call payload is missing signed meta',
+        details: {},
+      };
+    }
+
+    if (!this.connectionId || !this.expectedUserId || !this.expectedClientId || !this.expectedSessionId || !this.expectedServerKeyId || !this.expectedServerPublicKeyPem) {
+      return {
+        valid: false,
+        code: 'unbound_session',
+        message: 'tool_call received before register binding context was established',
+        details: {},
+      };
+    }
+
+    const metaRequestId = typeof meta.request_id === 'string' ? meta.request_id : '';
+    const userId = typeof meta.user_id === 'string' ? meta.user_id : '';
+    const clientId = typeof meta.client_id === 'string' ? meta.client_id : '';
+    const connectionId = typeof meta.connection_id === 'string' ? meta.connection_id : '';
+    const sessionId = typeof meta.session_id === 'string' ? meta.session_id : '';
+    const keyId = typeof meta.key_id === 'string' ? meta.key_id : '';
+    const nonce = typeof meta.nonce === 'string' ? meta.nonce : '';
+    const bodySha256 = typeof meta.body_sha256 === 'string' ? meta.body_sha256 : '';
+    const signature = typeof meta.signature === 'string' ? meta.signature : '';
+    const issuedAtMs = parseIsoTimestamp(meta.iat);
+    const expiresAtMs = parseIsoTimestamp(meta.exp);
+
+    if (!metaRequestId || !userId || !clientId || !connectionId || !sessionId || !keyId || !nonce || !bodySha256 || !signature || issuedAtMs === null || expiresAtMs === null) {
+      return {
+        valid: false,
+        code: 'missing_binding',
+        message: 'tool_call meta is missing one or more required binding fields',
+        details: {
+          requestId: metaRequestId || null,
+          userId: userId || null,
+          clientId: clientId || null,
+          connectionId: connectionId || null,
+          sessionId: sessionId || null,
+          keyId: keyId || null,
+          nonce: nonce || null,
+        },
+      };
+    }
+
+    if (metaRequestId !== requestId) {
+      return {
+        valid: false,
+        code: 'missing_binding',
+        message: 'tool_call meta request_id does not match the frame request id',
+        details: { metaRequestId, requestId },
+      };
+    }
+
+    if (userId !== this.expectedUserId) {
+      return {
+        valid: false,
+        code: 'user_mismatch',
+        message: 'tool_call user_id did not match the registered session user',
+        details: { expectedUserId: this.expectedUserId, actualUserId: userId },
+      };
+    }
+
+    if (clientId !== this.expectedClientId) {
+      return {
+        valid: false,
+        code: 'client_mismatch',
+        message: 'tool_call client_id did not match the registered client',
+        details: { expectedClientId: this.expectedClientId, actualClientId: clientId },
+      };
+    }
+
+    if (connectionId !== this.connectionId) {
+      return {
+        valid: false,
+        code: 'connection_mismatch',
+        message: 'tool_call connection_id did not match the active websocket connection',
+        details: { expectedConnectionId: this.connectionId, actualConnectionId: connectionId },
+      };
+    }
+
+    if (sessionId !== this.expectedSessionId) {
+      return {
+        valid: false,
+        code: 'session_mismatch',
+        message: 'tool_call session_id did not match the active registered session',
+        details: { expectedSessionId: this.expectedSessionId, actualSessionId: sessionId },
+      };
+    }
+
+    if (keyId !== this.expectedServerKeyId) {
+      return {
+        valid: false,
+        code: 'invalid_server_key',
+        message: 'tool_call key_id did not match the registered server signing key',
+        details: { expectedKeyId: this.expectedServerKeyId, actualKeyId: keyId },
+      };
+    }
+
+    const adjustedNowMs = Date.now() + this.serverClockOffsetMs;
+    if (expiresAtMs < issuedAtMs || issuedAtMs > adjustedNowMs + TOOL_CALL_CLOCK_SKEW_MS || expiresAtMs < adjustedNowMs - TOOL_CALL_CLOCK_SKEW_MS) {
+      return {
+        valid: false,
+        code: 'stale_request',
+        message: 'tool_call iat/exp was outside the accepted clock skew window',
+        details: {
+          issuedAt: meta.iat,
+          expiresAt: meta.exp,
+          adjustedNow: new Date(adjustedNowMs).toISOString(),
+        },
+      };
+    }
+
+    this.purgeExpiredReplayCache(adjustedNowMs);
+    const replayKey = `${sessionId}:${nonce}`;
+    if (this.replayCache.has(replayKey)) {
+      return {
+        valid: false,
+        code: 'replay_detected',
+        message: 'tool_call nonce has already been processed for this session',
+        details: { sessionId, nonce },
+      };
+    }
+
+    const computedBodySha256 = computeToolCallBodySha256(toolName, argumentsPayload);
+    if (computedBodySha256 !== bodySha256) {
+      return {
+        valid: false,
+        code: 'body_hash_mismatch',
+        message: 'tool_call body_sha256 did not match the received tool payload',
+        details: { expectedBodySha256: computedBodySha256, actualBodySha256: bodySha256 },
+      };
+    }
+
+    try {
+      const publicKey = createPublicKey(this.expectedServerPublicKeyPem);
+      const isSignatureValid = verify(
+        null,
+        Buffer.from(canonicalizeJson(buildToolCallSignaturePayload(requestId, meta, toolName, argumentsPayload)), 'utf-8'),
+        publicKey,
+        fromBase64Url(signature),
+      );
+
+      if (!isSignatureValid) {
+        return {
+          valid: false,
+          code: 'invalid_signature',
+          message: 'tool_call signature verification failed',
+          details: { keyId },
+        };
+      }
+    } catch (error) {
+      return {
+        valid: false,
+        code: 'invalid_signature',
+        message: `tool_call signature verification failed: ${toErrorMessage(error)}`,
+        details: { keyId },
+      };
+    }
+
+    this.replayCache.set(replayKey, expiresAtMs);
+    return { valid: true };
+  }
+
   private async runLoop(signal: AbortSignal): Promise<void> {
     const token = normalizeManagedClientToken(this.config.token);
     const workspace = prepareManagedClientWorkspace(this.config.workspaceRoot);
-    const wsUrl = getDesktopWebSocketUrl(this.config.baseUrl!, token);
+    const wsUrl = getDesktopWebSocketUrl(this.config.baseUrl!);
 
     console.log('[managed-client-mcp-ws] Connecting to MCP Hub websocket', {
       baseUrl: this.config.baseUrl,
       wsUrl,
-      hasAccessTokenQuery: Boolean(token),
+      hasAuthorizationHeader: Boolean(token),
       workspaceRoot: workspace.rootDir,
       workspaceDirectory: workspace.workDir,
     });
@@ -501,7 +791,7 @@ export class ManagedClientMcpWsRuntime {
     this.appendAuditEntry('[managed-client-mcp-ws] runtime start', {
       baseUrl: this.config.baseUrl,
       wsUrl,
-      hasAccessTokenQuery: Boolean(token),
+      hasAuthorizationHeader: Boolean(token),
       workspaceRoot: workspace.rootDir,
       workspaceDirectory: workspace.workDir,
       clientId: this.config.clientId,
@@ -511,7 +801,7 @@ export class ManagedClientMcpWsRuntime {
     emitServerEvent('managed-client-mcp-ws:starting', {
       baseUrl: this.config.baseUrl,
       wsUrl,
-      hasAccessTokenQuery: Boolean(token),
+      hasAuthorizationHeader: Boolean(token),
       workspaceRoot: workspace.rootDir,
       workspaceDirectory: workspace.workDir,
       clientId: this.config.clientId,
@@ -521,7 +811,7 @@ export class ManagedClientMcpWsRuntime {
 
     while (!signal.aborted) {
       try {
-        await this.connectOnce(wsUrl, signal, workspace);
+        await this.connectOnce(wsUrl, token, signal, workspace);
         if (!signal.aborted) {
           this.emptyPollCount += 1;
           await sleep(this.config.retryDelayMs);
@@ -548,6 +838,7 @@ export class ManagedClientMcpWsRuntime {
 
   private async connectOnce(
     wsUrl: string,
+    token: string | null,
     signal: AbortSignal,
     workspace: ReturnType<typeof prepareManagedClientWorkspace>,
   ): Promise<void> {
@@ -579,14 +870,14 @@ export class ManagedClientMcpWsRuntime {
       },
     });
 
-    const socket = await this.openSocket(wsUrl, signal);
+    const socket = await this.openSocket(wsUrl, token, signal);
     this.socket = socket;
 
     try {
       await this.performHandshake(socket, signal);
       await this.readLoop(socket, signal);
     } finally {
-      this.connectionId = null;
+      this.resetConnectionSecurityContext();
       this.socket = null;
       this.localClient = null;
       this.activeConnectionSignal = null;
@@ -608,9 +899,9 @@ export class ManagedClientMcpWsRuntime {
     }
   }
 
-  private async openSocket(wsUrl: string, signal: AbortSignal): Promise<WebSocket> {
+  private async openSocket(wsUrl: string, token: string | null, signal: AbortSignal): Promise<WebSocket> {
     return new Promise<WebSocket>((resolve, reject) => {
-      const socket = new WebSocket(wsUrl, getManagedClientTlsOptions(wsUrl, this.config));
+      const socket = new WebSocket(wsUrl, getManagedClientWebSocketOptions(wsUrl, this.config, token));
       const servername = this.config.tlsServername?.trim() || new URL(wsUrl).hostname;
       const onAbort = () => {
         socket.close();
@@ -713,6 +1004,54 @@ export class ManagedClientMcpWsRuntime {
     if (!registerResponse.ok) {
       throw new Error(`Desktop websocket register failed: ${stringifyForAudit(registerResponse)}`);
     }
+
+    const registerPayload = isJsonObject(registerResponse.payload) ? registerResponse.payload : null;
+    const registeredUserId = typeof registerPayload?.user_id === 'string' ? registerPayload.user_id : null;
+    const registeredClientId = typeof registerPayload?.client_id === 'string' ? registerPayload.client_id : null;
+    const registeredConnectionId = typeof registerPayload?.connection_id === 'string' ? registerPayload.connection_id : null;
+    const registeredSessionId = typeof registerPayload?.session_id === 'string' ? registerPayload.session_id : null;
+    const registeredServerKeyId = typeof registerPayload?.server_key_id === 'string' ? registerPayload.server_key_id : null;
+    const registeredServerTime = typeof registerPayload?.server_time === 'string' ? registerPayload.server_time : null;
+    const registeredServerPublicKey = typeof registerPayload?.server_public_key === 'string'
+      ? registerPayload.server_public_key.trim()
+      : null;
+    const serverTimeMs = parseIsoTimestamp(registeredServerTime);
+
+    if (!registeredUserId || !registeredClientId || !registeredConnectionId || !registeredSessionId || !registeredServerKeyId || !registeredServerPublicKey || serverTimeMs === null) {
+      throw new Error(`Desktop websocket register response missing binding fields: ${stringifyForAudit(registerPayload)}`);
+    }
+
+    if (registeredConnectionId !== this.connectionId) {
+      throw new Error(`Desktop websocket register response connection_id mismatch: expected ${this.connectionId}, received ${registeredConnectionId}`);
+    }
+
+    if (registeredClientId !== this.config.clientId) {
+      throw new Error(`Desktop websocket register response client_id mismatch: expected ${this.config.clientId}, received ${registeredClientId}`);
+    }
+
+    createPublicKey(registeredServerPublicKey);
+    this.expectedUserId = registeredUserId;
+    this.expectedClientId = registeredClientId;
+    this.expectedSessionId = registeredSessionId;
+    this.expectedServerKeyId = registeredServerKeyId;
+    this.expectedServerPublicKeyPem = registeredServerPublicKey;
+    this.serverClockOffsetMs = serverTimeMs - Date.now();
+
+    this.appendAuditEntry('[managed-client-mcp-ws] register binding established', {
+      connectionId: this.connectionId,
+      userId: this.expectedUserId,
+      clientId: this.expectedClientId,
+      sessionId: this.expectedSessionId,
+      serverKeyId: this.expectedServerKeyId,
+      serverClockOffsetMs: this.serverClockOffsetMs,
+    }, 0);
+    emitServerEvent('managed-client-mcp-ws:register:bound', {
+      connectionId: this.connectionId,
+      userId: this.expectedUserId,
+      clientId: this.expectedClientId,
+      sessionId: this.expectedSessionId,
+      serverKeyId: this.expectedServerKeyId,
+    });
 
     const toolDefinitions = this.toolRegistry?.getToolDefinitions() ?? {};
     this.appendAuditEntry('[managed-client-mcp-ws] update_tools request', {
@@ -828,12 +1167,33 @@ export class ManagedClientMcpWsRuntime {
   private async handleToolCall(socket: WebSocket, requestId: string, payload: Record<string, unknown>): Promise<void> {
     const toolName = typeof payload.tool_name === 'string' ? payload.tool_name : '';
     const argumentsPayload = isJsonObject(payload.arguments) ? payload.arguments : {};
-    const binding = this.toolRegistry?.getToolBinding(toolName) ?? null;
 
     if (!toolName) {
       await this.sendToolError(socket, requestId, 'invalid_request', 'tool_call payload is missing tool_name');
       return;
     }
+
+    const securityValidation = this.validateToolCallSecurity(requestId, toolName, argumentsPayload, payload);
+    if (!securityValidation.valid) {
+      this.pullStatus = 'task-failed';
+      this.lastTaskCommand = toolName;
+      this.lastPolledAt = new Date().toISOString();
+      this.appendAuditEntry(`[managed-client-mcp-ws] tool_call rejected: ${toolName}`, {
+        requestId,
+        toolName,
+        rawPayload: payload,
+        validation: securityValidation.details,
+      }, 1, `${securityValidation.code}: ${securityValidation.message}`);
+      emitServerEvent('managed-client-mcp-ws:task:rejected', {
+        requestId,
+        toolName,
+        code: securityValidation.code,
+      });
+      await this.sendToolError(socket, requestId, securityValidation.code, securityValidation.message);
+      return;
+    }
+
+    const binding = this.toolRegistry?.getToolBinding(toolName) ?? null;
 
     if (!binding) {
       await this.sendToolError(socket, requestId, 'unknown_tool', `Unknown desktop tool: ${toolName}`);
@@ -863,6 +1223,7 @@ export class ManagedClientMcpWsRuntime {
       this.appendAuditEntry(`[managed-client-mcp-ws] tool_call blocked: ${toolName}`, {
         requestId,
         toolName,
+        rawPayload: payload,
         source: binding.source,
         sourceName: binding.sourceName,
         findings: requestInspection.findings,
@@ -885,6 +1246,7 @@ export class ManagedClientMcpWsRuntime {
     this.appendAuditEntry('[managed-client-mcp-ws] tool_call received', {
       requestId,
       toolName,
+      rawPayload: payload,
       arguments: effectiveArgumentsPayload,
       defenseFindings: requestInspection.findings,
     }, 0);
@@ -920,6 +1282,7 @@ export class ManagedClientMcpWsRuntime {
         this.appendAuditEntry(`[managed-client-mcp-ws] tool_call failed: ${toolName}`, {
           requestId,
           toolName,
+          rawPayload: payload,
           source: binding.source,
           sourceName: binding.sourceName,
           result,
@@ -965,6 +1328,7 @@ export class ManagedClientMcpWsRuntime {
         this.appendAuditEntry(`[managed-client-mcp-ws] tool_call response blocked: ${toolName}`, {
           requestId,
           toolName,
+          rawPayload: payload,
           source: binding.source,
           sourceName: binding.sourceName,
           result,
@@ -998,6 +1362,7 @@ export class ManagedClientMcpWsRuntime {
       this.appendAuditEntry(`[managed-client-mcp-ws] tool_call completed: ${toolName}`, {
         requestId,
         toolName,
+        rawPayload: payload,
         source: binding.source,
         sourceName: binding.sourceName,
         result,
@@ -1014,6 +1379,7 @@ export class ManagedClientMcpWsRuntime {
       this.appendAuditEntry(`[managed-client-mcp-ws] tool_call failed: ${toolName}`, {
         requestId,
         toolName,
+        rawPayload: payload,
       }, 1, message);
       emitServerEvent('managed-client-mcp-ws:task:completed', {
         requestId,

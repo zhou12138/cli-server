@@ -1,321 +1,381 @@
-# Managed Client Threat Model Checklist
+# Managed Client MCP-WS Threat Model
 
-## Scope
+## 1. Scope
 
-This checklist covers the current `managed-client-mcp-ws` implementation in `cli-server`, with focus on four layers of risk:
+本文覆盖当前 `cli-server` 中 `managed-client-mcp-ws` 模式的真实安全边界，重点分析：
 
-1. Built-in tools
-2. External MCP servers
-3. Transport and network path
-4. Configuration and secret storage
+1. 当前实现已经具备哪些安全控制
+2. 在这些控制存在的前提下，最现实的威胁是什么
+3. 哪些风险已经从“协议层漏洞”转移为“本地工具面和运维配置风险”
+4. 后续应优先推进哪些改造，才能把当前实现从“过渡可用”推进到“正式可防御”
 
-The goal is not to claim the current implementation is safe. The goal is to identify where sensitive local information can leave the machine, what controls exist today, and what changes are needed to reach a defensible baseline.
-
-## Implemented Permission Profiles
-
-The desktop node now supports three enforced permission profiles in Built-in Tools settings:
-
-1. `command-only`
-2. `interactive-trusted`
-3. `full-local-admin`
-
-Current runtime behavior:
-
-- `command-only`: publishes only the command execution surface needed to accept remote commands. Successful tool calls return success status only, not command output or file content. External MCP publication stays disabled.
-- `interactive-trusted`: publishes a small interactive handle surface such as `session_create`, `session_stdin`, and `session_wait`. Successful calls still avoid returning command stdout, file content, or other result bodies. External MCP publication stays disabled.
-- `full-local-admin`: keeps the full local tool surface, allows unrestricted `file_read`, permits external MCP publication, and returns full tool results upstream. This mode is intended only for explicitly trusted administrator environments.
-
-The selected profile is not just UI metadata. It is enforced in three places:
-
-1. Built-in tool policy normalization and persistence
-2. Runtime tool publication and success-result egress behavior
-3. External MCP server loading and publication
+本文不讨论抽象上的理想系统，而是以当前代码路径为准。
 
 ---
 
-## Threat Model Summary
+## 2. System Summary
 
-### Assets At Risk
+当前 `managed-client-mcp-ws` 模型的基本流程如下：
 
-- Local source code and workspace files
-- Secrets in `.env`, config files, shell history, SSH keys, tokens, cookies, browser profiles
-- Environment variables injected into Electron or child processes
-- Database contents reachable by configured MCP servers
-- Access tokens used for managed-client WebSocket authentication
-- Command output and error output produced on the local machine
+1. Desktop client 获取 Bearer Token
+2. Client 以 `wss` 主动连接远端 MCP Hub
+3. WebSocket 握手使用 `Authorization: Bearer <token>`
+4. 服务端发送 `session_opened`
+5. Client 发送 `register(client_id, client_name)`
+6. 服务端返回绑定上下文与当前签名信息
+7. Client 发布本地工具列表 `update_tools`
+8. 服务端下发带签名元数据的 `tool_call`
+9. Client 校验请求并决定是否执行本地工具
+10. Client 通过 `tool_result_chunk` 或 `tool_error` 返回结果
 
-### Trust Boundaries
-
-1. Remote MCP Hub to local desktop node
-2. Local desktop node to built-in tool executor
-3. Local desktop node to external MCP server process or HTTP server
-4. Local config files to runtime process
-5. Runtime process to audit logs and UI status surfaces
-
-### Primary Data Egress Paths
-
-1. Tool results returned to remote MCP Hub through `tool_result_chunk`
-2. External MCP servers making their own outbound network requests
-3. Cleartext or weakly protected config files on disk
-4. Non-TLS transport carrying tokens or tool results
+这个模式的本质不是“普通 API 客户端”，而是“远端可调度的本地执行节点”。
+因此，核心风险不只是传输安全，而是本地能力是否被不当暴露、误用或滥用。
 
 ---
 
-## Layer 1: Built-in Tools
+## 3. Assets At Risk
 
-### Current Attack Surface
+当前模式下，真正有价值的资产包括：
 
-- `shell_execute`
-- `session_create`
-- `session_stdin`
-- `session_wait`
-- `session_read_output`
-- `file_read`
-- `managed_mcp_server_upsert`
+1. 本地工作区源码和文档
+2. 用户目录下的敏感文件，如 `.env`、SSH key、浏览器状态、云凭据、token 缓存
+3. 本地命令执行能力与交互式会话能力
+4. 子进程可继承的环境变量和运行时秘密
+5. 外部 MCP 服务器可访问的数据库、API 和内部系统
+6. 用于建立 WebSocket 会话的访问令牌
+7. 本地工具执行产生的 stdout、stderr 和文件内容
 
-These tools can be published upstream in `managed-client-mcp-ws` mode and their results can be sent back to the remote side.
-
-### Sensitive Information Exposure Scenarios
-
-1. `file_read` reads `.env`, SSH keys, browser state, config files, tokens, source files, or secrets under the user profile.
-2. `shell_execute` or session tools run PowerShell commands that print environment variables, credential files, Git config, cloud CLI tokens, or password manager exports.
-3. Interactive session tools enable multi-step probing of the local machine instead of a single command.
-4. `managed_mcp_server_upsert` can add a new MCP server that expands the data-exfil surface if governance is enabled.
-
-### Current Controls
-
-- `shell_execute` supports command blocking, executable blocking, working-directory blocking, optional network-command blocking, timeout caps, and workspace-root enforcement for cwd.
-- `file_read` supports path allow-lists, blocked paths, blocked extensions, byte limits, and file size limits.
-- Managed workspace defaults reduce uncontrolled file writes.
-- `managed_mcp_server_upsert` is disabled by default.
-
-### Current Gaps
-
-1. Default built-in policy is permissive.
-2. `shellExecute.enabled` defaults to `true`.
-3. `blockNetworkCommands` defaults to `false`.
-4. `fileRead.allowedPaths` defaults to empty, which currently means unrestricted reads instead of deny-by-default.
-5. Session tools are enabled together with `shell_execute`, so interactive local inspection is exposed when shell execution is enabled.
-6. There is no result-level redaction pass before tool output is sent back upstream.
-7. There is no distinction between local execution permission and remote egress permission.
-
-### Risk Rating
-
-- Confidentiality: High
-- Integrity: Medium
-- Availability: Medium
-
-### Remediation Checklist
-
-#### Immediate
-
-- [ ] Default `shellExecute.enabled` to `false` for managed-client production mode.
-- [ ] Default `blockNetworkCommands` to `true`.
-- [ ] Split session tools from `shell_execute` with a dedicated `interactiveSessions.enabled` switch.
-- [ ] Default `fileRead.allowedPaths` to the managed workspace current directory only.
-- [ ] Add blocked defaults for obvious sensitive roots such as user SSH directories, browser profile directories, cloud credential directories, and system key stores.
-- [ ] Disable `managed_mcp_server_upsert` unless the node is in an explicitly trusted admin mode.
-
-#### Short Term
-
-- [ ] Add a tool-result egress filter that detects and masks common secret patterns before sending results upstream.
-- [ ] Add an allow-list of safe executables instead of relying only on block-lists.
-- [ ] Add a per-tool publish switch so the desktop node can expose `file_read` without exposing shell execution.
-- [ ] Add policy-driven limits for session lifetime, stdout size, stderr size, and number of interactive writes.
-
-#### Medium Term
-
-- [ ] Add a capability model that separates `execute locally`, `return locally`, and `return remotely`.
-- [ ] Add approval gates for dangerous tool categories when a remote side asks for them.
-- [ ] Add structured result types for built-in tools so sensitive fields can be redacted precisely instead of with regex-only filtering.
+这些资产里，最危险的通常不是 token 本身，而是“远端拿到本地执行和本地读取能力以后可以访问到的数据”。
 
 ---
 
-## Layer 2: External MCP Servers
+## 4. Trust Boundaries
 
-### Current Attack Surface
+当前实现中的关键 trust boundary 如下：
 
-- HTTP MCP servers configured in managed-client config
-- stdio MCP servers launched as local child processes
-- Tool sets from those servers published upstream with a prefix
+1. Remote MCP Hub 到本地 desktop node 的 WebSocket 边界
+2. Desktop node 到 built-in tools 的执行边界
+3. Desktop node 到外部 MCP server 进程或 HTTP 服务的边界
+4. 本地配置文件到运行时进程的边界
+5. 运行时到审计日志、状态面板、错误输出的边界
+6. TLS 终止点到应用层消息签名验证之间的边界
 
-### Sensitive Information Exposure Scenarios
+当前最大的误区是把所有风险都理解成“网络 MITM”。
+实际上，当前实现的高风险面已经更多集中在第 2、3、6 条边界上。
 
-1. A stdio MCP server reads arbitrary local files directly using its own code, independent of host `file_read` restrictions.
-2. A stdio MCP server reads process environment variables, including credentials injected through config.
-3. A stdio MCP server makes outbound network calls and sends local data to third-party services.
-4. An HTTP MCP server points to an untrusted endpoint that already has remote egress and can aggregate local requests or sensitive content.
-5. A tool allow-list of `"*"` exposes the entire external server surface upstream.
+---
 
-### Current Controls
+## 5. Implemented Security Controls
 
-- External tool publication supports tool prefixing.
-- External configs can restrict the published tool set.
-- Stdio `cwd` is constrained to the managed workspace root when configured through current runtime.
-- `managed_mcp_server_upsert` policy can forbid new stdio servers by default.
+截至 2026-04-07，当前实现已经具备以下关键控制：
 
-### Current Gaps
+### 5.1 Transport Controls
 
-1. `cwd` restriction is not a sandbox. External servers can still open absolute paths, inspect env vars, and call the network.
-2. Existing external MCP configs are loaded if present, even when their effective trust level is high.
-3. Tool allow-lists can be `"*"`, which removes effective minimization.
-4. There is no server signing, attestation, or provenance validation.
-5. There is no egress policy around external MCP network access.
-6. Stdio servers inherit trust from the local machine but are treated operationally like normal tools.
+1. 支持 `https://` 归一化为 `wss://`
+2. 非 localhost 场景要求 TLS 证书校验与 hostname 校验
+3. WebSocket 认证材料已从 query token 迁移到 `Authorization` header
 
-### Risk Rating
+### 5.2 Request Binding Controls
 
-- Confidentiality: High
+1. `register` 后会建立绑定上下文，包括：
+	- `user_id`
+	- `client_id`
+	- `connection_id`
+	- `session_id`
+	- `server_key_id`
+	- `server_time`
+	- `server_public_key`（当前为过渡方案）
+2. 每个 `tool_call` 都包含签名元数据：
+	- `iat`
+	- `exp`
+	- `nonce`
+	- `body_sha256`
+	- `key_id`
+	- `signature`
+3. Client 在执行前校验：
+	- `user_id`
+	- `client_id`
+	- `connection_id`
+	- `session_id`
+	- `key_id`
+	- `iat/exp`
+	- `nonce`
+	- `body_sha256`
+	- `signature`
+4. Client 维护本连接级 replay cache，连接断开后会清空
+
+### 5.3 Local Capability Controls
+
+1. 内置三种权限档位：
+	- `command-only`
+	- `interactive-trusted`
+	- `full-local-admin`
+2. 不同档位影响：
+	- 发布哪些工具
+	- 是否允许外部 MCP tool publication
+	- 结果是否完整回传
+3. `shell_execute`、`file_read` 等内置工具已支持一定程度的策略约束
+
+### 5.4 Governance Controls
+
+1. `managed_mcp_server_upsert` 默认不开启
+2. 外部 MCP 工具发布与权限档位绑定
+3. 工具调用与连接过程有基础审计记录
+
+这些控制意味着：
+
+1. 当前实现已经不再是“裸 WebSocket + token + 任意本地执行”
+2. 协议层安全性较此前有明显提升
+3. 但核心风险仍未消失，只是从“简单链路攻击”转移到了更复杂、更现实的本地能力与信任根问题上
+
+---
+
+## 6. Threat Reassessment
+
+基于当前实现，威胁优先级应重新排序如下。
+
+### 6.1 Highest Risk: Local Capability Exposure
+
+当前最大的风险不是 WebSocket 协议，而是远端一旦成为“合法调用方”，本地工具面仍可能暴露过大。
+
+#### Why It Matters
+
+1. `shell_execute` 和 `session_*` 可直接把本地机器变成远程命令执行节点
+2. `file_read` 在策略宽松时可读取高价值本地文件
+3. `full-local-admin` 会把完整结果上送远端
+4. 这类风险一旦触发，伤害通常是直接的数据外流，而不是仅限于协议破坏
+
+#### Current Exposure
+
+1. 默认 built-in policy 仍偏宽松
+2. `shellExecute.enabled` 默认开启
+3. `blockNetworkCommands` 默认关闭
+4. `fileRead.allowedPaths` 为空时仍不是 deny-by-default
+5. interactive session 工具仍与 shell execution 高度耦合
+6. 结果回传前没有真正的 secret redaction / DLP
+
+#### Risk Rating
+
+- Confidentiality: Very High
 - Integrity: High
 - Availability: Medium
 
-### Remediation Checklist
+### 6.2 Highest Risk: External MCP Server Surface
 
-#### Immediate
+外部 MCP server 是当前最容易被低估的攻击面。
 
-- [ ] Default external MCP loading to disabled unless each server is explicitly approved.
-- [ ] Forbid `tools: ["*"]` in production profiles.
-- [ ] Default to allowing HTTP MCP only; keep stdio MCP disabled unless there is a clear business requirement.
-- [ ] Require per-server trust labels such as `trusted`, `internal-only`, `experimental`, `blocked`.
-- [ ] Remove secrets from MCP server command arguments and environment blocks where possible.
+#### Why It Matters
 
-#### Short Term
+1. stdio MCP server 是本地子进程，不受 host built-in tool policy 的同等级约束
+2. 外部 MCP server 可以直接读取绝对路径、环境变量、网络资源
+3. HTTP MCP server 可能本身就是一个高权限出站代理
+4. 一旦允许 `tools: ["*"]`，暴露面可能远大于本地内置工具
 
-- [ ] Add per-server publish toggles separate from per-server local connectivity.
-- [ ] Add a server review manifest that records owner, purpose, data classification, outbound network behavior, and secret dependencies.
-- [ ] Add warnings or refusal when a stdio MCP server requests broad tools and broad network access together.
-- [ ] Restrict inherited environment variables for stdio MCP child processes.
+#### Current Exposure
 
-#### Medium Term
+1. `cwd` 不是沙箱
+2. 现有 external MCP config 若已存在，仍可能被加载
+3. 不存在 server provenance / attestation / binary integrity
+4. 没有真正的 outbound egress policy
+5. child process 继承环境变量仍是风险点
 
-- [ ] Run untrusted stdio MCP servers in a sandboxed worker process or container boundary.
-- [ ] Add outbound network allow-listing for external MCP servers.
-- [ ] Add server binary integrity checks or package provenance checks before launch.
+#### Risk Rating
 
----
+- Confidentiality: Very High
+- Integrity: Very High
+- Availability: Medium
 
-## Layer 3: Transport And Network Path
+### 6.3 Medium-High Risk: Transitional Trust Anchor Model
 
-### Current Attack Surface
+当前 `tool_call.signature` 已经存在，但信任根仍是过渡方案。
 
-- Managed-client WebSocket connection to remote MCP Hub
-- Token passed as `access_token` query parameter
-- Tool results streamed back to the remote endpoint
-- External MCP HTTP transport
+#### What Is Good
 
-### Sensitive Information Exposure Scenarios
+1. 可以防公网 MITM
+2. 可以防请求串包
+3. 可以防跨连接误投递
+4. 可以防重放
+5. 可以防请求体被中间层随手改写
 
-1. A base URL using `http://` becomes `ws://`, exposing access tokens and tool results to network observers.
-2. Query-string tokens may appear in reverse proxy logs, browser-equivalent telemetry, or upstream request logs.
-3. Tool results may contain local secrets and traverse the network without content filtering.
-4. External HTTP MCP endpoints may run over insecure transport if misconfigured.
+#### What Is Still Weak
 
-### Current Controls
+1. `server_public_key` 仍通过当前 TLS 会话里的 `register` 动态下发
+2. Client 信任的消息验签公钥，并不是预置的独立 trust anchor
+3. 如果攻击者位于 TLS 终止后的内部代理层，或能控制参与 `register` 的中间层，就可能替换公钥与后续签名内容
 
-- URL normalization supports `https://` to `wss://`.
-- The runtime can operate against explicit secure endpoints.
-- There is a single well-defined upstream event path for tool result return.
+#### Risk Rating
 
-### Current Gaps
-
-1. Non-TLS `http://` and `ws://` are still accepted.
-2. Access tokens are placed in query parameters.
-3. There is no certificate pinning or stronger peer verification beyond normal TLS.
-4. There is no response classification or transport-level DLP before sending tool output.
-5. Audit logs may record connection metadata that includes the final URL shape.
-
-### Risk Rating
-
-- Confidentiality: High
-- Integrity: Medium
-- Availability: Low to Medium
-
-### Remediation Checklist
-
-#### Immediate
-
-- [ ] Require `https://` or `wss://` in production mode.
-- [ ] Refuse cleartext managed-client connections by default.
-- [ ] Move away from query-string tokens where backend compatibility allows it.
-- [ ] Scrub tokens from all logs and audit entries regardless of transport.
-
-#### Short Term
-
-- [ ] Add a transport security mode flag such as `strictTls=true`.
-- [ ] Add configuration validation that rejects insecure external HTTP MCP URLs.
-- [ ] Introduce payload classification for tool results before upstream send.
-
-#### Medium Term
-
-- [ ] Use short-lived delegated tokens scoped specifically for desktop node sessions.
-- [ ] Add mutual TLS or stronger node identity binding if the deployment model warrants it.
-- [ ] Add per-tenant egress policies and audit trails for high-risk tool outputs.
-
----
-
-## Layer 4: Configuration Files And Secret Storage
-
-### Current Attack Surface
-
-- `managed-client.config.json`
-- `managed-client.mcp-servers.json`
-- Environment variables used by Electron and child processes
-- Any secrets persisted in command args, URLs, or env blocks
-
-### Sensitive Information Exposure Scenarios
-
-1. Database credentials are stored directly in config files.
-2. Personal access tokens or service tokens are stored in env blocks for child processes.
-3. Config files can be read by local users, malware, backups, or accidental source control commits.
-4. Secrets stored in command arguments can show up in process listings, crash logs, or diagnostic output.
-5. Migrated or legacy config paths may retain secrets even after newer governance is added.
-
-### Current Controls
-
-- Managed client config is centralized.
-- External MCP server persistence is separated into a dedicated file.
-- `managed_mcp_server_upsert` is disabled by default.
-
-### Current Gaps
-
-1. Secrets may still be stored in plain text on disk.
-2. There is no secret-store integration.
-3. There is no encryption-at-rest for local config.
-4. There is no config linter to reject obviously sensitive material in unsafe fields.
-5. There is no Git hygiene enforcement to prevent accidental commit of local secret-bearing config files.
-
-### Risk Rating
-
-- Confidentiality: High
-- Integrity: Medium
+- Confidentiality: Medium
+- Integrity: Medium to High
 - Availability: Low
 
-### Remediation Checklist
+#### Security Assessment
 
-#### Immediate
+这套方案足够作为过渡期的“可用安全方案”，但不能视为高保证正式方案。
 
-- [ ] Remove plaintext credentials from MCP config files.
-- [ ] Move secrets to OS keychain, Windows Credential Manager, or environment injection at runtime.
-- [ ] Add `.gitignore` and repository checks to ensure local runtime config files are never committed.
-- [ ] Prohibit secrets in command-line args when an env or secure secret reference can be used instead.
+### 6.4 Medium Risk: Missing Result Egress Filtering
 
-#### Short Term
+当前入站请求校验已经加强，但出站结果治理仍较弱。
 
-- [ ] Add a config validator that detects likely secrets in URLs, args, env values, and JSON fields.
-- [ ] Add masked display and masked logging for any secret-bearing config values.
-- [ ] Separate server definition from secret material by storing only references in config.
+#### Why It Matters
 
-#### Medium Term
+1. 即使请求合法，工具结果仍可能包含 secrets
+2. 一旦回传路径不做 DLP，远端就能稳定收集本地敏感数据
+3. 权限 profile 只是在一部分模式下降低结果粒度，不等于真正的内容审查
 
-- [ ] Integrate a proper secret provider abstraction for local managed-client runtime.
-- [ ] Rotate tokens or database passwords automatically when a config leak is suspected.
-- [ ] Add secure export and import flows for managed-client configuration without raw secret disclosure.
+#### Current Exposure
+
+1. `command-only` 和 `interactive-trusted` 降低了结果外流面
+2. `full-local-admin` 仍允许完整结果回传
+3. `tool-defense` 目前仍是 noop，实现上没有真正的 response filtering
+
+#### Risk Rating
+
+- Confidentiality: High
+- Integrity: Low
+- Availability: Low
+
+### 6.5 Medium Risk: Configuration Mistakes
+
+当前还有一类很现实的风险不是被攻击，而是被错误配置。
+
+#### Examples
+
+1. 使用 `http://` / `ws://` 作为 base URL
+2. 在生产环境启用 `full-local-admin`
+3. 外部 MCP server 配置为 broad tool publication
+4. 将 secrets 写入 child process args 或 env blocks
+
+#### Risk Rating
+
+- Confidentiality: Medium to High
+- Integrity: Medium
+- Availability: Medium
+
+### 6.6 Lower Risk Than Before: Simple Public-Network MITM
+
+这是当前最不应继续当作“头号威胁”的风险。
+
+#### Why It Dropped
+
+1. 已迁移到 `Authorization` header
+2. 已启用 TLS 校验
+3. 已有请求级绑定
+4. 已有请求级签名
+5. 已有 replay protection
+
+#### Residual Risk
+
+公网 MITM 不是消失了，而是已经从“高概率直接突破”降为“依赖 TLS 层或内部链路异常”的次一级风险。
 
 ---
 
-## Cross-Layer Priority Actions
+## 7. What The Current Design Defends Well
 
-These are the highest-value changes across all four layers.
+当前设计在以下方面已经有较强防护：
+
+1. Query token 泄漏风险明显下降
+2. 非授权第三方很难直接伪造一个合法 `tool_call`
+3. 同一请求被重复投递会被 replay cache 拦截
+4. 请求体内容被改写会触发 `body_sha256` 校验失败
+5. 不同用户、不同 client、不同连接之间的误投递会被绑定校验拦截
+
+这些改造的意义是真实的，不应该低估。
+
+---
+
+## 8. What The Current Design Does Not Yet Defend Well
+
+当前设计仍然不能很好防御以下场景：
+
+1. 内部信任边界中的代理、中间层或服务节点篡改
+2. 已被合法授权的远端通过高权限本地工具读取或导出敏感信息
+3. 外部 MCP server 作为本地高权限扩展面带来的数据外流
+4. 完整 tool result 中的 secrets 被稳定上送
+5. 运维或配置错误导致的能力暴露
+
+---
+
+## 9. Current Overall Risk Profile
+
+如果按当前实现进行重新评估，我会给出如下总体结论：
+
+### 9.1 Public Network MITM
+
+- Current Risk: Medium-Low
+- Reason: TLS + header token + request binding + signature + replay cache
+
+### 9.2 Internal Proxy / Trust-Boundary Tampering
+
+- Current Risk: Medium
+- Reason: trust anchor 仍是动态下发，尚未做到 client 预置信任
+
+### 9.3 Local Data Egress Through Legitimate Tool Calls
+
+- Current Risk: High
+- Reason: built-in tools 和 external MCP 才是最强的数据访问面
+
+### 9.4 Misconfiguration-Driven Exposure
+
+- Current Risk: Medium-High
+- Reason: 宽松默认值、生产态错误档位、缺少 deny-by-default
+
+### 9.5 Final Summary
+
+当前 `managed-client-mcp-ws` 的主要威胁，已经不再是“协议太弱”，而是：
+
+1. 合法远端请求触达本地高权限工具面
+2. 外部 MCP server 扩展面过大
+3. trust anchor 仍是过渡设计
+4. 出站结果缺少真正的内容治理
+
+---
+
+## 10. Priority Remediation Plan
+
+如果只按优先级做最有价值的改造，建议顺序如下：
+
+### P0
+
+1. 把 built-in tools 默认策略改成接近 deny-by-default
+2. 生产环境默认拒绝 `ws://` / `http://`
+3. 收紧 `file_read` 默认允许路径
+4. 把 `blockNetworkCommands` 默认改为开启
+
+### P1
+
+1. 把 `tool-defense` 从 noop 改成真实的 request / response 安全层
+2. 为 `tool_result_chunk` 增加 secrets redaction / DLP
+3. 把 interactive session 从 shell execution 中独立开关
+
+### P2
+
+1. 将 `register -> server_public_key` 过渡模型替换为 client 预置独立 trust anchor
+2. 引入 `key_id + signed key manifest` 的正式轮换方案
+3. 补服务端 replay ledger 或已签发请求登记
+
+### P3
+
+1. 对外部 MCP server 增加 provenance、sandbox、egress control
+2. 进一步将“本地执行权限”和“远端结果回传权限”拆分
+3. 为高风险工具增加审批或额外授权
+
+---
+
+## 11. Final Statement
+
+当前 `managed-client-mcp-ws` 已经从“单纯靠 TLS 和 token 的远端本地执行通道”演进为“具备请求级身份绑定、过期控制、重放保护和消息签名的远端本地执行通道”。
+
+这是明显的安全进步。
+
+但在当前实现下，最需要继续关注的已经不是简单 MITM，而是：
+
+1. 本地高权限工具面是否过宽
+2. 外部 MCP server 是否带来额外高权限扩展面
+3. trust anchor 是否仍停留在过渡模型
+4. 工具结果是否能无过滤地离开本机
+
+只有把这四类风险继续压下去，当前模式才算进入更可辩护的生产安全状态。
 
 ### P0
 
@@ -364,3 +424,24 @@ The implementation can be considered meaningfully safer when all of the followin
 4. Add per-server and per-tool publication governance.
 5. Add result redaction and secret scanning.
 6. Add sandboxing for high-risk external MCP servers.
+
+
+
+第 1 阶段
+
+禁止 tools: ["*"]
+增加 publishedRemotely
+增加 trustLevel
+stdio 默认禁用
+external MCP 默认 status-only
+第 2 阶段
+
+增加 tool 级 allowlist / risk level
+外部 server 独立审计
+env 白名单注入
+禁止高风险 server 的远端全文结果回传
+第 3 阶段
+
+stdio 沙箱
+网络出站控制
+provenance 和审批流
