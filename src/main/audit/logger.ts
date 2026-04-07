@@ -42,22 +42,27 @@ class AuditLogger {
     }
   }
 
+  private filterEntries(search?: string): AuditEntry[] {
+    this.init();
+
+    if (!search) {
+      return this.entries;
+    }
+
+    const q = search.toLowerCase();
+    return this.entries.filter(
+      (e) =>
+        e.command.toLowerCase().includes(q)
+        || e.stdout.toLowerCase().includes(q)
+        || e.stderr.toLowerCase().includes(q),
+    );
+  }
+
   getEntries(options?: { offset?: number; limit?: number; search?: string }): {
     entries: AuditEntry[];
     total: number;
   } {
-    this.init();
-    let filtered = this.entries;
-
-    if (options?.search) {
-      const q = options.search.toLowerCase();
-      filtered = filtered.filter(
-        (e) =>
-          e.command.toLowerCase().includes(q) ||
-          e.stdout.toLowerCase().includes(q) ||
-          e.stderr.toLowerCase().includes(q),
-      );
-    }
+    const filtered = this.filterEntries(options?.search);
 
     const total = filtered.length;
     // Return in reverse chronological order
@@ -69,9 +74,30 @@ class AuditLogger {
     return { entries, total };
   }
 
+  exportEntries(search?: string): { fileName: string; content: string; total: number } {
+    const filtered = [...this.filterEntries(search)].reverse();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+    return {
+      fileName: `audit-log-${timestamp}.jsonl`,
+      content: filtered.map((entry) => JSON.stringify(entry)).join('\n'),
+      total: filtered.length,
+    };
+  }
+
   getEntry(id: string): AuditEntry | undefined {
     this.init();
     return this.entries.find((e) => e.id === id);
+  }
+
+  clear(): void {
+    this.init();
+    this.entries = [];
+    try {
+      fs.writeFileSync(this.filePath, '', 'utf-8');
+    } catch {
+      // Silently fail — memory is already cleared
+    }
   }
 }
 

@@ -3,6 +3,7 @@ import { useI18n } from '../hooks/useI18n';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
+import { Copy, Check } from 'lucide-react';
 import type { Locale } from '../../i18n';
 
 export default function Settings() {
@@ -11,11 +12,25 @@ export default function Settings() {
   const [savedPort, setSavedPort] = useState(19876);
   const [restarting, setRestarting] = useState(false);
   const [message, setMessage] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [notifyEnabled, setNotifyEnabled] = useState(true);
+  const [managedClientMode, setManagedClientMode] = useState<'cli-server' | 'managed-client' | 'managed-client-mcp-ws'>('cli-server');
+  const [workspaceDirectory, setWorkspaceDirectory] = useState('');
+
+  const mcpUrl = `http://localhost:${savedPort}/mcp`;
+  const isServerMode = managedClientMode === 'cli-server';
 
   useEffect(() => {
-    window.electronAPI.getServerStatus().then((s) => {
-      setPort(s.port);
-      setSavedPort(s.port);
+    Promise.all([
+      window.electronAPI.getServerStatus(),
+      window.electronAPI.getNotificationEnabled(),
+      window.electronAPI.getManagedClientBootstrapState(),
+    ]).then(([serverStatus, notificationEnabled, bootstrapState]) => {
+      setPort(serverStatus.port);
+      setSavedPort(serverStatus.port);
+      setNotifyEnabled(notificationEnabled);
+      setManagedClientMode(bootstrapState.mode);
+      setWorkspaceDirectory(bootstrapState.workspaceDirectory);
     });
   }, []);
 
@@ -38,7 +53,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">{t('settings.title')}</h2>
 
       {/* Language */}
@@ -65,71 +80,140 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      {/* Port Configuration */}
+      {isServerMode && (
+        <>
+          {/* Port Configuration */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('settings.serverConfig')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <label className="block text-xs text-slate-500">{t('settings.portNumber')}</label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={1024}
+                  max={65535}
+                  value={port}
+                  onChange={(e) => setPort(Number(e.target.value))}
+                  className="w-32"
+                />
+                <button
+                  onClick={handleRestart}
+                  disabled={restarting || port === savedPort}
+                  className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {restarting ? t('settings.restarting') : t('settings.applyRestart')}
+                </button>
+              </div>
+              {message && (
+                <div className={`text-xs ${message.includes('Failed') || message.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>
+                  {message}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* MCP Endpoint */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('settings.mcpEndpoint')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-slate-500">{t('settings.mcpDescription')}</p>
+              <div
+                className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-md px-3 py-2 cursor-pointer hover:border-slate-600 transition-colors group"
+                onClick={() => {
+                  navigator.clipboard.writeText(mcpUrl);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                title={t('settings.clickToCopy')}
+              >
+                <code className="flex-1 text-sm text-blue-400 font-mono select-all">{mcpUrl}</code>
+                {copied
+                  ? <Check className="w-4 h-4 text-green-400 shrink-0" />
+                  : <Copy className="w-4 h-4 text-slate-500 group-hover:text-slate-300 shrink-0 transition-colors" />}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Notification */}
       <Card>
         <CardHeader>
-          <CardTitle>{t('settings.serverConfig')}</CardTitle>
+          <CardTitle>{t('settings.notifications')}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <label className="block text-xs text-slate-500">{t('settings.portNumber')}</label>
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              min={1024}
-              max={65535}
-              value={port}
-              onChange={(e) => setPort(Number(e.target.value))}
-              className="w-32"
-            />
+        <CardContent className="space-y-2">
+          <p className="text-xs text-slate-500">{t('settings.notificationsDescription')}</p>
+          <label className="flex items-center gap-3 cursor-pointer">
             <button
-              onClick={handleRestart}
-              disabled={restarting || port === savedPort}
-              className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              onClick={async () => {
+                const next = !notifyEnabled;
+                setNotifyEnabled(next);
+                await window.electronAPI.setNotificationEnabled(next);
+              }}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${notifyEnabled ? 'bg-blue-600' : 'bg-slate-700'}`}
             >
-              {restarting ? t('settings.restarting') : t('settings.applyRestart')}
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${notifyEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
-          </div>
-          {message && (
-            <div className={`text-xs ${message.includes('Failed') || message.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>
-              {message}
-            </div>
-          )}
+            <span className="text-sm text-slate-300">{t('settings.notifyOnNewSession')}</span>
+          </label>
         </CardContent>
       </Card>
 
-      {/* Security Guardrails */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between w-full">
-            <CardTitle>{t('settings.securityGuardrails')}</CardTitle>
-            <Badge variant="warning">{t('settings.comingSoon')}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3 opacity-50">
-          <div className="space-y-1">
-            <label className="block text-xs text-slate-500">{t('settings.authToken')}</label>
-            <Input type="text" disabled placeholder={t('settings.authTokenPlaceholder')} />
-          </div>
-          <div className="space-y-1">
-            <label className="block text-xs text-slate-500">{t('settings.corsOrigins')}</label>
-            <Input type="text" disabled placeholder={t('settings.corsPlaceholder')} />
-          </div>
-          <div className="space-y-1">
-            <label className="block text-xs text-slate-500">{t('settings.commandBlocklist')}</label>
-            <textarea
-              disabled
-              placeholder="rm -rf /&#10;format c:&#10;..."
-              rows={3}
-              className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed resize-none focus:outline-none"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="block text-xs text-slate-500">{t('settings.rateLimiting')}</label>
-            <Input type="text" disabled placeholder={t('settings.rateLimitPlaceholder')} />
-          </div>
-          <p className="text-xs text-slate-600">{t('settings.securityNotice')}</p>
-        </CardContent>
-      </Card>
+      {managedClientMode === 'managed-client-mcp-ws' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.workspaceTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-slate-500">{t('settings.workspaceDescription')}</p>
+            <div className="space-y-3 rounded-md border border-slate-800 bg-slate-950/80 p-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{t('settings.workspaceDirectoryLabel')}</div>
+                <code className="mt-1 block break-all text-xs text-emerald-400">{workspaceDirectory}</code>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isServerMode && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between w-full">
+              <CardTitle>{t('settings.securityGuardrails')}</CardTitle>
+              <Badge variant="warning">{t('settings.comingSoon')}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 opacity-50">
+            <div className="space-y-1">
+              <label className="block text-xs text-slate-500">{t('settings.authToken')}</label>
+              <Input type="text" disabled placeholder={t('settings.authTokenPlaceholder')} />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs text-slate-500">{t('settings.corsOrigins')}</label>
+              <Input type="text" disabled placeholder={t('settings.corsPlaceholder')} />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs text-slate-500">{t('settings.commandBlocklist')}</label>
+              <textarea
+                disabled
+                placeholder="rm -rf /&#10;format c:&#10;..."
+                rows={3}
+                className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-1.5 text-sm text-slate-200 disabled:cursor-not-allowed resize-none focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs text-slate-500">{t('settings.rateLimiting')}</label>
+              <Input type="text" disabled placeholder={t('settings.rateLimitPlaceholder')} />
+            </div>
+            <p className="text-xs text-slate-600">{t('settings.securityNotice')}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* About */}
       <Card>

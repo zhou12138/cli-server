@@ -17,8 +17,12 @@ export function onServerEvent(cb: ServerEventCallback): void {
   eventCallback = cb;
 }
 
-function emit(type: string, data?: unknown): void {
+export function emitServerEvent(type: string, data?: unknown): void {
   eventCallback?.({ type, data });
+}
+
+function emit(type: string, data?: unknown): void {
+  emitServerEvent(type, data);
 }
 
 export function getActiveConnections(): number {
@@ -35,10 +39,20 @@ export function startServer(port: number, sessionManager: SessionManager): Promi
     const app = express();
 
     // CORS middleware — allow all origins for MVP
-    app.use((_req, res, next) => {
+    app.use((req, res, next) => {
       res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      res.header('Access-Control-Expose-Headers', 'mcp-session-id, mcp-protocol-version');
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Origin, X-Requested-With, Content-Type, Accept, Authorization, mcp-session-id, mcp-protocol-version, request-id, traceparent',
+      );
       res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+
+      if (req.method === 'OPTIONS') {
+        res.sendStatus(204);
+        return;
+      }
+
       next();
     });
 

@@ -1,0 +1,29 @@
+{
+  "baseUrl": "http://0.0.0.0:8000/api",
+  "bootstrapBaseUrl": "ws://127.0.0.1:8000",
+  "clientId": "77beb318-af3d-42ed-b781-ff7093577f98",
+  "enabled": true,
+  "signinPageUrl": "http://127.0.0.1:3000",
+  "tlsServername": "127.0.0.1",
+  "builtInTools": {
+    "permissionProfile": "full-local-admin",
+    "shellExecute": {
+      "allowedExecutableNames": [
+        "git",
+        "node",
+        "npm",
+        "npx",
+        "python",
+        "python3",
+        "copilot"
+      ],
+      "allowedWorkingDirectories": []
+    },
+    "fileRead": {
+      "allowedPaths": [
+        "C:\\edge_workspace\\cli-server\\X Claw Node"
+      ]
+    }
+  },
+  "mode": "managed-client-mcp-ws"
+}

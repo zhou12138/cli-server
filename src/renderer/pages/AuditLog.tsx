@@ -4,7 +4,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, Search } from 'lucide-react';
 
 interface AuditEntry {
   id: string;
@@ -19,21 +19,28 @@ interface AuditEntry {
   clientIp: string;
 }
 
+const PAGE_SIZE = 20;
+
 export default function AuditLog() {
   const { t } = useI18n();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [total, setTotal] = useState(0);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [page, setPage] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchEntries = useCallback(() => {
     window.electronAPI
-      .getAuditEntries({ limit: 100, search: search || undefined })
+      .getAuditEntries({ offset: page * PAGE_SIZE, limit: PAGE_SIZE, search: appliedSearch || undefined })
       .then(({ entries: data, total: t }) => {
         setEntries(data);
         setTotal(t);
       });
-  }, [search]);
+  }, [appliedSearch, page]);
+
+  // Reset to first page when search changes
+  useEffect(() => { setPage(0); }, [appliedSearch]);
 
   useEffect(() => {
     fetchEntries();
@@ -41,8 +48,14 @@ export default function AuditLog() {
     return unsub;
   }, [fetchEntries]);
 
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
+  };
+
+  const handleSearch = () => {
+    setAppliedSearch(searchInput.trim());
   };
 
   const exitVariant = (code: number | null) => {
@@ -57,18 +70,42 @@ export default function AuditLog() {
   };
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">{t('audit.title')}</h2>
         <span className="text-xs text-slate-500">{t('audit.totalEntries', { total })}</span>
       </div>
 
-      <Input
-        type="text"
-        placeholder={t('audit.searchPlaceholder')}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          type="text"
+          placeholder={t('audit.searchPlaceholder')}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              handleSearch();
+            }
+          }}
+          className="flex-1"
+        />
+        <button
+          onClick={handleSearch}
+          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 transition-colors"
+        >
+          <Search className="w-4 h-4" />
+          {t('audit.searchButton')}
+        </button>
+        <button
+          onClick={() => {
+            setSearchInput('');
+            setAppliedSearch('');
+          }}
+          className="px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 transition-colors"
+        >
+          {t('audit.resetSearch')}
+        </button>
+      </div>
 
       <Card>
         <Table>
@@ -86,7 +123,7 @@ export default function AuditLog() {
             {entries.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-slate-600">
-                  {search ? t('audit.noMatching') : t('audit.noEntries')}
+                  {appliedSearch ? t('audit.noMatching') : t('audit.noEntries')}
                 </TableCell>
               </TableRow>
             ) : (
@@ -104,8 +141,8 @@ export default function AuditLog() {
                     <TableCell className="text-xs text-slate-500">
                       {new Date(entry.timestamp).toLocaleString()}
                     </TableCell>
-                    <TableCell>
-                      <code className="text-xs font-mono text-slate-200">{entry.command}</code>
+                    <TableCell className="max-w-xs">
+                      <code className="text-xs font-mono text-slate-200 line-clamp-3 break-all" title={entry.command}>{entry.command}</code>
                     </TableCell>
                     <TableCell>
                       <Badge variant={exitVariant(entry.exitCode)}>
@@ -148,6 +185,36 @@ export default function AuditLog() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between text-xs text-slate-500">
+          <span>{t('audit.pageInfo', { current: page + 1, total: totalPages })}</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(0)}
+              disabled={page === 0}
+              className="p-1.5 rounded hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="p-1.5 rounded hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="p-1.5 rounded hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
