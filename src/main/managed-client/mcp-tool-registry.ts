@@ -22,7 +22,6 @@ const SESSION_DESKTOP_TOOL_NAMES = [
 const ADVERTISED_DESKTOP_TOOL_NAMES = new Set([
   'shell_execute',
   'file_read',
-  'managed_mcp_server_upsert',
   ...SESSION_DESKTOP_TOOL_NAMES,
 ]);
 
@@ -39,10 +38,6 @@ function getEnabledDesktopToolNames(): Set<string> {
 
   if (config.fileRead.enabled && isDesktopToolPublishedForPermissionProfile(config.permissionProfile, 'file_read')) {
     enabledTools.add('file_read');
-  }
-
-  if (config.managedMcpServerAdmin.enabled && isDesktopToolPublishedForPermissionProfile(config.permissionProfile, 'managed_mcp_server_upsert')) {
-    enabledTools.add('managed_mcp_server_upsert');
   }
 
   return enabledTools;

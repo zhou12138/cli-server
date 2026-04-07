@@ -2,6 +2,8 @@ import { getBuiltInToolsSecurityConfig, getManagedClientMcpServersConfig, getMan
 import { normalizeManagedClientExternalMcpTrustLevel, type ManagedClientFileMcpServerConfig } from './mcp-server-config';
 import type { ManagedClientExternalMcpTrustLevel } from './types';
 
+const REMOTE_MUTABLE_TRUST_LEVEL: ManagedClientExternalMcpTrustLevel = 'experimental';
+
 export interface ManagedMcpServerApplyResult {
   applied: boolean;
   toolCount: number;
@@ -55,7 +57,40 @@ function sanitizeEnv(env: Record<string, string> | undefined): Record<string, st
   return Object.keys(next).length > 0 ? next : undefined;
 }
 
-function buildManagedMcpServerConfig(input: UpsertManagedMcpServerInput): ManagedClientFileMcpServerConfig {
+function enforceRemoteManagedMcpTrustLevelRestriction(
+  currentConfig: ManagedClientFileMcpServerConfig | undefined,
+  nextTrustLevel: ManagedClientExternalMcpTrustLevel,
+): void {
+  const currentTrustLevel = normalizeManagedClientExternalMcpTrustLevel(currentConfig?.trustLevel);
+
+  if (currentConfig && currentTrustLevel !== REMOTE_MUTABLE_TRUST_LEVEL) {
+    throw new Error(
+      `managed_mcp_server_upsert may only modify ${REMOTE_MUTABLE_TRUST_LEVEL} MCP servers; existing server trust level is ${currentTrustLevel}`,
+    );
+  }
+
+  if (nextTrustLevel !== REMOTE_MUTABLE_TRUST_LEVEL) {
+    throw new Error(
+      `managed_mcp_server_upsert may only create or update ${REMOTE_MUTABLE_TRUST_LEVEL} MCP servers`,
+    );
+  }
+}
+
+function resolveRemoteManagedMcpTrustLevel(
+  inputTrustLevel: ManagedClientExternalMcpTrustLevel | undefined,
+  currentConfig: ManagedClientFileMcpServerConfig | undefined,
+): ManagedClientExternalMcpTrustLevel {
+  if (!currentConfig && inputTrustLevel === undefined) {
+    return REMOTE_MUTABLE_TRUST_LEVEL;
+  }
+
+  return normalizeManagedClientExternalMcpTrustLevel(inputTrustLevel);
+}
+
+function buildManagedMcpServerConfig(
+  input: UpsertManagedMcpServerInput,
+  currentConfig?: ManagedClientFileMcpServerConfig,
+): ManagedClientFileMcpServerConfig {
   const securityConfig = getBuiltInToolsSecurityConfig().managedMcpServerAdmin;
   if (!securityConfig.enabled) {
     throw new Error('managed_mcp_server_upsert is disabled by built-in tool policy');
@@ -66,11 +101,14 @@ function buildManagedMcpServerConfig(input: UpsertManagedMcpServerInput): Manage
     throw new Error('Server name is required');
   }
 
+  const trustLevel = resolveRemoteManagedMcpTrustLevel(input.trustLevel, currentConfig);
+  enforceRemoteManagedMcpTrustLevelRestriction(currentConfig, trustLevel);
+
   const common = {
     enabled: input.enabled ?? true,
     toolPrefix: trimOptionalString(input.toolPrefix),
     tools: sanitizeStringList(input.tools),
-    trustLevel: normalizeManagedClientExternalMcpTrustLevel(input.trustLevel),
+    trustLevel,
     publishedRemotely: input.publishedRemotely === true,
   } satisfies Pick<ManagedClientFileMcpServerConfig, 'enabled' | 'toolPrefix' | 'tools' | 'trustLevel' | 'publishedRemotely'>;
 
@@ -153,8 +191,8 @@ export async function upsertManagedMcpServer(input: UpsertManagedMcpServerInput)
   reason?: 'runtime-inactive' | 'bridge-not-ready';
 }> {
   const name = input.name.trim();
-  const nextConfig = buildManagedMcpServerConfig(input);
   const current = getManagedClientMcpServersConfig();
+  const nextConfig = buildManagedMcpServerConfig(input, current[name]);
   const created = !(name in current);
 
   saveManagedClientMcpServersConfig({

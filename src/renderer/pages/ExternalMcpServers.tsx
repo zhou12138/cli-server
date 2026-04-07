@@ -691,9 +691,9 @@ export default function ExternalMcpServers() {
       }
       nextPersisted[name] = config;
 
-      await window.electronAPI.saveManagedClientMcpServersConfig({
+      const saveResult = await window.electronAPI.saveManagedClientMcpServersConfig({
         mcpServers: nextPersisted,
-        apply: false,
+        apply: true,
       });
 
       setPersistedMcpServers(nextPersisted);
@@ -705,7 +705,14 @@ export default function ExternalMcpServers() {
           jsonTouched: false,
         }
         : item)));
-      setMcpMessage({ type: 'success', text: t('settings.externalMcpSaveItemOnly') });
+      setMcpMessage({
+        type: saveResult.applied ? 'success' : 'info',
+        text: saveResult.applied
+          ? t('settings.externalMcpSaveItemApplied', { toolCount: saveResult.toolCount })
+          : saveResult.reason === 'bridge-not-ready'
+            ? t('settings.externalMcpSaveItemBridgeNotReady', { toolCount: saveResult.toolCount })
+            : t('settings.externalMcpSaveItemInactive'),
+      });
     } catch (err) {
       setMcpMessage({ type: 'error', text: t('settings.externalMcpSaveFailed', { error: String(err) }) });
     } finally {

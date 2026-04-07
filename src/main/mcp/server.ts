@@ -304,7 +304,7 @@ export function createMcpServer(sessionManager: SessionManager, clientIp: string
         enabled: z.boolean().optional().describe('Whether the configured MCP server is enabled locally (default: true)'),
         tool_prefix: z.string().optional().describe('Optional advertised tool prefix. Defaults to the server name.'),
         tools: z.array(z.string()).optional().describe('Optional allow-list of tools for this server. Remote publication now requires explicit tool names.'),
-        trust_level: z.enum(['trusted', 'internal-reviewed', 'experimental', 'blocked']).optional().describe('Governance trust level for remote publication.'),
+        trust_level: z.enum(['trusted', 'internal-reviewed', 'experimental', 'blocked']).optional().describe('Governance trust level for remote publication. New servers default to experimental.'),
         published_remotely: z.boolean().optional().describe('Whether this external MCP server may be published to the remote managed-client session.'),
         url: z.string().optional().describe('HTTP server URL when transport=http'),
         timeout: z.number().int().positive().optional().describe('Optional HTTP timeout in milliseconds when transport=http'),

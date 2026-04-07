@@ -8,3 +8,4 @@ managed-client.config.json
 managed-client.mcp-servers.json
 managed-client-workspace/
 .playwright-mcp/
+.superpowers/

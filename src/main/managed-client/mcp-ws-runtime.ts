@@ -847,7 +847,7 @@ export class ManagedClientMcpWsRuntime {
       defaultWorkingDirectory: workspace.workDir,
       enforcedWorkingDirectoryRoot: workspace.rootDir,
       requireShellAllowlist: true,
-      exposeManagedAdminTool: true,
+      exposeManagedAdminTool: false,
     });
     const client = new Client({
       name: 'cli-server-managed-client-mcp-ws',
