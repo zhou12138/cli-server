@@ -265,8 +265,7 @@ function createEditableServer(index: number): EditableMcpServer {
 
 function buildSingleServerConfig(server: EditableMcpServer, options?: { skipToolsValidation?: boolean }): ManagedClientFileMcpServerConfig {
   const toolPrefix = server.toolPrefix.trim() || undefined;
-  const parsedTools = parseToolsText(server.toolsText);
-  const tools = options?.skipToolsValidation ? parsedTools : assertExplicitTools(parsedTools, server.name.trim() || server.id);
+  const tools = assertExplicitTools(parseToolsText(server.toolsText), server.name.trim() || server.id);
 
   if (server.transport === 'http') {
     const url = server.url.trim();
@@ -321,8 +320,10 @@ function buildServerEntry(server: EditableMcpServer, options?: { skipToolsValida
     if (typeof parsed.name === 'string' && parsed.name.trim()) {
       name = parsed.name.trim();
     }
-    const rawTools = Array.isArray(parsed.tools) ? parsed.tools.filter((value): value is string => typeof value === 'string' && value.trim().length > 0) : undefined;
-    const tools = options?.skipToolsValidation ? (rawTools ?? []) : assertExplicitTools(rawTools, name || server.id);
+    const tools = assertExplicitTools(
+      Array.isArray(parsed.tools) ? parsed.tools.filter((value): value is string => typeof value === 'string' && value.trim().length > 0) : undefined,
+      name || server.id,
+    );
     config = {
       transport: parsed.transport,
       url: parsed.url,

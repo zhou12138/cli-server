@@ -645,6 +645,11 @@ app.whenReady().then(async () => {
       signinPageUrl: payload?.signinPageUrl ?? null,
     });
 
+    appendActivity('managed-client', 'start-signin', 'Started browser sign-in flow', 'info', {
+      baseUrl: payload?.baseUrl ?? null,
+      signinPageUrl: payload?.signinPageUrl ?? null,
+    });
+
     return managedClientSigninPromise;
   });
 
