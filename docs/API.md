@@ -378,7 +378,7 @@ In `managed-client-mcp-ws` mode, the desktop node can publish these built-in MCP
 
 - `shell_execute`
 - `file_read`
-- `managed_mcp_server_upsert`
+- `remote_configure_mcp_server`
 - `session_create`
 - `session_stdin`
 - `session_wait`

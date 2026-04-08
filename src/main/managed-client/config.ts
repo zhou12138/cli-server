@@ -118,7 +118,11 @@ function serializeBuiltInToolsSecurityConfig(config: BuiltInToolsSecurityConfig)
     permissionProfile: normalized.permissionProfile,
     shellExecute: getChangedEntries(base.shellExecute, normalized.shellExecute),
     fileRead: getChangedEntries(base.fileRead, normalized.fileRead),
-    managedMcpServerAdmin: getChangedEntries(base.managedMcpServerAdmin, normalized.managedMcpServerAdmin),
+    managedMcpServerAdmin: {
+      enabled: normalized.managedMcpServerAdmin.enabled,
+      allowHttpServers: normalized.managedMcpServerAdmin.allowHttpServers,
+      allowStdioServers: normalized.managedMcpServerAdmin.allowStdioServers,
+    },
   };
 }
 

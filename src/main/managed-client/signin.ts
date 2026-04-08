@@ -14,12 +14,16 @@ interface SigninCallbackPayload {
   nonce?: unknown;
   baseUrl?: unknown;
   bootstrapBaseUrl?: unknown;
+  username?: unknown;
+  displayName?: unknown;
 }
 
 export interface ManagedClientSigninResult {
   token: string;
   signinUrl: string;
   baseUrl: string | null;
+  username: string | null;
+  displayName: string | null;
 }
 
 function normalizeSigninPageUrl(value: string): string {
@@ -129,6 +133,8 @@ function readCallbackBody(request: IncomingMessage): Promise<SigninCallbackPaylo
             nonce: form.get('nonce') ?? undefined,
             baseUrl: form.get('baseUrl') ?? form.get('bootstrapBaseUrl') ?? undefined,
             bootstrapBaseUrl: form.get('bootstrapBaseUrl') ?? undefined,
+            username: form.get('username') ?? form.get('email') ?? undefined,
+            displayName: form.get('displayName') ?? form.get('name') ?? undefined,
           });
           return;
         }
@@ -145,6 +151,7 @@ function readCallbackBody(request: IncomingMessage): Promise<SigninCallbackPaylo
 export async function startManagedClientSignin(options?: {
   signinPageUrl?: string | null;
   baseUrl?: string | null;
+  signal?: AbortSignal;
 }): Promise<ManagedClientSigninResult> {
   const nonce = randomUUID();
 
@@ -201,6 +208,8 @@ export async function startManagedClientSignin(options?: {
           hasToken: Boolean(token),
           nonceMatches: payloadNonce === nonce,
           hasBaseUrl: Boolean(payloadBaseUrl),
+          username: typeof payload.username === 'string' ? payload.username : null,
+          displayName: typeof payload.displayName === 'string' ? payload.displayName : null,
         });
 
         if (!token) {
@@ -226,11 +235,16 @@ export async function startManagedClientSignin(options?: {
         } else {
           writeJson(request, response, 200, { ok: true });
         }
+        const callbackUsername = typeof payload.username === 'string' ? payload.username.trim() : '';
+        const callbackDisplayName = typeof payload.displayName === 'string' ? payload.displayName.trim() : '';
+
         cleanup(server);
         resolve({
           token,
           signinUrl,
           baseUrl: payloadBaseUrl || options?.baseUrl?.trim() || null,
+          username: callbackUsername || null,
+          displayName: callbackDisplayName || null,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid signin callback payload';
@@ -271,6 +285,18 @@ export async function startManagedClientSignin(options?: {
           cleanup(server);
           reject(new Error('Signin timed out before the browser returned an access token'));
         }, SIGNIN_TIMEOUT_MS);
+
+        if (options?.signal) {
+          if (options.signal.aborted) {
+            cleanup(server);
+            reject(new Error('Signin was cancelled'));
+            return;
+          }
+          options.signal.addEventListener('abort', () => {
+            cleanup(server);
+            reject(new Error('Signin was cancelled'));
+          }, { once: true });
+        }
 
         await shell.openExternal(signinUrl);
       } catch (error) {

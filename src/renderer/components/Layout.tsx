@@ -5,7 +5,7 @@ import type { ManagedClientBootstrapState } from '../../preload';
 import StatusBadge from './StatusBadge';
 import { Input } from './ui/input';
 import { useI18n } from '../hooks/useI18n';
-import { LayoutDashboard, ScrollText, Settings, PlugZap, Shield, Wrench, LogOut, LogIn } from 'lucide-react';
+import { LayoutDashboard, ScrollText, Settings, PlugZap, Shield, Wrench, LogOut, LogIn, Activity } from 'lucide-react';
 
 function resolveManagedBaseUrl(localBaseUrl: string | null, signinBaseUrl?: string | null): string {
   const resolvedBaseUrl = signinBaseUrl?.trim() || localBaseUrl?.trim() || '';
@@ -14,6 +14,24 @@ function resolveManagedBaseUrl(localBaseUrl: string | null, signinBaseUrl?: stri
   }
 
   return resolvedBaseUrl;
+}
+
+/** Matches protocol://domain or protocol://domain:port, with optional trailing path */
+function isValidEndpointUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return !!url.protocol && !!url.hostname;
+  } catch {
+    return false;
+  }
+}
+
+function extractHostname(urlString: string): string {
+  try {
+    return new URL(urlString).hostname;
+  } catch {
+    return '';
+  }
 }
 
 export default function Layout() {
@@ -90,6 +108,7 @@ export default function Layout() {
   const navItems = isManagedMcpWsMode
     ? [
       { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
+      { to: '/activities', label: t('nav.activities'), icon: Activity },
       { to: '/audit', label: t('nav.auditLog'), icon: ScrollText },
       { to: '/mcp-servers', label: t('nav.mcpServers'), icon: PlugZap },
       { to: '/built-in-tools', label: t('nav.builtInTools'), icon: Wrench },
@@ -98,6 +117,7 @@ export default function Layout() {
     ]
     : [
       { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
+      { to: '/activities', label: t('nav.activities'), icon: Activity },
       { to: '/audit', label: t('nav.auditLog'), icon: ScrollText },
       { to: '/built-in-tools', label: t('nav.builtInTools'), icon: Wrench },
       { to: '/settings', label: t('nav.settings'), icon: Settings },
@@ -111,26 +131,44 @@ export default function Layout() {
   const openManagedSignInForm = () => {
     setSigninBaseUrl(managedClient.baseUrl ?? '');
     setSigninPageUrl(managedClient.signinPageUrl ?? managedClient.baseUrl ?? '');
-    setSigninTlsServername(managedClient.tlsServername ?? '');
+    setSigninTlsServername('');
     setAuthError('');
     setShowSignInForm(true);
   };
 
   const handleManagedSignIn = async () => {
+    const trimmedBase = signinBaseUrl.trim();
+    const trimmedSignin = signinPageUrl.trim();
+
+    if (!trimmedBase) {
+      setAuthError('MCP Hub Endpoint is required');
+      return;
+    }
+    if (!isValidEndpointUrl(trimmedBase)) {
+      setAuthError('MCP Hub Endpoint must be a valid URL (protocol://domain or protocol://domain:port)');
+      return;
+    }
+    if (trimmedSignin && !isValidEndpointUrl(trimmedSignin)) {
+      setAuthError('Sign-in Page URL must be a valid URL (protocol://domain or protocol://domain:port)');
+      return;
+    }
+
     setSigningIn(true);
     setAuthError('');
 
+    const effectiveTlsServername = signinTlsServername.trim() || extractHostname(trimmedBase) || null;
+
     try {
       const signin = await window.electronAPI.startManagedClientSignin({
-        baseUrl: signinBaseUrl.trim() || null,
-        signinPageUrl: signinPageUrl.trim() || null,
+        baseUrl: trimmedBase || null,
+        signinPageUrl: trimmedSignin || null,
       });
       const effectiveBaseUrl = resolveManagedBaseUrl(signinBaseUrl, signin.baseUrl);
 
       const next = await window.electronAPI.saveManagedClientBaseUrlAndStart({
         baseUrl: effectiveBaseUrl,
-        signinPageUrl: signinPageUrl.trim() || null,
-        tlsServername: signinTlsServername.trim() || null,
+        signinPageUrl: trimmedSignin || null,
+        tlsServername: effectiveTlsServername,
         token: signin.token,
       });
 
@@ -262,10 +300,13 @@ export default function Layout() {
                   if (!signingIn) {
                     setShowSignInForm(false);
                     setAuthError('');
+                  } else {
+                    window.electronAPI.cancelManagedClientSignin();
+                    setSigningIn(false);
+                    setAuthError('Sign-in was cancelled. You can edit the form and try again.');
                   }
                 }}
-                disabled={signingIn}
-                className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition-colors hover:border-slate-500 hover:text-white disabled:opacity-50"
+                className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
               >
                 Close
               </button>
@@ -274,7 +315,7 @@ export default function Layout() {
             <div className="space-y-5 px-6 py-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="block text-xs text-slate-500">MANAGED_CLIENT_BASE_URL</label>
+                  <label className="block text-xs text-slate-500">MCP Hub Endpoint <span className="ml-1 text-red-400">*</span></label>
                   <Input
                     type="text"
                     value={signinBaseUrl}
@@ -283,7 +324,7 @@ export default function Layout() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-xs text-slate-500">MANAGED_CLIENT_SIGNIN_PAGE_URL</label>
+                  <label className="block text-xs text-slate-500">Sign-in Page URL <span className="ml-1 text-red-400">*</span></label>
                   <Input
                     type="text"
                     value={signinPageUrl}
@@ -294,13 +335,16 @@ export default function Layout() {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-xs text-slate-500">MANAGED_CLIENT_TLS_SERVERNAME</label>
+                <label className="block text-xs text-slate-500">TLS Server Name <span className="ml-1 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">optional</span></label>
                 <Input
                   type="text"
                   value={signinTlsServername}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => setSigninTlsServername(event.target.value)}
-                  placeholder="Optional TLS server name override"
+                  placeholder={extractHostname(signinBaseUrl) || 'Auto-derived from base URL'}
                 />
+                <p className="text-xs text-slate-500">
+                  Auto-derived from MCP Hub Endpoint if left empty. Override only when the TLS certificate uses a different hostname.
+                </p>
               </div>
 
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs leading-5 text-slate-300">
@@ -316,11 +360,16 @@ export default function Layout() {
               <div className="flex items-center justify-end gap-3">
                 <button
                   onClick={() => {
-                    setShowSignInForm(false);
-                    setAuthError('');
+                    if (signingIn) {
+                      window.electronAPI.cancelManagedClientSignin();
+                      setSigningIn(false);
+                      setAuthError('Sign-in was cancelled. You can edit the form and try again.');
+                    } else {
+                      setShowSignInForm(false);
+                      setAuthError('');
+                    }
                   }}
-                  disabled={signingIn}
-                  className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-300 transition-colors hover:border-slate-500 hover:text-white disabled:opacity-50"
+                  className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
                 >
                   Cancel
                 </button>

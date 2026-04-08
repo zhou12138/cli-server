@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Routes, Route } from 'react-router-dom';
 import { I18nProvider } from './hooks/useI18n';
 import type { ManagedClientBootstrapState } from '../preload';
 import Layout from './components/Layout';
+import Activities from './pages/Activities';
 import Dashboard from './pages/Dashboard';
 import AuditLog from './pages/AuditLog';
 import ExternalMcpServers from './pages/ExternalMcpServers';
@@ -19,6 +20,23 @@ function resolveManagedBaseUrl(localBaseUrl: string, signinBaseUrl?: string | nu
   }
 
   return resolvedBaseUrl;
+}
+
+function isValidEndpointUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return !!url.protocol && !!url.hostname;
+  } catch {
+    return false;
+  }
+}
+
+function extractHostname(urlString: string): string {
+  try {
+    return new URL(urlString).hostname;
+  } catch {
+    return '';
+  }
 }
 
 export default function App() {
@@ -129,7 +147,7 @@ export default function App() {
               <p className="text-sm text-slate-400">
                 {isDesktopWsMode
                   ? 'Confirm the remote MCP Hub WebSocket endpoint before starting the managed MCP bridge.'
-                  : 'Confirm MANAGED_CLIENT_BASE_URL before starting managed client runtime.'}
+                  : 'Confirm the MCP Hub endpoint before starting managed client runtime.'}
               </p>
               <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-5 md:p-6 space-y-4">
                 <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -147,7 +165,7 @@ export default function App() {
                 </div>
                 <div className={isDesktopWsMode ? 'grid gap-4 md:grid-cols-2' : 'space-y-4'}>
                   <div className="space-y-2">
-                    <label className="block text-xs text-slate-500">MANAGED_CLIENT_BASE_URL</label>
+                    <label className="block text-xs text-slate-500">MCP Hub Endpoint <span className="ml-1 text-red-400">*</span></label>
                     <Input
                       type="text"
                       value={baseUrl}
@@ -157,7 +175,7 @@ export default function App() {
                   </div>
                   {isDesktopWsMode && (
                     <div className="space-y-2">
-                      <label className="block text-xs text-slate-500">MANAGED_CLIENT_SIGNIN_PAGE_URL</label>
+                      <label className="block text-xs text-slate-500">Sign-in Page URL <span className="ml-1 text-red-400">*</span></label>
                       <Input
                         type="text"
                         value={signinPageUrl}
@@ -205,22 +223,38 @@ export default function App() {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <button
                           onClick={async () => {
+                            const trimmedBase = baseUrl.trim();
+                            const trimmedSignin = signinPageUrl.trim();
+
+                            if (trimmedBase && !isValidEndpointUrl(trimmedBase)) {
+                              setError('MCP Hub Endpoint must be a valid URL (protocol://domain or protocol://domain:port)');
+                              return;
+                            }
+                            if (trimmedSignin && !isValidEndpointUrl(trimmedSignin)) {
+                              setError('Sign-in Page URL must be a valid URL (protocol://domain or protocol://domain:port)');
+                              return;
+                            }
+
                             setSigninPending(true);
                             setError('');
 
+                            const effectiveTlsServername = tlsServername.trim() || extractHostname(trimmedBase) || null;
+
                             try {
                               const signin = await window.electronAPI.startManagedClientSignin({
-                                baseUrl: baseUrl.trim() || null,
-                                signinPageUrl: signinPageUrl.trim() || null,
+                                baseUrl: trimmedBase || null,
+                                signinPageUrl: trimmedSignin || null,
                               });
                               const effectiveBaseUrl = resolveManagedBaseUrl(baseUrl, signin.baseUrl);
                               setToken(signin.token);
 
                               const next = await window.electronAPI.saveManagedClientBaseUrlAndStart({
                                 baseUrl: effectiveBaseUrl,
-                                signinPageUrl: signinPageUrl.trim() || null,
-                                tlsServername: tlsServername.trim() || null,
+                                signinPageUrl: trimmedSignin || null,
+                                tlsServername: effectiveTlsServername,
                                 token: signin.token,
+                                identityLabel: signin.username,
+                                identityDetail: signin.displayName,
                               });
 
                               setBootstrap(next);
@@ -235,6 +269,18 @@ export default function App() {
                         >
                           {signinPending ? 'Waiting for browser sign-in...' : 'Continue In Browser'}
                         </button>
+                        {signinPending && (
+                          <button
+                            onClick={() => {
+                              window.electronAPI.cancelManagedClientSignin();
+                              setSigninPending(false);
+                              setError('Sign-in was cancelled. You can edit the form and try again.');
+                            }}
+                            className="inline-flex items-center justify-center rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition-colors hover:border-slate-400 hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                        )}
                         <div className="text-xs leading-5 text-slate-400">
                           Use this for normal login. The bridge starts automatically after the token is handed back and the app connects to /api/mcphub/ws.
                         </div>
@@ -266,7 +312,11 @@ export default function App() {
                       <button
                         onClick={async () => {
                           if (!baseUrl.trim()) {
-                            setError('MANAGED_CLIENT_BASE_URL is required');
+                            setError('MCP Hub Endpoint is required');
+                            return;
+                          }
+                          if (!isValidEndpointUrl(baseUrl.trim())) {
+                            setError('MCP Hub Endpoint must be a valid URL (protocol://domain or protocol://domain:port)');
                             return;
                           }
 
@@ -276,7 +326,7 @@ export default function App() {
                             const next = await window.electronAPI.saveManagedClientBaseUrlAndStart({
                               baseUrl: baseUrl.trim(),
                               signinPageUrl: signinPageUrl.trim() || null,
-                              tlsServername: tlsServername.trim() || null,
+                              tlsServername: tlsServername.trim() || extractHostname(baseUrl.trim()) || null,
                               token: token.trim() || null,
                             });
                             setBootstrap(next);
@@ -311,7 +361,11 @@ export default function App() {
                   <button
                     onClick={async () => {
                       if (!baseUrl.trim()) {
-                        setError('MANAGED_CLIENT_BASE_URL is required');
+                        setError('MCP Hub Endpoint is required');
+                        return;
+                      }
+                      if (!isValidEndpointUrl(baseUrl.trim())) {
+                        setError('MCP Hub Endpoint must be a valid URL (protocol://domain or protocol://domain:port)');
                         return;
                       }
 
@@ -321,7 +375,7 @@ export default function App() {
                         const next = await window.electronAPI.saveManagedClientBaseUrlAndStart({
                           baseUrl: baseUrl.trim(),
                           signinPageUrl: signinPageUrl.trim() || null,
-                          tlsServername: tlsServername.trim() || null,
+                          tlsServername: tlsServername.trim() || extractHostname(baseUrl.trim()) || null,
                           token: token.trim() || null,
                         });
                         setBootstrap(next);
@@ -352,6 +406,7 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/activities" element={<Activities />} />
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/mcp-servers" element={showManagedDesktopPages ? <ExternalMcpServers /> : <Navigate to="/built-in-tools" replace />} />
             <Route path="/permissions" element={showManagedDesktopPages ? <Permissions /> : <Navigate to="/built-in-tools" replace />} />

@@ -19,7 +19,7 @@ const PERMISSION_PROFILE_OPTIONS: BuiltInToolsPermissionProfile[] = ['command-on
 const DESKTOP_TOOL_NAMES = [
   'shell_execute',
   'file_read',
-  'managed_mcp_server_upsert',
+  'remote_configure_mcp_server',
   'session_create',
   'session_stdin',
   'session_wait',

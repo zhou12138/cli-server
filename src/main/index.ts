@@ -1,14 +1,16 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, Notification, ipcMain } from 'electron';
 import * as path from 'node:path';
-import { startServer, stopServer, isServerRunning } from './server';
+import { randomUUID } from 'node:crypto';
+import { startServer, stopServer, isServerRunning, emitServerEvent } from './server';
 import { registerIpcHandlers, getPort } from './ipc/handlers';
+import { activityLogger, type ActivityEntry } from './activity/logger';
 import { auditLogger } from './audit/logger';
 import { createT, type Locale } from '../i18n';
 import { SessionManager } from './session/manager';
 import { ManagedClientRuntime } from './managed-client/runtime';
 import { ManagedClientMcpWsRuntime, validateManagedClientTlsConfig } from './managed-client/mcp-ws-runtime';
 import { registerManagedMcpServerApplyHook } from './managed-client/admin-tools';
-import { startManagedClientSignin } from './managed-client/signin';
+import { startManagedClientSignin, type ManagedClientSigninResult } from './managed-client/signin';
 import { getManagedClientWorkspacePaths } from './managed-client/workspace';
 import {
   getBuiltInToolsSecurityConfig,
@@ -179,9 +181,32 @@ type ManagedClientRuntimeInstance = ManagedClientRuntime | ManagedClientMcpWsRun
 let managedClientRuntime: ManagedClientRuntimeInstance | null = null;
 let managedClientConfig = getManagedClientRuntimeConfig(app.getVersion());
 let managedClientSessionToken: string | null = null;
+let managedClientIdentityOverride: { label: string; detail: string | null } | null = null;
 let currentMode: 'cli-server' | ManagedClientMode = managedClientConfig.enabled ? managedClientConfig.mode : 'cli-server';
 let needsModeSelection = false;
-let managedClientSigninPromise: Promise<{ token: string; signinUrl: string }> | null = null;
+let managedClientSigninPromise: Promise<ManagedClientSigninResult> | null = null;
+let managedClientSigninAbort: AbortController | null = null;
+
+function appendActivity(
+  area: string,
+  action: string,
+  summary: string,
+  status: ActivityEntry['status'] = 'success',
+  details?: Record<string, unknown>,
+): void {
+  const entry: ActivityEntry = {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    area,
+    action,
+    summary,
+    status,
+    details,
+  };
+
+  activityLogger.appendEntry(entry);
+  emitServerEvent('activity:appended', { id: entry.id });
+}
 
 async function stopManagedClientRuntime(): Promise<void> {
   const runtime = managedClientRuntime;
@@ -231,12 +256,15 @@ function getManagedClientSessionIdentity(token: string | null): {
 } {
   const normalizedToken = token?.trim();
   if (!normalizedToken) {
-    return {
-      label: null,
-      detail: null,
-    };
+    return managedClientIdentityOverride ?? { label: null, detail: null };
   }
 
+  // Priority 1: identity from signin callback (works with non-JWT tokens)
+  if (managedClientIdentityOverride) {
+    return managedClientIdentityOverride;
+  }
+
+  // Priority 2: decode standard JWT payload
   const payload = decodeJwtPayload(normalizedToken);
   const username = firstStringClaim(payload, ['preferred_username', 'email', 'upn']);
   const displayName = firstStringClaim(payload, ['name', 'given_name']);
@@ -256,8 +284,15 @@ function getManagedClientSessionIdentity(token: string | null): {
     };
   }
 
+  if (subject) {
+    return {
+      label: subject,
+      detail: null,
+    };
+  }
+
   return {
-    label: subject,
+    label: null,
     detail: null,
   };
 }
@@ -362,11 +397,17 @@ app.whenReady().then(async () => {
 
   // Initialize audit logger
   auditLogger.init();
+  activityLogger.init();
+
+  ipcMain.handle('activity:getEntries', (_e, options?: { offset?: number; limit?: number; search?: string }) => {
+    return activityLogger.getEntries(options);
+  });
 
   // IPC for notification setting
   ipcMain.handle('settings:getNotification', () => sessionNotificationEnabled);
   ipcMain.handle('settings:setNotification', (_e, enabled: boolean) => {
     sessionNotificationEnabled = enabled;
+    appendActivity('settings', 'set-notification', enabled ? 'Enabled activity notifications' : 'Disabled activity notifications', 'success', { enabled });
     return sessionNotificationEnabled;
   });
   ipcMain.handle('managed-client:getBootstrapState', () => buildBootstrapState());
@@ -393,17 +434,23 @@ app.whenReady().then(async () => {
     let applied = false;
     let toolCount = 0;
     let tools: string[] = [];
-    let reason: 'runtime-inactive' | 'bridge-not-ready' | 'republish-pending' | undefined;
+    let reason: 'runtime-inactive' | 'bridge-not-ready' | undefined;
 
     if (managedClientRuntime instanceof ManagedClientMcpWsRuntime) {
-      const result = await awaitManagedMcpRepublishWithTimeout(
-        managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers),
-      );
+      const result = await managedClientRuntime.republishTools();
       applied = result.applied;
       toolCount = result.toolCount;
       tools = result.tools;
       reason = result.reason;
     }
+
+    appendActivity('built-in-tools', 'save-security-config', 'Saved built-in tool rules', 'success', {
+      permissionProfile: payload.config.permissionProfile,
+      applied,
+      toolCount,
+      tools,
+      reason,
+    });
 
     return {
       saved: true,
@@ -422,6 +469,10 @@ app.whenReady().then(async () => {
       version: app.getVersion(),
       workspaceRoot: workspacePaths.rootDir,
       defaultWorkingDirectory: workspacePaths.workDir,
+    });
+    appendActivity('mcp-servers', 'test', 'Tested MCP server configuration', 'info', {
+      serverCount: Object.keys(payload.mcpServers).length,
+      successCount: results.filter((entry) => entry.success).length,
     });
     return { results };
   });
@@ -452,6 +503,13 @@ app.whenReady().then(async () => {
       reason = 'runtime-inactive';
     }
 
+    appendActivity('mcp-servers', 'save', shouldApply ? 'Saved MCP server configuration and requested apply' : 'Saved MCP server configuration', 'success', {
+      serverCount: Object.keys(payload.mcpServers).length,
+      applied,
+      toolCount,
+      reason,
+    });
+
     return {
       saved: true,
       applied,
@@ -467,6 +525,7 @@ app.whenReady().then(async () => {
     };
 
     if (!(managedClientRuntime instanceof ManagedClientMcpWsRuntime)) {
+      appendActivity('mcp-servers', 'refresh-tools', 'Skipped MCP tool republish because runtime is inactive', 'info');
       return {
         applied: false,
         toolCount: 0,
@@ -474,7 +533,12 @@ app.whenReady().then(async () => {
       };
     }
 
-    return managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers);
+    const result = await managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers);
+    appendActivity('mcp-servers', 'refresh-tools', 'Republished MCP tools', result.applied ? 'success' : 'info', {
+      toolCount: result.toolCount,
+      reason: result.reason,
+    });
+    return result;
   });
   ipcMain.handle('managed-client:selectMode', async (_e, mode: 'cli-server' | ManagedClientMode) => {
     await stopManagedClientRuntime();
@@ -493,6 +557,8 @@ app.whenReady().then(async () => {
       await ensureServerStarted();
     }
 
+    appendActivity('app', 'select-mode', `Switched app mode to ${mode}`, 'success', { mode });
+
     refreshTray();
     return buildBootstrapState();
   });
@@ -501,6 +567,8 @@ app.whenReady().then(async () => {
     signinPageUrl?: string | null;
     tlsServername?: string | null;
     token?: string | null;
+    identityLabel?: string | null;
+    identityDetail?: string | null;
   }) => {
     const normalizedToken = payload.token?.trim();
     const normalizedSigninPageUrl = payload.signinPageUrl?.trim();
@@ -515,6 +583,9 @@ app.whenReady().then(async () => {
       token: undefined,
     });
     managedClientSessionToken = normalizedToken ? normalizedToken : null;
+    managedClientIdentityOverride = payload.identityLabel?.trim()
+      ? { label: payload.identityLabel.trim(), detail: payload.identityDetail?.trim() || null }
+      : null;
     managedClientConfig = {
       ...getManagedClientRuntimeConfig(app.getVersion()),
       token: managedClientSessionToken,
@@ -527,20 +598,31 @@ app.whenReady().then(async () => {
       managedClientRuntime.start();
     }
 
+    appendActivity('managed-client', 'save-base-url-and-start', 'Saved managed client connection settings and started runtime', 'success', {
+      baseUrl: payload.baseUrl,
+      signinPageUrl: normalizedSigninPageUrl || null,
+      tlsServername: normalizedTlsServername || null,
+      mode: managedClientConfig.mode,
+    });
+
     refreshTray();
     return buildBootstrapState();
   });
   ipcMain.handle('managed-client:signOut', async () => {
     managedClientSessionToken = null;
+    managedClientIdentityOverride = null;
     saveManagedClientFileConfig({ token: undefined });
     await stopManagedClientRuntime();
     managedClientSessionToken = null;
+    managedClientIdentityOverride = null;
     managedClientConfig = {
       ...getManagedClientRuntimeConfig(app.getVersion()),
       token: null,
     };
     currentMode = managedClientConfig.enabled ? managedClientConfig.mode : 'cli-server';
     needsModeSelection = false;
+
+    appendActivity('managed-client', 'sign-out', 'Signed out of managed client session', 'success');
 
     refreshTray();
     return buildBootstrapState();
@@ -550,11 +632,27 @@ app.whenReady().then(async () => {
       return managedClientSigninPromise;
     }
 
-    managedClientSigninPromise = startManagedClientSignin(payload).finally(() => {
+    const abort = new AbortController();
+    managedClientSigninAbort = abort;
+
+    managedClientSigninPromise = startManagedClientSignin({ ...payload, signal: abort.signal }).finally(() => {
       managedClientSigninPromise = null;
+      managedClientSigninAbort = null;
+    });
+
+    appendActivity('managed-client', 'start-signin', 'Started browser sign-in flow', 'info', {
+      baseUrl: payload?.baseUrl ?? null,
+      signinPageUrl: payload?.signinPageUrl ?? null,
     });
 
     return managedClientSigninPromise;
+  });
+
+  ipcMain.handle('managed-client:cancelSignin', async () => {
+    if (managedClientSigninAbort) {
+      managedClientSigninAbort.abort();
+      managedClientSigninAbort = null;
+    }
   });
 
   if (!managedClientConfig.headless) {

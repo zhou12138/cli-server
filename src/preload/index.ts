@@ -39,6 +39,18 @@ export interface ManagedClientBootstrapState {
 }
 
 export interface ElectronAPI {
+  getActivityEntries: (options?: { offset?: number; limit?: number; search?: string }) => Promise<{
+    entries: Array<{
+      id: string;
+      timestamp: string;
+      area: string;
+      action: string;
+      summary: string;
+      status: 'success' | 'info' | 'error';
+      details?: Record<string, unknown>;
+    }>;
+    total: number;
+  }>;
   getManagedClientBootstrapState: () => Promise<ManagedClientBootstrapState>;
   selectManagedClientMode: (mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws') => Promise<ManagedClientBootstrapState>;
   saveManagedClientBaseUrlAndStart: (payload: {
@@ -46,13 +58,18 @@ export interface ElectronAPI {
     signinPageUrl?: string | null;
     tlsServername?: string | null;
     token?: string | null;
+    identityLabel?: string | null;
+    identityDetail?: string | null;
   }) => Promise<ManagedClientBootstrapState>;
   signOutManagedClient: () => Promise<ManagedClientBootstrapState>;
   startManagedClientSignin: (payload?: { signinPageUrl?: string | null; baseUrl?: string | null }) => Promise<{
     token: string;
     signinUrl: string;
     baseUrl: string | null;
+    username: string | null;
+    displayName: string | null;
   }>;
+  cancelManagedClientSignin: () => Promise<void>;
   validateManagedClientTls: (payload: {
     baseUrl: string;
     tlsServername?: string | null;
@@ -165,11 +182,13 @@ export interface ElectronAPI {
 }
 
 const api: ElectronAPI = {
+  getActivityEntries: (options) => ipcRenderer.invoke('activity:getEntries', options),
   getManagedClientBootstrapState: () => ipcRenderer.invoke('managed-client:getBootstrapState'),
   selectManagedClientMode: (mode) => ipcRenderer.invoke('managed-client:selectMode', mode),
   saveManagedClientBaseUrlAndStart: (payload) => ipcRenderer.invoke('managed-client:saveBaseUrlAndStart', payload),
   signOutManagedClient: () => ipcRenderer.invoke('managed-client:signOut'),
   startManagedClientSignin: (payload) => ipcRenderer.invoke('managed-client:startSignin', payload),
+  cancelManagedClientSignin: () => ipcRenderer.invoke('managed-client:cancelSignin'),
   validateManagedClientTls: (payload) => ipcRenderer.invoke('managed-client:validateTls', payload),
   getManagedClientMcpServersConfig: () => ipcRenderer.invoke('managed-client:getMcpServersConfig'),
   testManagedClientMcpServersConfig: (payload) => ipcRenderer.invoke('managed-client:testMcpServersConfig', payload),

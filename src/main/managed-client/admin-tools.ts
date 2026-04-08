@@ -65,13 +65,13 @@ function enforceRemoteManagedMcpTrustLevelRestriction(
 
   if (currentConfig && currentTrustLevel !== REMOTE_MUTABLE_TRUST_LEVEL) {
     throw new Error(
-      `managed_mcp_server_upsert may only modify ${REMOTE_MUTABLE_TRUST_LEVEL} MCP servers; existing server trust level is ${currentTrustLevel}`,
+      `remote_configure_mcp_server may only modify ${REMOTE_MUTABLE_TRUST_LEVEL} MCP servers; existing server trust level is ${currentTrustLevel}`,
     );
   }
 
   if (nextTrustLevel !== REMOTE_MUTABLE_TRUST_LEVEL) {
     throw new Error(
-      `managed_mcp_server_upsert may only create or update ${REMOTE_MUTABLE_TRUST_LEVEL} MCP servers`,
+      `remote_configure_mcp_server may only create or update ${REMOTE_MUTABLE_TRUST_LEVEL} MCP servers`,
     );
   }
 }
@@ -93,7 +93,7 @@ function buildManagedMcpServerConfig(
 ): ManagedClientFileMcpServerConfig {
   const securityConfig = getBuiltInToolsSecurityConfig().managedMcpServerAdmin;
   if (!securityConfig.enabled) {
-    throw new Error('managed_mcp_server_upsert is disabled by built-in tool policy');
+    throw new Error('remote_configure_mcp_server is disabled by built-in tool policy');
   }
 
   const name = input.name.trim();
