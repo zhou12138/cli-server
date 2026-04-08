@@ -414,6 +414,8 @@ export class ManagedClientMcpWsRuntime {
   private localClient: Client | null = null;
   private activeConnectionSignal: AbortSignal | null = null;
 
+  onActivity?: (area: string, action: string, summary: string, status: 'success' | 'info' | 'error', details?: Record<string, unknown>) => void;
+
   constructor(
     private readonly config: ManagedClientRuntimeConfig,
     private readonly sessionManager: SessionManager,
@@ -900,6 +902,7 @@ export class ManagedClientMcpWsRuntime {
       enforcedWorkingDirectoryRoot: workspace.rootDir,
       requireShellAllowlist: true,
       exposeManagedAdminTool: true,
+      onActivity: this.onActivity,
     });
     const client = new Client({
       name: 'cli-server-managed-client-mcp-ws',

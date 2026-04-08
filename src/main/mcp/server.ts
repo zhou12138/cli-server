@@ -93,6 +93,7 @@ interface McpServerOptions {
   enforcedWorkingDirectoryRoot?: string;
   requireShellAllowlist?: boolean;
   exposeManagedAdminTool?: boolean;
+  onActivity?: (area: string, action: string, summary: string, status: 'success' | 'info' | 'error', details?: Record<string, unknown>) => void;
 }
 
 function resolveWorkingDirectory(cwd: string | undefined, options?: McpServerOptions): string | undefined {
@@ -331,6 +332,14 @@ export function createMcpServer(sessionManager: SessionManager, clientIp: string
             env,
           });
 
+          options?.onActivity?.(
+            'mcp-servers',
+            result.created ? 'remote-create' : 'remote-update',
+            `Remote ${result.created ? 'created' : 'updated'} MCP server "${result.name}"`,
+            'success',
+            { name: result.name, transport, created: result.created, applied: result.applied, toolCount: result.toolCount },
+          );
+
           return json({
             name: result.name,
             created: result.created,
@@ -341,6 +350,13 @@ export function createMcpServer(sessionManager: SessionManager, clientIp: string
             reason: result.reason ?? null,
           });
         } catch (err) {
+          options?.onActivity?.(
+            'mcp-servers',
+            'remote-configure-error',
+            `Remote configure MCP server "${name}" failed: ${String(err)}`,
+            'error',
+            { name, transport },
+          );
           return error(String(err));
         }
       },

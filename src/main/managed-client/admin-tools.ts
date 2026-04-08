@@ -65,13 +65,17 @@ function enforceRemoteManagedMcpTrustLevelRestriction(
 
   if (currentConfig && currentTrustLevel !== REMOTE_MUTABLE_TRUST_LEVEL) {
     throw new Error(
-      `remote_configure_mcp_server may only modify ${REMOTE_MUTABLE_TRUST_LEVEL} MCP servers; existing server trust level is ${currentTrustLevel}`,
+      `remote_configure_mcp_server may only modify servers whose trust level is "${REMOTE_MUTABLE_TRUST_LEVEL}". ` +
+      `The existing server's trust level is "${currentTrustLevel}", which means it has already been promoted by the client operator and can no longer be changed remotely. ` +
+      `To modify this server, ask the client operator to either reset it to "${REMOTE_MUTABLE_TRUST_LEVEL}" or edit the configuration directly on the client.`,
     );
   }
 
   if (nextTrustLevel !== REMOTE_MUTABLE_TRUST_LEVEL) {
     throw new Error(
-      `remote_configure_mcp_server may only create or update ${REMOTE_MUTABLE_TRUST_LEVEL} MCP servers`,
+      `remote_configure_mcp_server can only create or update servers at the "${REMOTE_MUTABLE_TRUST_LEVEL}" trust level. ` +
+      `The requested trust level "${nextTrustLevel}" is not allowed. ` +
+      `After the server is created as "${REMOTE_MUTABLE_TRUST_LEVEL}", the client operator must manually promote it to a higher trust level (e.g. "trusted") via the client UI before it can be fully remote-controlled.`,
     );
   }
 }

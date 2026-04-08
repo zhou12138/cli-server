@@ -349,7 +349,9 @@ function buildBootstrapState() {
 
 function createManagedClientRuntime(config: ManagedClientRuntimeConfig): ManagedClientRuntimeInstance {
   if (config.mode === 'managed-client-mcp-ws') {
-    return new ManagedClientMcpWsRuntime(config, sessionManager);
+    const runtime = new ManagedClientMcpWsRuntime(config, sessionManager);
+    runtime.onActivity = appendActivity;
+    return runtime;
   }
 
   return new ManagedClientRuntime(config, sessionManager);
@@ -401,6 +403,11 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('activity:getEntries', (_e, options?: { offset?: number; limit?: number; search?: string }) => {
     return activityLogger.getEntries(options);
+  });
+
+  ipcMain.handle('activity:clear', () => {
+    activityLogger.clear();
+    return { success: true };
   });
 
   // IPC for notification setting

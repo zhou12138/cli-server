@@ -84,6 +84,17 @@ class ActivityLogger {
       total,
     };
   }
+
+  clear(): void {
+    this.entries = [];
+    try {
+      if (this.filePath) {
+        fs.writeFileSync(this.filePath, '', 'utf-8');
+      }
+    } catch {
+      // Memory is already cleared
+    }
+  }
 }
 
 export const activityLogger = new ActivityLogger();

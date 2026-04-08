@@ -133,6 +133,8 @@
     "searchPlaceholder": "Search actions, summaries, details...",
     "searchButton": "Search",
     "resetSearch": "Reset",
+    "clearHistory": "Clear history",
+    "clearConfirm": "This will permanently delete all activity records. Continue?",
     "colTime": "Time",
     "colArea": "Area",
     "colAction": "Action",

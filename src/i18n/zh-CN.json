@@ -133,6 +133,8 @@
     "searchPlaceholder": "搜索操作、摘要、详情...",
     "searchButton": "搜索",
     "resetSearch": "重置",
+    "clearHistory": "清除历史",
+    "clearConfirm": "将永久删除所有操作记录，确认继续？",
     "colTime": "时间",
     "colArea": "模块",
     "colAction": "操作",

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, Trash2 } from 'lucide-react';
 import { useI18n } from '../hooks/useI18n';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -71,7 +71,23 @@ export default function Activities() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-white">{t('activities.title')}</h2>
-        <span className="text-xs text-slate-500">{t('activities.totalEntries', { total })}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-500">{t('activities.totalEntries', { total })}</span>
+          {total > 0 && (
+            <button
+              onClick={async () => {
+                if (!window.confirm(t('activities.clearConfirm'))) return;
+                await window.electronAPI.clearActivityLog();
+                fetchEntries();
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-slate-500 transition-colors hover:text-red-400 hover:bg-red-500/10"
+              title={t('activities.clearHistory')}
+            >
+              <Trash2 className="w-3 h-3" />
+              {t('activities.clearHistory')}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

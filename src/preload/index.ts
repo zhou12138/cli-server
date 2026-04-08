@@ -51,6 +51,7 @@ export interface ElectronAPI {
     }>;
     total: number;
   }>;
+  clearActivityLog: () => Promise<{ success: boolean }>;
   getManagedClientBootstrapState: () => Promise<ManagedClientBootstrapState>;
   selectManagedClientMode: (mode: 'cli-server' | 'managed-client' | 'managed-client-mcp-ws') => Promise<ManagedClientBootstrapState>;
   saveManagedClientBaseUrlAndStart: (payload: {
@@ -183,6 +184,7 @@ export interface ElectronAPI {
 
 const api: ElectronAPI = {
   getActivityEntries: (options) => ipcRenderer.invoke('activity:getEntries', options),
+  clearActivityLog: () => ipcRenderer.invoke('activity:clear'),
   getManagedClientBootstrapState: () => ipcRenderer.invoke('managed-client:getBootstrapState'),
   selectManagedClientMode: (mode) => ipcRenderer.invoke('managed-client:selectMode', mode),
   saveManagedClientBaseUrlAndStart: (payload) => ipcRenderer.invoke('managed-client:saveBaseUrlAndStart', payload),
