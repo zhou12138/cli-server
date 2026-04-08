@@ -320,7 +320,7 @@ export default function Layout() {
                     type="text"
                     value={signinBaseUrl}
                     onChange={(event: ChangeEvent<HTMLInputElement>) => setSigninBaseUrl(event.target.value)}
-                    placeholder="https://dev3.societas-test.microsoft.com/api"
+                    placeholder="wss://dev3.societas-test.microsoft.com"
                   />
                 </div>
                 <div className="space-y-2">
@@ -329,7 +329,7 @@ export default function Layout() {
                     type="text"
                     value={signinPageUrl}
                     onChange={(event: ChangeEvent<HTMLInputElement>) => setSigninPageUrl(event.target.value)}
-                    placeholder="https://dev3.societas-test.microsoft.com/desktop-signin"
+                    placeholder="https://dev3.societas-test.microsoft.com"
                   />
                 </div>
               </div>
