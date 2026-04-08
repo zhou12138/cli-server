@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import PermissionProfileSummary from '../components/PermissionProfileSummary';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import {
   getExternalMcpRemotePublicationDecision,
   normalizeManagedClientExternalMcpTrustLevel,
@@ -64,6 +64,18 @@ interface McpTestResult {
 
 function parseToolsText(text: string): string[] {
   return Array.from(new Set(text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)));
+}
+
+function assertExplicitTools(tools: string[] | undefined, serverLabel: string): string[] {
+  if (!Array.isArray(tools) || tools.length === 0) {
+    throw new Error(`Allowed tools cannot be empty: ${serverLabel}`);
+  }
+
+  if (tools.includes('*')) {
+    throw new Error(`Allowed tools cannot include wildcard '*': ${serverLabel}`);
+  }
+
+  return tools;
 }
 
 function serializeTools(tools: string[]): string {
@@ -253,17 +265,7 @@ function createEditableServer(index: number): EditableMcpServer {
 
 function buildSingleServerConfig(server: EditableMcpServer): ManagedClientFileMcpServerConfig {
   const toolPrefix = server.toolPrefix.trim() || undefined;
-  const tools = parseToolsText(server.toolsText);
-
-  if (server.publishedRemotely) {
-    if (tools.length === 0) {
-      throw new Error(`Remote publication requires an explicit tool allowlist: ${server.name.trim() || server.id}`);
-    }
-
-    if (tools.includes('*')) {
-      throw new Error(`Wildcard tool publication is not allowed for remote external MCP servers: ${server.name.trim() || server.id}`);
-    }
-  }
+  const tools = assertExplicitTools(parseToolsText(server.toolsText), server.name.trim() || server.id);
 
   if (server.transport === 'http') {
     const url = server.url.trim();
@@ -282,7 +284,7 @@ function buildSingleServerConfig(server: EditableMcpServer): ManagedClientFileMc
       timeout,
       enabled: server.enabled,
       toolPrefix,
-      tools: tools.length > 0 ? tools : undefined,
+      tools,
       requiredPermissionProfile: server.requiredPermissionProfile,
       trustLevel: server.trustLevel,
       publishedRemotely: server.publishedRemotely,
@@ -298,7 +300,7 @@ function buildSingleServerConfig(server: EditableMcpServer): ManagedClientFileMc
     transport: 'stdio',
     command,
     args: server.argsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
-    tools: tools.length > 0 ? tools : undefined,
+    tools,
     cwd: server.cwd.trim() || undefined,
     env: parseEnvText(server.envText),
     enabled: server.enabled,
@@ -318,13 +320,17 @@ function buildServerEntry(server: EditableMcpServer): [string, ManagedClientFile
     if (typeof parsed.name === 'string' && parsed.name.trim()) {
       name = parsed.name.trim();
     }
+    const tools = assertExplicitTools(
+      Array.isArray(parsed.tools) ? parsed.tools.filter((value): value is string => typeof value === 'string' && value.trim().length > 0) : undefined,
+      name || server.id,
+    );
     config = {
       transport: parsed.transport,
       url: parsed.url,
       timeout: parsed.timeout,
       command: parsed.command,
       args: parsed.args,
-      tools: parsed.tools,
+      tools,
       cwd: parsed.cwd,
       env: parsed.env,
       enabled: parsed.enabled,
@@ -375,6 +381,7 @@ export default function ExternalMcpServers() {
   const [savingServerId, setSavingServerId] = useState<string | null>(null);
   const [mcpTesting, setMcpTesting] = useState(false);
   const [mcpMessage, setMcpMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [mcpItemMessages, setMcpItemMessages] = useState<Record<string, { type: 'success' | 'error' | 'info'; text: string }>>({});
   const [mcpTestResults, setMcpTestResults] = useState<Record<string, McpTestResult>>({});
   const [mcpDiscoveryVisibility, setMcpDiscoveryVisibility] = useState<Record<string, boolean>>({});
   const [managedClientBootstrap, setManagedClientBootstrap] = useState<{
@@ -473,6 +480,16 @@ export default function ExternalMcpServers() {
 
       return next;
     }));
+
+    setMcpItemMessages((current) => {
+      if (!(id in current)) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
 
     setMcpTestResults((current) => {
       if (!current[id]) {
@@ -602,6 +619,79 @@ export default function ExternalMcpServers() {
     return t('settings.externalMcpStatusBlockedProfile');
   };
 
+  const getExternalMcpTrustLevelLabel = (trustLevel: ManagedClientExternalMcpTrustLevel) => {
+    if (trustLevel === 'trusted') {
+      return t('settings.externalMcpTrustLevelTrusted');
+    }
+
+    if (trustLevel === 'internal-reviewed') {
+      return t('settings.externalMcpTrustLevelInternalReviewed');
+    }
+
+    if (trustLevel === 'blocked') {
+      return t('settings.externalMcpTrustLevelBlocked');
+    }
+
+    return t('settings.externalMcpTrustLevelExperimental');
+  };
+
+  const getRemotePublicationWarningContent = (
+    blockedReason: ManagedClientExternalMcpPublicationBlockedReason | undefined,
+    trustLevel: ManagedClientExternalMcpTrustLevel,
+  ) => {
+    const trustLevelLabel = getExternalMcpTrustLevelLabel(trustLevel);
+
+    if (blockedReason === 'not-published-remotely') {
+      return {
+        title: t('settings.externalMcpRemotePublicationDisabledTitle'),
+        body: t('settings.externalMcpRemotePublicationDisabledBody', {
+          trustLevel: trustLevelLabel,
+          eligibleLevels: t('settings.externalMcpRemotePublicationEligibleLevels'),
+        }),
+      };
+    }
+
+    if (blockedReason === 'trust-level-blocked') {
+      return {
+        title: t('settings.externalMcpRemotePublicationTrustLevelTitle'),
+        body: trustLevel === 'blocked'
+          ? t('settings.externalMcpRemotePublicationTrustLevelBlockedBody', {
+            trustLevel: trustLevelLabel,
+            eligibleLevels: t('settings.externalMcpRemotePublicationEligibleLevels'),
+          })
+          : t('settings.externalMcpRemotePublicationTrustLevelExperimentalBody', {
+            trustLevel: trustLevelLabel,
+            eligibleLevels: t('settings.externalMcpRemotePublicationEligibleLevels'),
+          }),
+      };
+    }
+
+    if (blockedReason === 'tool-list-required') {
+      return {
+        title: t('settings.externalMcpRemotePublicationToolListTitle'),
+        body: t('settings.externalMcpRemotePublicationToolListBody', {
+          trustLevel: trustLevelLabel,
+        }),
+      };
+    }
+
+    if (blockedReason === 'wildcard-tools-blocked') {
+      return {
+        title: t('settings.externalMcpRemotePublicationWildcardTitle'),
+        body: t('settings.externalMcpRemotePublicationWildcardBody', {
+          trustLevel: trustLevelLabel,
+        }),
+      };
+    }
+
+    return {
+      title: t('settings.externalMcpRemotePublicationBlockedTitle'),
+      body: t('settings.externalMcpRemotePublicationBlockedBody', {
+        reason: getBlockedReasonText(blockedReason),
+      }),
+    };
+  };
+
   const handleSwitchServerMode = (server: EditableMcpServer, nextMode: ConfigMode) => {
     if (server.editorMode === nextMode) {
       return;
@@ -671,6 +761,15 @@ export default function ExternalMcpServers() {
       delete next[id];
       return next;
     });
+    setMcpItemMessages((current) => {
+      if (!(id in current)) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
   };
 
   const handleToggleCollapsed = (id: string) => {
@@ -679,9 +778,24 @@ export default function ExternalMcpServers() {
       : server));
   };
 
+  const expandMcpServer = (id: string) => {
+    setMcpServers((current) => current.map((server) => (server.id === id && server.collapsed)
+      ? { ...server, collapsed: false }
+      : server));
+  };
+
   const handleSaveMcpServer = async (server: EditableMcpServer) => {
     setSavingServerId(server.id);
     setMcpMessage(null);
+    setMcpItemMessages((current) => {
+      if (!(server.id in current)) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[server.id];
+      return next;
+    });
 
     try {
       const [name, config] = buildServerEntry(server);
@@ -705,16 +819,25 @@ export default function ExternalMcpServers() {
           jsonTouched: false,
         }
         : item)));
-      setMcpMessage({
-        type: saveResult.applied ? 'success' : 'info',
-        text: saveResult.applied
-          ? t('settings.externalMcpSaveItemApplied', { toolCount: saveResult.toolCount })
-          : saveResult.reason === 'bridge-not-ready'
-            ? t('settings.externalMcpSaveItemBridgeNotReady', { toolCount: saveResult.toolCount })
-            : t('settings.externalMcpSaveItemInactive'),
-      });
+      setMcpItemMessages((current) => ({
+        ...current,
+        [server.id]: {
+          type: saveResult.applied ? 'success' : 'info',
+          text: saveResult.applied
+            ? t('settings.externalMcpSaveItemApplied', { toolCount: saveResult.toolCount })
+            : saveResult.reason === 'bridge-not-ready'
+              ? t('settings.externalMcpSaveItemBridgeNotReady', { toolCount: saveResult.toolCount })
+              : t('settings.externalMcpSaveItemInactive'),
+        },
+      }));
     } catch (err) {
-      setMcpMessage({ type: 'error', text: t('settings.externalMcpSaveFailed', { error: String(err) }) });
+      setMcpItemMessages((current) => ({
+        ...current,
+        [server.id]: {
+          type: 'error',
+          text: t('settings.externalMcpSaveFailed', { error: String(err) }),
+        },
+      }));
     } finally {
       setSavingServerId(null);
     }
@@ -726,6 +849,17 @@ export default function ExternalMcpServers() {
         ...current,
         [server.id]: options?.revealDiscovery === true,
       }));
+      setMcpItemMessages((current) => {
+        if (!(server.id in current)) {
+          return current;
+        }
+
+        const next = { ...current };
+        delete next[server.id];
+        return next;
+      });
+    } else {
+      setMcpItemMessages({});
     }
 
     setMcpTesting(true);
@@ -736,12 +870,41 @@ export default function ExternalMcpServers() {
         ? Object.fromEntries([buildServerEntry(server)])
         : buildMcpServerConfig(mcpServers);
       const result = await window.electronAPI.testManagedClientMcpServersConfig({ mcpServers: mcpConfig });
+      const successCount = result.results.filter((entry) => entry.success).length;
 
       if (server) {
+        expandMcpServer(server.id);
         const singleResult = result.results[0];
         if (singleResult) {
           setMcpTestResults((current) => ({ ...current, [server.id]: singleResult }));
         }
+        const isDiscoveryFlow = options?.revealDiscovery === true;
+        setMcpItemMessages((current) => ({
+          ...current,
+          [server.id]: {
+            type: singleResult?.success
+              ? 'success'
+              : singleResult?.blockedReason
+                ? 'info'
+                : 'error',
+            text: isDiscoveryFlow
+              ? singleResult?.success
+                ? (singleResult.toolCount > 0
+                  ? t('settings.externalMcpDiscoverSuccess', { toolCount: singleResult.toolCount })
+                  : t('settings.externalMcpDiscoverEmpty'))
+                : singleResult?.blockedReason
+                  ? t('settings.externalMcpDiscoverBlocked', {
+                    reason: getBlockedReasonText(singleResult.blockedReason),
+                    required: t(`builtInTools.permissionProfile.${singleResult.requiredPermissionProfile}`),
+                    current: t(`builtInTools.permissionProfile.${currentPermissionProfile}`),
+                  })
+                  : t('settings.externalMcpDiscoverFailed', { error: singleResult?.error ?? 'Unknown error' })
+              : t('settings.externalMcpTestSummary', {
+                success: successCount,
+                total: result.results.length,
+              }),
+          },
+        }));
       } else {
         const mappedResults: Record<string, McpTestResult> = {};
         for (const item of mcpServers) {
@@ -751,18 +914,35 @@ export default function ExternalMcpServers() {
           }
         }
         setMcpTestResults(mappedResults);
+        setMcpItemMessages({});
       }
 
-      const successCount = result.results.filter((entry) => entry.success).length;
-      setMcpMessage({
-        type: successCount === result.results.length ? 'success' : 'info',
-        text: t('settings.externalMcpTestSummary', {
-          success: successCount,
-          total: result.results.length,
-        }),
-      });
+      if (!server) {
+        setMcpMessage({
+          type: successCount === result.results.length ? 'success' : 'info',
+          text: t('settings.externalMcpTestSummary', {
+            success: successCount,
+            total: result.results.length,
+          }),
+        });
+      }
+
     } catch (err) {
-      setMcpMessage({ type: 'error', text: t('settings.externalMcpTestFailed', { error: String(err) }) });
+      if (server) {
+        expandMcpServer(server.id);
+        const isDiscoveryFlow = options?.revealDiscovery === true;
+        setMcpItemMessages((current) => ({
+          ...current,
+          [server.id]: {
+            type: 'error',
+            text: isDiscoveryFlow
+              ? t('settings.externalMcpDiscoverFailed', { error: String(err) })
+              : t('settings.externalMcpTestFailed', { error: String(err) }),
+          },
+        }));
+      } else {
+        setMcpMessage({ type: 'error', text: t('settings.externalMcpTestFailed', { error: String(err) }) });
+      }
     } finally {
       setMcpTesting(false);
     }
@@ -836,18 +1016,18 @@ export default function ExternalMcpServers() {
                   {t('settings.externalMcpAdd')}
                 </button>
 
-                <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <div className="flex flex-nowrap items-center gap-2 overflow-x-auto md:justify-end">
                   <button
                     onClick={() => handleTestMcpServers()}
                     disabled={mcpTesting}
-                    className="px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="shrink-0 px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     {mcpTesting ? t('settings.externalMcpTesting') : t('settings.externalMcpTestAll')}
                   </button>
                   <button
                     onClick={handlePublishMcpServers}
                     disabled={mcpPublishing || !globalPersistenceState.canSave}
-                    className="min-w-[72px] px-3 py-1.5 text-center text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="min-w-[72px] shrink-0 px-3 py-1.5 text-center text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     {mcpPublishing
                       ? t('settings.externalMcpPublishing')
@@ -874,6 +1054,7 @@ export default function ExternalMcpServers() {
 
               {mcpServers.map((server) => {
                 const testResult = mcpTestResults[server.id];
+                const itemMessage = mcpItemMessages[server.id] ?? null;
                 const persistenceState = serverPersistenceState[server.id] ?? { dirty: true, canSave: false };
                 const discoveredTools = testResult?.success ? testResult.tools : [];
                 const showDiscoveryUi = mcpDiscoveryVisibility[server.id] === true;
@@ -885,6 +1066,12 @@ export default function ExternalMcpServers() {
                 );
                 const publicationDecision = getExternalMcpRemotePublicationDecision(buildDraftSingleServerConfig(server));
                 const isGovernanceAllowed = accessDecision.allowed && publicationDecision.allowed;
+                const isTestBlocked = !accessDecision.allowed;
+                const showDisabledWarning = !server.enabled;
+                const showPublicationBlockedWarning = server.enabled && accessDecision.allowed && !publicationDecision.allowed;
+                const hideStatusBadge = publicationDecision.blockedReason === 'not-published-remotely'
+                  || publicationDecision.blockedReason === 'trust-level-blocked';
+                const publicationWarningContent = getRemotePublicationWarningContent(publicationDecision.blockedReason, server.trustLevel);
                 const statusTone = !server.enabled
                   ? 'border-slate-700 bg-slate-900/60 text-slate-400'
                   : isGovernanceAllowed
@@ -898,23 +1085,25 @@ export default function ExternalMcpServers() {
 
                 return (
                   <div key={server.id} className="rounded-lg border border-slate-800 bg-slate-950/50 p-4 space-y-4">
-                    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-4">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <div className="flex flex-nowrap items-center gap-3 overflow-x-auto whitespace-nowrap pb-1">
+                      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2">
                         <button
                           onClick={() => handleToggleCollapsed(server.id)}
-                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                          className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
                           aria-label={server.collapsed ? t('settings.externalMcpExpand') : t('settings.externalMcpCollapse')}
                           title={server.collapsed ? t('settings.externalMcpExpand') : t('settings.externalMcpCollapse')}
                         >
                           {server.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </button>
-                        <div className="min-w-0 break-all text-sm font-medium text-slate-100">
+                        <div className="min-w-0 truncate text-sm font-medium text-slate-100">
                           {getServerDisplayTitle(server, t('settings.externalMcpServerCard', { index: server.createdOrder }))}
                         </div>
-                        <div className={`rounded-full border px-2 py-1 text-[11px] ${statusTone}`}>
-                          {statusText}
-                        </div>
-                        <label className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-300">
+                        {!hideStatusBadge && (
+                          <div className={`shrink-0 rounded-full border px-2 py-1 text-[11px] ${statusTone}`}>
+                            {statusText}
+                          </div>
+                        )}
+                        <label className="inline-flex shrink-0 items-center gap-2 rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-300">
                           <input
                             type="checkbox"
                             checked={server.enabled}
@@ -925,11 +1114,11 @@ export default function ExternalMcpServers() {
                         </label>
                       </div>
 
-                      <div className="flex shrink-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1 lg:justify-end lg:self-start lg:overflow-visible lg:pb-0">
-                        <div className="inline-flex shrink-0 rounded-md border border-slate-700 bg-slate-900 p-0.5">
+                      <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
+                        <div className="inline-flex shrink-0 flex-nowrap rounded-md border border-slate-700 bg-slate-900 p-0.5">
                           <button
                             onClick={() => handleSwitchServerMode(server, 'form')}
-                            className={`px-3 py-1.5 text-xs rounded transition-colors ${server.editorMode === 'form'
+                            className={`shrink-0 px-3 py-1.5 text-xs rounded transition-colors ${server.editorMode === 'form'
                               ? 'bg-blue-600 text-white'
                               : 'text-slate-400 hover:text-slate-200'
                               }`}
@@ -938,7 +1127,7 @@ export default function ExternalMcpServers() {
                           </button>
                           <button
                             onClick={() => handleSwitchServerMode(server, 'json')}
-                            className={`px-3 py-1.5 text-xs rounded transition-colors ${server.editorMode === 'json'
+                            className={`shrink-0 px-3 py-1.5 text-xs rounded transition-colors ${server.editorMode === 'json'
                               ? 'bg-blue-600 text-white'
                               : 'text-slate-400 hover:text-slate-200'
                               }`}
@@ -948,7 +1137,7 @@ export default function ExternalMcpServers() {
                         </div>
                         <button
                           onClick={() => handleTestMcpServers(server)}
-                          disabled={mcpTesting}
+                          disabled={mcpTesting || isTestBlocked}
                           className="shrink-0 px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 text-slate-200 rounded hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           {t('settings.externalMcpTestOne')}
@@ -975,6 +1164,69 @@ export default function ExternalMcpServers() {
 
                     {server.collapsed ? null : (
                       <>
+                        {itemMessage && (
+                          <div className={`rounded-lg border px-4 py-3 text-sm shadow-[0_0_0_1px_rgba(15,23,42,0.12)] ${itemMessage.type === 'success'
+                            ? 'border-green-900 bg-green-950/30 text-green-200'
+                            : itemMessage.type === 'error'
+                              ? 'border-red-900 bg-red-950/30 text-red-200'
+                              : 'border-slate-700 bg-slate-900/80 text-slate-200'
+                            }`}>
+                            <div className="leading-5">{itemMessage.text}</div>
+                          </div>
+                        )}
+
+                        {showDisabledWarning && (
+                          <div className="rounded-lg border border-slate-600 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 shadow-[0_0_0_1px_rgba(148,163,184,0.12)]">
+                            <div className="flex items-start gap-3">
+                              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />
+                              <div className="space-y-1">
+                                <div className="font-medium text-slate-100">
+                                  {t('settings.externalMcpDisabledWarningTitle')}
+                                </div>
+                                <div className="leading-5 text-slate-300">
+                                  {t('settings.externalMcpDisabledWarningBody')}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {showPublicationBlockedWarning && (
+                          <div className="rounded-lg border border-amber-700 bg-amber-950/60 px-4 py-3 text-sm text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]">
+                            <div className="flex items-start gap-3">
+                              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                              <div className="space-y-1">
+                                <div className="font-medium text-amber-200">
+                                  {publicationWarningContent.title}
+                                </div>
+                                <div className="leading-5 text-amber-100">
+                                  {publicationWarningContent.body}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {isTestBlocked && (
+                          <div className="rounded-lg border border-amber-700 bg-amber-950/60 px-4 py-3 text-sm text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]">
+                            <div className="flex items-start gap-3">
+                              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                              <div className="space-y-1">
+                                <div className="font-medium text-amber-200">
+                                  {t('settings.externalMcpTestUnavailableTitle')}
+                                </div>
+                                <div className="leading-5 text-amber-100">
+                                  {t('settings.externalMcpTestBlocked', {
+                                    reason: getBlockedReasonText(accessDecision.blockedReason),
+                                    required: t(`builtInTools.permissionProfile.${server.requiredPermissionProfile}`),
+                                    current: t(`builtInTools.permissionProfile.${currentPermissionProfile}`),
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="grid gap-3 md:grid-cols-2">
                           <div className="space-y-1">
                             <label className="block text-xs text-slate-500">{t('settings.externalMcpName')}</label>
@@ -1010,6 +1262,7 @@ export default function ExternalMcpServers() {
                               placeholder="query&#10;list_tables"
                             />
                             <p className="text-[11px] text-slate-500">{t('settings.externalMcpToolsHint')}</p>
+                            <p className="text-[11px] text-amber-300">{t('settings.externalMcpToolsValidationHint')}</p>
 
                             {showDiscoveryUi && testResult?.success && discoveredTools.length === 0 && (
                               <div className="rounded-md border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">

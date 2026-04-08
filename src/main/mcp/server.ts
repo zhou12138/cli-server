@@ -296,7 +296,7 @@ export function createMcpServer(sessionManager: SessionManager, clientIp: string
 
   if (options?.exposeManagedAdminTool) {
     server.tool(
-      'managed_mcp_server_upsert',
+      'remote_configure_mcp_server',
       'Create or update a managed external MCP server configuration on this desktop node. This is the official supported path for adding MCP servers locally when the built-in policy enables it.',
       {
         name: z.string().describe('Unique MCP server name used as the local config key'),

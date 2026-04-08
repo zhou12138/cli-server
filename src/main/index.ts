@@ -1,7 +1,9 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, Notification, ipcMain } from 'electron';
 import * as path from 'node:path';
-import { startServer, stopServer, isServerRunning } from './server';
+import { randomUUID } from 'node:crypto';
+import { startServer, stopServer, isServerRunning, emitServerEvent } from './server';
 import { registerIpcHandlers, getPort } from './ipc/handlers';
+import { activityLogger, type ActivityEntry } from './activity/logger';
 import { auditLogger } from './audit/logger';
 import { createT, type Locale } from '../i18n';
 import { SessionManager } from './session/manager';
@@ -183,6 +185,27 @@ let currentMode: 'cli-server' | ManagedClientMode = managedClientConfig.enabled 
 let needsModeSelection = false;
 let managedClientSigninPromise: Promise<{ token: string; signinUrl: string }> | null = null;
 
+function appendActivity(
+  area: string,
+  action: string,
+  summary: string,
+  status: ActivityEntry['status'] = 'success',
+  details?: Record<string, unknown>,
+): void {
+  const entry: ActivityEntry = {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    area,
+    action,
+    summary,
+    status,
+    details,
+  };
+
+  activityLogger.appendEntry(entry);
+  emitServerEvent('activity:appended', { id: entry.id });
+}
+
 async function stopManagedClientRuntime(): Promise<void> {
   const runtime = managedClientRuntime;
   if (!runtime) {
@@ -362,11 +385,17 @@ app.whenReady().then(async () => {
 
   // Initialize audit logger
   auditLogger.init();
+  activityLogger.init();
+
+  ipcMain.handle('activity:getEntries', (_e, options?: { offset?: number; limit?: number; search?: string }) => {
+    return activityLogger.getEntries(options);
+  });
 
   // IPC for notification setting
   ipcMain.handle('settings:getNotification', () => sessionNotificationEnabled);
   ipcMain.handle('settings:setNotification', (_e, enabled: boolean) => {
     sessionNotificationEnabled = enabled;
+    appendActivity('settings', 'set-notification', enabled ? 'Enabled activity notifications' : 'Disabled activity notifications', 'success', { enabled });
     return sessionNotificationEnabled;
   });
   ipcMain.handle('managed-client:getBootstrapState', () => buildBootstrapState());
@@ -393,17 +422,23 @@ app.whenReady().then(async () => {
     let applied = false;
     let toolCount = 0;
     let tools: string[] = [];
-    let reason: 'runtime-inactive' | 'bridge-not-ready' | 'republish-pending' | undefined;
+    let reason: 'runtime-inactive' | 'bridge-not-ready' | undefined;
 
     if (managedClientRuntime instanceof ManagedClientMcpWsRuntime) {
-      const result = await awaitManagedMcpRepublishWithTimeout(
-        managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers),
-      );
+      const result = await managedClientRuntime.republishTools();
       applied = result.applied;
       toolCount = result.toolCount;
       tools = result.tools;
       reason = result.reason;
     }
+
+    appendActivity('built-in-tools', 'save-security-config', 'Saved built-in tool rules', 'success', {
+      permissionProfile: payload.config.permissionProfile,
+      applied,
+      toolCount,
+      tools,
+      reason,
+    });
 
     return {
       saved: true,
@@ -422,6 +457,10 @@ app.whenReady().then(async () => {
       version: app.getVersion(),
       workspaceRoot: workspacePaths.rootDir,
       defaultWorkingDirectory: workspacePaths.workDir,
+    });
+    appendActivity('mcp-servers', 'test', 'Tested MCP server configuration', 'info', {
+      serverCount: Object.keys(payload.mcpServers).length,
+      successCount: results.filter((entry) => entry.success).length,
     });
     return { results };
   });
@@ -452,6 +491,13 @@ app.whenReady().then(async () => {
       reason = 'runtime-inactive';
     }
 
+    appendActivity('mcp-servers', 'save', shouldApply ? 'Saved MCP server configuration and requested apply' : 'Saved MCP server configuration', 'success', {
+      serverCount: Object.keys(payload.mcpServers).length,
+      applied,
+      toolCount,
+      reason,
+    });
+
     return {
       saved: true,
       applied,
@@ -467,6 +513,7 @@ app.whenReady().then(async () => {
     };
 
     if (!(managedClientRuntime instanceof ManagedClientMcpWsRuntime)) {
+      appendActivity('mcp-servers', 'refresh-tools', 'Skipped MCP tool republish because runtime is inactive', 'info');
       return {
         applied: false,
         toolCount: 0,
@@ -474,7 +521,12 @@ app.whenReady().then(async () => {
       };
     }
 
-    return managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers);
+    const result = await managedClientRuntime.updateMcpServers(managedClientConfig.mcpServers);
+    appendActivity('mcp-servers', 'refresh-tools', 'Republished MCP tools', result.applied ? 'success' : 'info', {
+      toolCount: result.toolCount,
+      reason: result.reason,
+    });
+    return result;
   });
   ipcMain.handle('managed-client:selectMode', async (_e, mode: 'cli-server' | ManagedClientMode) => {
     await stopManagedClientRuntime();
@@ -492,6 +544,8 @@ app.whenReady().then(async () => {
     if (mode === 'cli-server') {
       await ensureServerStarted();
     }
+
+    appendActivity('app', 'select-mode', `Switched app mode to ${mode}`, 'success', { mode });
 
     refreshTray();
     return buildBootstrapState();
@@ -527,6 +581,13 @@ app.whenReady().then(async () => {
       managedClientRuntime.start();
     }
 
+    appendActivity('managed-client', 'save-base-url-and-start', 'Saved managed client connection settings and started runtime', 'success', {
+      baseUrl: payload.baseUrl,
+      signinPageUrl: normalizedSigninPageUrl || null,
+      tlsServername: normalizedTlsServername || null,
+      mode: managedClientConfig.mode,
+    });
+
     refreshTray();
     return buildBootstrapState();
   });
@@ -542,6 +603,8 @@ app.whenReady().then(async () => {
     currentMode = managedClientConfig.enabled ? managedClientConfig.mode : 'cli-server';
     needsModeSelection = false;
 
+    appendActivity('managed-client', 'sign-out', 'Signed out of managed client session', 'success');
+
     refreshTray();
     return buildBootstrapState();
   });
@@ -552,6 +615,11 @@ app.whenReady().then(async () => {
 
     managedClientSigninPromise = startManagedClientSignin(payload).finally(() => {
       managedClientSigninPromise = null;
+    });
+
+    appendActivity('managed-client', 'start-signin', 'Started browser sign-in flow', 'info', {
+      baseUrl: payload?.baseUrl ?? null,
+      signinPageUrl: payload?.signinPageUrl ?? null,
     });
 
     return managedClientSigninPromise;

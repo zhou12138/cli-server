@@ -118,7 +118,7 @@
 
 ### 5.4 Governance Controls
 
-1. `managed_mcp_server_upsert` 默认不开启
+1. `remote_configure_mcp_server` 默认不开启
 2. 外部 MCP 工具发布与权限档位绑定
 3. 工具调用与连接过程有基础审计记录
 

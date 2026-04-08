@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Routes, Route } from 'react-router-dom';
 import { I18nProvider } from './hooks/useI18n';
 import type { ManagedClientBootstrapState } from '../preload';
 import Layout from './components/Layout';
+import Activities from './pages/Activities';
 import Dashboard from './pages/Dashboard';
 import AuditLog from './pages/AuditLog';
 import ExternalMcpServers from './pages/ExternalMcpServers';
@@ -352,6 +353,7 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/activities" element={<Activities />} />
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/mcp-servers" element={showManagedDesktopPages ? <ExternalMcpServers /> : <Navigate to="/built-in-tools" replace />} />
             <Route path="/permissions" element={showManagedDesktopPages ? <Permissions /> : <Navigate to="/built-in-tools" replace />} />

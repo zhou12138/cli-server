@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { useI18n } from '../hooks/useI18n';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import PermissionProfileSummary from '../components/PermissionProfileSummary';
 import type { ManagedClientBootstrapState } from '../../preload';
 import {
+  applyPermissionProfileGuards,
   DEFAULT_BUILT_IN_TOOLS_SECURITY_CONFIG,
   getBuiltInToolsSecurityConfigForProfile,
   type BuiltInToolsPermissionProfile,
@@ -194,7 +196,10 @@ export default function BuiltInTools() {
   if (!hasValidNumericLimits) {
     validationErrors.push(t('builtInTools.invalidNumericConfig'));
   }
-  if (managedClientMode === 'managed-client-mcp-ws' && formState.shellEnabled && textToList(formState.shellAllowedExecutableNames).length === 0) {
+  const isShellAllowlistMissingInManagedMcpWs = managedClientMode === 'managed-client-mcp-ws'
+    && formState.shellEnabled
+    && textToList(formState.shellAllowedExecutableNames).length === 0;
+  if (isShellAllowlistMissingInManagedMcpWs) {
     validationErrors.push(t('builtInTools.shellAllowlistRequiredManagedMcpWs'));
   }
   if (formState.permissionProfile === 'full-local-admin' && formState.fileReadEnabled && textToList(formState.fileReadAllowedPaths).length === 0) {
@@ -205,9 +210,16 @@ export default function BuiltInTools() {
   const isManagedMcpWsMode = managedClientMode === 'managed-client-mcp-ws';
 
   const currentConfig = isValid ? formStateToConfig(formState) : null;
-  const isDirty = !!savedConfig && !!currentConfig && JSON.stringify(savedConfig) !== JSON.stringify(currentConfig);
+  const effectiveCurrentConfig = currentConfig ? normalizeConfig(applyPermissionProfileGuards(currentConfig)) : null;
+  const effectiveSavedConfig = savedConfig ? normalizeConfig(applyPermissionProfileGuards(savedConfig)) : null;
+  const isDirty = !!effectiveSavedConfig
+    && !!effectiveCurrentConfig
+    && JSON.stringify(effectiveSavedConfig) !== JSON.stringify(effectiveCurrentConfig);
   const profileDefaults = getBuiltInToolsSecurityConfigForProfile(formState.permissionProfile);
-  const fileReadControlsDisabled = isManagedMcpWsMode && formState.permissionProfile !== 'full-local-admin';
+  const shellAllowPipesDisabled = !profileDefaults.shellExecute.allowPipes;
+  const shellAllowRedirectionDisabled = !profileDefaults.shellExecute.allowRedirection;
+  const shellAllowNetworkCommandsDisabled = !profileDefaults.shellExecute.allowNetworkCommands;
+  const fileReadControlsDisabled = formState.permissionProfile !== 'full-local-admin';
   const managedMcpAdminControlsDisabled = formState.permissionProfile !== 'full-local-admin';
 
   const applyRecommendedExecutables = () => {
@@ -226,7 +238,7 @@ export default function BuiltInTools() {
   };
 
   const handleSave = async () => {
-    if (!currentConfig) {
+    if (!effectiveCurrentConfig) {
       setMessage({ type: 'error', text: t('builtInTools.invalidConfig') });
       return;
     }
@@ -234,7 +246,7 @@ export default function BuiltInTools() {
     setSaving(true);
     setMessage(null);
     try {
-      const result = await window.electronAPI.saveBuiltInToolsSecurityConfig({ config: currentConfig });
+      const result = await window.electronAPI.saveBuiltInToolsSecurityConfig({ config: effectiveCurrentConfig });
       setSavedConfig(result.config);
       setFormState(configToFormState(result.config));
       window.dispatchEvent(new Event('managed-client:built-in-tools-config-changed'));
@@ -317,6 +329,21 @@ export default function BuiltInTools() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-slate-500">{t('builtInTools.shellAllowlistHint')}</p>
+          {isShellAllowlistMissingInManagedMcpWs && (
+            <div className="rounded-lg border border-amber-700 bg-amber-950/60 px-4 py-3 text-sm text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <div className="space-y-1">
+                  <div className="font-medium text-amber-200">
+                    {t('builtInTools.shellAllowlistRequiredManagedMcpWsTitle')}
+                  </div>
+                  <div className="leading-5 text-amber-100">
+                    {t('builtInTools.shellAllowlistRequiredManagedMcpWsBody')}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <label className="flex items-center gap-3 text-sm text-slate-300">
             <input
               type="checkbox"
@@ -383,6 +410,7 @@ export default function BuiltInTools() {
                 type="checkbox"
                 checked={formState.shellAllowPipes}
                 onChange={(event) => setFormState((current) => current ? { ...current, shellAllowPipes: event.target.checked } : current)}
+                disabled={shellAllowPipesDisabled}
               />
               {t('builtInTools.shellAllowPipes')}
             </label>
@@ -391,6 +419,7 @@ export default function BuiltInTools() {
                 type="checkbox"
                 checked={formState.shellAllowRedirection}
                 onChange={(event) => setFormState((current) => current ? { ...current, shellAllowRedirection: event.target.checked } : current)}
+                disabled={shellAllowRedirectionDisabled}
               />
               {t('builtInTools.shellAllowRedirection')}
             </label>
@@ -399,6 +428,7 @@ export default function BuiltInTools() {
                 type="checkbox"
                 checked={formState.shellAllowNetworkCommands}
                 onChange={(event) => setFormState((current) => current ? { ...current, shellAllowNetworkCommands: event.target.checked } : current)}
+                disabled={shellAllowNetworkCommandsDisabled}
               />
               {t('builtInTools.shellAllowNetworkCommands')}
             </label>

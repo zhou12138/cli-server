@@ -5,7 +5,7 @@ import type { ManagedClientBootstrapState } from '../../preload';
 import StatusBadge from './StatusBadge';
 import { Input } from './ui/input';
 import { useI18n } from '../hooks/useI18n';
-import { LayoutDashboard, ScrollText, Settings, PlugZap, Shield, Wrench, LogOut, LogIn } from 'lucide-react';
+import { LayoutDashboard, ScrollText, Settings, PlugZap, Shield, Wrench, LogOut, LogIn, Activity } from 'lucide-react';
 
 function resolveManagedBaseUrl(localBaseUrl: string | null, signinBaseUrl?: string | null): string {
   const resolvedBaseUrl = signinBaseUrl?.trim() || localBaseUrl?.trim() || '';
@@ -90,6 +90,7 @@ export default function Layout() {
   const navItems = isManagedMcpWsMode
     ? [
       { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
+      { to: '/activities', label: t('nav.activities'), icon: Activity },
       { to: '/audit', label: t('nav.auditLog'), icon: ScrollText },
       { to: '/mcp-servers', label: t('nav.mcpServers'), icon: PlugZap },
       { to: '/built-in-tools', label: t('nav.builtInTools'), icon: Wrench },
@@ -98,6 +99,7 @@ export default function Layout() {
     ]
     : [
       { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
+      { to: '/activities', label: t('nav.activities'), icon: Activity },
       { to: '/audit', label: t('nav.auditLog'), icon: ScrollText },
       { to: '/built-in-tools', label: t('nav.builtInTools'), icon: Wrench },
       { to: '/settings', label: t('nav.settings'), icon: Settings },

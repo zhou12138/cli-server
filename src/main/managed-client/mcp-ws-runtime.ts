@@ -458,6 +458,58 @@ export class ManagedClientMcpWsRuntime {
     await this.loopPromise?.catch(() => undefined);
   }
 
+  async republishTools(): Promise<{
+    applied: boolean;
+    toolCount: number;
+    tools: string[];
+    reason?: 'runtime-inactive' | 'bridge-not-ready';
+  }> {
+    if (!this.running) {
+      return { applied: false, toolCount: 0, tools: [], reason: 'runtime-inactive' };
+    }
+
+    if (!this.toolRegistry || !this.localClient) {
+      return { applied: false, toolCount: 0, tools: [], reason: 'bridge-not-ready' };
+    }
+
+    await this.toolRegistry.rebuildBindings();
+    const toolDefinitions = this.toolRegistry.getToolDefinitions();
+    const toolNames = Object.keys(toolDefinitions);
+
+    const socket = this.socket;
+    const activeConnectionSignal = this.activeConnectionSignal;
+    const connectionId = this.connectionId;
+    const canPublishImmediately = socket
+      && socket.readyState === WebSocket.OPEN
+      && activeConnectionSignal
+      && connectionId;
+
+    if (canPublishImmediately) {
+      await this.sendRequest(socket, activeConnectionSignal, 'update_tools', {
+        reset: true,
+        tools: toolDefinitions,
+      });
+
+      this.appendAuditEntry('[managed-client-mcp-ws] update_tools request (republish)', {
+        connectionId,
+        reset: true,
+        toolCount: toolNames.length,
+        tools: toolNames,
+        note: 'Desktop-facing tool set re-published after built-in tools config change.',
+      }, 0);
+      emitServerEvent('managed-client-mcp-ws:update-tools:request', {
+        connectionId,
+        reset: true,
+        toolCount: toolNames.length,
+        tools: toolNames,
+      });
+    }
+
+    return canPublishImmediately
+      ? { applied: true, toolCount: toolNames.length, tools: toolNames }
+      : { applied: false, toolCount: toolNames.length, tools: toolNames, reason: 'bridge-not-ready' };
+  }
+
   async updateMcpServers(mcpServers: ManagedClientRuntimeConfig['mcpServers']): Promise<{
     applied: boolean;
     toolCount: number;
@@ -847,7 +899,7 @@ export class ManagedClientMcpWsRuntime {
       defaultWorkingDirectory: workspace.workDir,
       enforcedWorkingDirectoryRoot: workspace.rootDir,
       requireShellAllowlist: true,
-      exposeManagedAdminTool: false,
+      exposeManagedAdminTool: true,
     });
     const client = new Client({
       name: 'cli-server-managed-client-mcp-ws',

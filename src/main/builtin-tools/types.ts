@@ -42,7 +42,7 @@ const INTERACTIVE_TRUSTED_DESKTOP_TOOL_NAMES = new Set(['shell_execute', 'sessio
 const FULL_LOCAL_ADMIN_DESKTOP_TOOL_NAMES = new Set([
   'shell_execute',
   'file_read',
-  'managed_mcp_server_upsert',
+  'remote_configure_mcp_server',
   'session_create',
   'session_stdin',
   'session_wait',
