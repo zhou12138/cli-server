@@ -11,6 +11,7 @@ import {
   type BuiltInToolsPermissionProfile,
   type ExternalMcpAccessBlockedReason,
 } from '../builtin-tools/types';
+import { buildSandboxEnv } from '../sandbox-env';
 
 const SESSION_DESKTOP_TOOL_NAMES = [
   'session_create',
@@ -160,6 +161,42 @@ function resolveExternalServerWorkingDirectory(
   return defaultWorkingDirectory ?? workspaceRoot;
 }
 
+/**
+ * Resolve the environment for a stdio MCP server process.
+ * When sandboxStdioServers is enabled, applies sandbox env filtering
+ * (strips credentials, sets HOME/TEMP inside workspace).
+ * Any explicit env from the server config is merged on top.
+ */
+function resolveStdioServerEnv(
+  configEnv: Record<string, string> | undefined,
+  resolvedCwd: string | undefined,
+): Record<string, string> | undefined {
+  const securityConfig = getBuiltInToolsSecurityConfig().managedMcpServerAdmin;
+
+  if (!securityConfig.sandboxStdioServers) {
+    return configEnv;
+  }
+
+  // Build sandbox base env using the resolved cwd (or process.cwd() fallback)
+  const sandboxBase = buildSandboxEnv(resolvedCwd ?? process.cwd());
+  const merged: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(sandboxBase)) {
+    if (value !== undefined) {
+      merged[key] = value;
+    }
+  }
+
+  // Merge user-specified env on top (e.g. API keys the operator intentionally provides)
+  if (configEnv) {
+    for (const [key, value] of Object.entries(configEnv)) {
+      merged[key] = value;
+    }
+  }
+
+  return merged;
+}
+
 function getAllowedTools(config: ManagedClientExternalMcpServerConfig): Set<string> | null {
   if (!config.tools || config.tools.length === 0) {
     return null;
@@ -259,13 +296,16 @@ export class ManagedClientMcpToolRegistry {
         params.workspaceRoot,
         params.defaultWorkingDirectory,
       );
+      const stdioEnv = serverConfig.transport === 'stdio'
+        ? resolveStdioServerEnv(serverConfig.env, resolvedWorkingDirectory)
+        : undefined;
       const transport = serverConfig.transport === 'http'
         ? new StreamableHTTPClientTransport(new URL(serverConfig.url))
         : new StdioClientTransport({
           command: serverConfig.command,
           args: serverConfig.args,
           cwd: resolvedWorkingDirectory,
-          env: serverConfig.env,
+          env: stdioEnv,
           stderr: 'pipe',
         });
 
@@ -436,13 +476,16 @@ export class ManagedClientMcpToolRegistry {
         workspaceRoot,
         defaultWorkingDirectory,
       );
+      const stdioEnv = serverConfig.transport === 'stdio'
+        ? resolveStdioServerEnv(serverConfig.env, resolvedWorkingDirectory)
+        : undefined;
       const transport = serverConfig.transport === 'http'
         ? new StreamableHTTPClientTransport(new URL(serverConfig.url))
         : new StdioClientTransport({
           command: serverConfig.command,
           args: serverConfig.args,
           cwd: resolvedWorkingDirectory,
-          env: serverConfig.env,
+          env: stdioEnv,
           stderr: 'pipe',
         });
 

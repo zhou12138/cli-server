@@ -156,6 +156,20 @@ function buildManagedMcpServerConfig(
     throw new Error('stdio MCP server command is required');
   }
 
+  // Validate stdio command against allowlist
+  if (securityConfig.allowedStdioServerCommands.length > 0) {
+    const commandBaseName = command.replace(/^.*[\\/]/, '').toLowerCase();
+    const normalizedAllowlist = securityConfig.allowedStdioServerCommands
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean);
+    if (!normalizedAllowlist.includes(commandBaseName) && !normalizedAllowlist.includes(command.toLowerCase())) {
+      throw new Error(
+        `stdio MCP server command "${command}" is not in the allowed commands list. ` +
+        `Allowed: ${securityConfig.allowedStdioServerCommands.join(', ')}`,
+      );
+    }
+  }
+
   return {
     ...common,
     transport: 'stdio',

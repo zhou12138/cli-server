@@ -39,7 +39,7 @@ export class SessionManager {
 
   // ── Public API ──
 
-  create(command: string, cwd?: string, clientIp = 'unknown', enableStdin = false): SessionInfo {
+  create(command: string, cwd?: string, clientIp = 'unknown', enableStdin = false, envOverride?: NodeJS.ProcessEnv): SessionInfo {
     const sessionId = randomUUID();
     const resolvedCwd = cwd || process.cwd();
     const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
@@ -50,7 +50,7 @@ export class SessionManager {
 
     const childProcess = spawn(shell, shellArgs, {
       cwd: resolvedCwd,
-      env: process.env,
+      env: envOverride ?? process.env,
       stdio: [enableStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
 

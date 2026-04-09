@@ -21,6 +21,9 @@ interface BuiltInToolsFormState {
   shellAllowPipes: boolean;
   shellAllowRedirection: boolean;
   shellAllowNetworkCommands: boolean;
+  shellAllowInlineScripts: boolean;
+  shellAllowPathsOutsideWorkspace: boolean;
+  shellSandboxExecution: boolean;
   shellMaxCommandLength: string;
   shellMaxTimeoutSeconds: string;
   fileReadEnabled: boolean;
@@ -31,6 +34,8 @@ interface BuiltInToolsFormState {
   managedMcpServerAdminEnabled: boolean;
   managedMcpServerAdminAllowHttpServers: boolean;
   managedMcpServerAdminAllowStdioServers: boolean;
+  managedMcpServerAdminSandboxStdioServers: boolean;
+  managedMcpServerAdminAllowedStdioServerCommands: string;
 }
 
 function listToText(values: string[]): string {
@@ -48,6 +53,9 @@ const SHELL_ALLOWED_EXECUTABLE_TEMPLATE = [
   'npx',
   'python',
   'python3',
+  'winget',
+  'wget',
+  'apt-get',
 ];
 
 function getRecommendedReadRoots(workspaceDirectory: string): string[] {
@@ -90,6 +98,9 @@ function configToFormState(config: BuiltInToolsSecurityConfig): BuiltInToolsForm
     shellAllowPipes: normalized.shellExecute.allowPipes,
     shellAllowRedirection: normalized.shellExecute.allowRedirection,
     shellAllowNetworkCommands: normalized.shellExecute.allowNetworkCommands,
+    shellAllowInlineScripts: normalized.shellExecute.allowInlineScripts,
+    shellAllowPathsOutsideWorkspace: normalized.shellExecute.allowPathsOutsideWorkspace,
+    shellSandboxExecution: normalized.shellExecute.sandboxExecution,
     shellMaxCommandLength: String(normalized.shellExecute.maxCommandLength),
     shellMaxTimeoutSeconds: String(normalized.shellExecute.maxTimeoutSeconds),
     fileReadEnabled: normalized.fileRead.enabled,
@@ -100,6 +111,8 @@ function configToFormState(config: BuiltInToolsSecurityConfig): BuiltInToolsForm
     managedMcpServerAdminEnabled: normalized.managedMcpServerAdmin.enabled,
     managedMcpServerAdminAllowHttpServers: normalized.managedMcpServerAdmin.allowHttpServers,
     managedMcpServerAdminAllowStdioServers: normalized.managedMcpServerAdmin.allowStdioServers,
+    managedMcpServerAdminSandboxStdioServers: normalized.managedMcpServerAdmin.sandboxStdioServers,
+    managedMcpServerAdminAllowedStdioServerCommands: listToText(normalized.managedMcpServerAdmin.allowedStdioServerCommands),
   };
 }
 
@@ -113,6 +126,9 @@ function formStateToConfig(state: BuiltInToolsFormState): BuiltInToolsSecurityCo
       allowPipes: state.shellAllowPipes,
       allowRedirection: state.shellAllowRedirection,
       allowNetworkCommands: state.shellAllowNetworkCommands,
+      allowInlineScripts: state.shellAllowInlineScripts,
+      allowPathsOutsideWorkspace: state.shellAllowPathsOutsideWorkspace,
+      sandboxExecution: state.shellSandboxExecution,
       maxCommandLength: Number(state.shellMaxCommandLength),
       maxTimeoutSeconds: Number(state.shellMaxTimeoutSeconds),
     },
@@ -127,6 +143,8 @@ function formStateToConfig(state: BuiltInToolsFormState): BuiltInToolsSecurityCo
       enabled: state.managedMcpServerAdminEnabled,
       allowHttpServers: state.managedMcpServerAdminAllowHttpServers,
       allowStdioServers: state.managedMcpServerAdminAllowStdioServers,
+      sandboxStdioServers: state.managedMcpServerAdminSandboxStdioServers,
+      allowedStdioServerCommands: textToList(state.managedMcpServerAdminAllowedStdioServerCommands),
     },
   };
 }
@@ -153,7 +171,21 @@ export default function BuiltInTools() {
       .then(([{ config }, bootstrapState]) => {
         const normalized = normalizeConfig(config);
         setSavedConfig(normalized);
-        setFormState(configToFormState(normalized));
+        const form = configToFormState(normalized);
+        // Auto-fill empty lists with workspace-based defaults
+        const ws = bootstrapState.workspaceDirectory;
+        if (ws) {
+          if (!form.shellAllowedExecutableNames.trim()) {
+            form.shellAllowedExecutableNames = listToText(SHELL_ALLOWED_EXECUTABLE_TEMPLATE);
+          }
+          if (!form.shellAllowedWorkingDirectories.trim()) {
+            form.shellAllowedWorkingDirectories = listToText(getRecommendedReadRoots(ws));
+          }
+          if (!form.fileReadAllowedPaths.trim()) {
+            form.fileReadAllowedPaths = listToText(getRecommendedReadRoots(ws));
+          }
+        }
+        setFormState(form);
         setManagedClientMode(bootstrapState.mode);
         setWorkspaceDirectory(bootstrapState.workspaceDirectory);
       })
@@ -198,7 +230,8 @@ export default function BuiltInTools() {
   }
   const isShellAllowlistMissingInManagedMcpWs = managedClientMode === 'managed-client-mcp-ws'
     && formState.shellEnabled
-    && textToList(formState.shellAllowedExecutableNames).length === 0;
+    && (textToList(formState.shellAllowedExecutableNames).length === 0
+      || textToList(formState.shellAllowedWorkingDirectories).length === 0);
   if (isShellAllowlistMissingInManagedMcpWs) {
     validationErrors.push(t('builtInTools.shellAllowlistRequiredManagedMcpWs'));
   }
@@ -219,6 +252,9 @@ export default function BuiltInTools() {
   const shellAllowPipesDisabled = !profileDefaults.shellExecute.allowPipes;
   const shellAllowRedirectionDisabled = !profileDefaults.shellExecute.allowRedirection;
   const shellAllowNetworkCommandsDisabled = !profileDefaults.shellExecute.allowNetworkCommands;
+  const shellAllowInlineScriptsDisabled = !profileDefaults.shellExecute.allowInlineScripts;
+  const shellAllowPathsOutsideWorkspaceDisabled = !profileDefaults.shellExecute.allowPathsOutsideWorkspace;
+  const shellSandboxExecutionForced = profileDefaults.shellExecute.sandboxExecution;
   const fileReadControlsDisabled = formState.permissionProfile !== 'full-local-admin';
   const managedMcpAdminControlsDisabled = formState.permissionProfile !== 'full-local-admin';
 
@@ -234,6 +270,14 @@ export default function BuiltInTools() {
     setFormState((current) => current ? {
       ...current,
       fileReadAllowedPaths: listToText(recommendedRoots),
+    } : current);
+  };
+
+  const applyRecommendedWorkingDirectories = () => {
+    const recommendedDirs = getRecommendedReadRoots(workspaceDirectory);
+    setFormState((current) => current ? {
+      ...current,
+      shellAllowedWorkingDirectories: listToText(recommendedDirs),
     } : current);
   };
 
@@ -392,9 +436,20 @@ export default function BuiltInTools() {
             <p className="text-xs text-slate-500">{t('builtInTools.shellRecommendedTemplateHint')}</p>
           </div>
           <div className="space-y-1">
-            <label className="block text-xs text-slate-500" title={t('builtInTools.allowlistTooltip')}>
-              {t('builtInTools.shellAllowedDirectories')}
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs text-slate-500" title={t('builtInTools.allowlistTooltip')}>
+                {t('builtInTools.shellAllowedDirectories')}
+              </label>
+              {isManagedMcpWsMode && workspaceDirectory && (
+                <button
+                  type="button"
+                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  onClick={applyRecommendedWorkingDirectories}
+                >
+                  {t('builtInTools.useRecommendedTemplate')}
+                </button>
+              )}
+            </div>
             <textarea
               value={formState.shellAllowedWorkingDirectories}
               onChange={(event) => setFormState((current) => current ? { ...current, shellAllowedWorkingDirectories: event.target.value } : current)}
@@ -432,7 +487,40 @@ export default function BuiltInTools() {
               />
               {t('builtInTools.shellAllowNetworkCommands')}
             </label>
+            <label className="flex items-center gap-3 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={formState.shellAllowInlineScripts}
+                onChange={(event) => setFormState((current) => current ? { ...current, shellAllowInlineScripts: event.target.checked } : current)}
+                disabled={shellAllowInlineScriptsDisabled}
+              />
+              {t('builtInTools.shellAllowInlineScripts')}
+            </label>
+            <label className="flex items-center gap-3 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={formState.shellAllowPathsOutsideWorkspace}
+                onChange={(event) => setFormState((current) => current ? { ...current, shellAllowPathsOutsideWorkspace: event.target.checked } : current)}
+                disabled={shellAllowPathsOutsideWorkspaceDisabled}
+              />
+              {t('builtInTools.shellAllowPathsOutsideWorkspace')}
+            </label>
+            <label className="flex items-center gap-3 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={formState.shellSandboxExecution}
+                onChange={(event) => setFormState((current) => current ? { ...current, shellSandboxExecution: event.target.checked } : current)}
+                disabled={shellSandboxExecutionForced}
+              />
+              {t('builtInTools.shellSandboxExecution')}
+            </label>
           </div>
+          {formState.shellSandboxExecution && (
+            <p className="text-xs text-emerald-400/80">{t('builtInTools.shellSandboxHint')}</p>
+          )}
+          {!formState.shellAllowPipes && (
+            <p className="text-xs text-amber-400/80">{t('builtInTools.shellChainingBlockedHint')}</p>
+          )}
         </CardContent>
       </Card>
 
@@ -550,6 +638,32 @@ export default function BuiltInTools() {
                 {t('builtInTools.managedMcpServerAdminAllowStdioServers')}
               </label>
             </div>
+            <label className="flex items-center gap-3 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={formState.managedMcpServerAdminSandboxStdioServers}
+                onChange={(event) => setFormState((current) => current ? { ...current, managedMcpServerAdminSandboxStdioServers: event.target.checked } : current)}
+                disabled={managedMcpAdminControlsDisabled || !formState.managedMcpServerAdminEnabled}
+              />
+              {t('builtInTools.managedMcpServerAdminSandboxStdioServers')}
+            </label>
+            {formState.managedMcpServerAdminSandboxStdioServers && (
+              <p className="text-xs text-emerald-400/80">{t('builtInTools.managedMcpServerAdminSandboxStdioHint')}</p>
+            )}
+            {formState.managedMcpServerAdminAllowStdioServers && (
+              <div className="space-y-2">
+                <label className="block text-sm text-slate-300">{t('builtInTools.managedMcpServerAdminAllowedStdioServerCommands')}</label>
+                <textarea
+                  rows={3}
+                  className="w-full rounded-md bg-slate-900 px-3 py-2 font-mono text-xs text-slate-200 border border-slate-700 focus:border-sky-500 focus:outline-none"
+                  value={formState.managedMcpServerAdminAllowedStdioServerCommands}
+                  onChange={(event) => setFormState((current) => current ? { ...current, managedMcpServerAdminAllowedStdioServerCommands: event.target.value } : current)}
+                  disabled={managedMcpAdminControlsDisabled || !formState.managedMcpServerAdminEnabled}
+                  placeholder="node&#10;python&#10;npx"
+                />
+                <p className="text-xs text-slate-500">{t('builtInTools.managedMcpServerAdminAllowedStdioServerCommandsHint')}</p>
+              </div>
+            )}
             <p className="text-xs text-slate-500">{t('builtInTools.managedMcpServerAdminNote')}</p>
           </CardContent>
         </Card>

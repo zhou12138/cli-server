@@ -12,6 +12,7 @@ import { emitServerEvent } from '../server';
 import { getBuiltInToolsSecurityConfig } from '../managed-client/config';
 import { upsertManagedMcpServer } from '../managed-client/admin-tools';
 import { isWorkspaceScopedPermissionProfile } from '../builtin-tools/types';
+import { buildSandboxEnv } from '../sandbox-env';
 
 function json(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
@@ -82,6 +83,89 @@ function hasShellRedirection(command: string): boolean {
 
 function hasShellPipes(command: string): boolean {
   return /\|/.test(command);
+}
+
+function hasCommandChaining(command: string): boolean {
+  return /;|&&|\|\|/.test(command);
+}
+
+// Detect inline script execution: python -c "...", node -e "...", powershell -Command "...", etc.
+const INLINE_SCRIPT_PATTERNS = [
+  // python/python3 -c "code"
+  /\b(?:python[23]?|py)\b.*\s(?:-c|--command)\b/i,
+  // node -e "code", node --eval "code", node -p "code", node --print "code"
+  /\bnode\b.*\s(?:-e|--eval|-p|--print)\b/i,
+  // ruby -e "code"
+  /\bruby\b.*\s-e\b/i,
+  // perl -e "code"
+  /\bperl\b.*\s-e\b/i,
+  // powershell -Command "...", pwsh -c "...", powershell -EncodedCommand "..."
+  /\b(?:powershell|pwsh)(?:\.exe)?\b.*\s(?:-(?:c|command|encodedcommand|e|ec))\b/i,
+  // cmd /c "...", cmd /k "..."
+  /\b(?:cmd)(?:\.exe)?\b.*\s\/[ck]\b/i,
+  // bash -c "...", sh -c "..."
+  /\b(?:bash|sh|zsh|dash|ksh)\b.*\s-c\b/i,
+  // eval/exec as standalone commands
+  /^\s*(?:eval|exec)\s/i,
+];
+
+function hasInlineScript(command: string): boolean {
+  return INLINE_SCRIPT_PATTERNS.some((pattern) => pattern.test(command));
+}
+
+// Extract path-like tokens from a command string for out-of-workspace scanning
+function extractPathTokens(command: string): string[] {
+  const tokens: string[] = [];
+
+  // Match quoted strings
+  const quotedPaths = command.matchAll(/["']([^"']+)["']/g);
+  for (const match of quotedPaths) {
+    tokens.push(match[1]);
+  }
+
+  // Match unquoted tokens that look like absolute paths
+  // Windows: C:\..., D:\..., //server/...
+  // Unix: /home/..., /etc/...
+  const unquotedPaths = command.matchAll(/(?:^|\s)([A-Za-z]:[/\\][^\s"']+|\/[^\s"'|><;]+|\\\\[^\s"']+)/g);
+  for (const match of unquotedPaths) {
+    tokens.push(match[1]);
+  }
+
+  return tokens.filter((t) => t.length > 1);
+}
+
+function hasPathsOutsideAllowedRoots(
+  command: string,
+  allowedRoots: string[],
+  enforcedRoot?: string,
+): string | null {
+  const pathTokens = extractPathTokens(command);
+  if (pathTokens.length === 0) {
+    return null;
+  }
+
+  // Combine allowed directories + enforced root into a single root list
+  const allRoots = [...allowedRoots];
+  if (enforcedRoot) {
+    allRoots.push(enforcedRoot);
+  }
+
+  if (allRoots.length === 0) {
+    return null;
+  }
+
+  for (const token of pathTokens) {
+    // Only check tokens that look like absolute paths
+    if (!pathModule.isAbsolute(token)) {
+      continue;
+    }
+
+    if (!isAllowedPath(token, allRoots)) {
+      return token;
+    }
+  }
+
+  return null;
 }
 
 function isNetworkCommand(executableName: string): boolean {
@@ -156,10 +240,24 @@ function validateShellExecutionRequest(
     return 'Command blocked by policy: shell redirection is not allowed';
   }
 
+  if (!shellConfig.allowPipes && hasCommandChaining(command)) {
+    return 'Command blocked by policy: command chaining (;, &&, ||) is not allowed when pipes are disabled';
+  }
+
   if (!shellConfig.allowNetworkCommands && executableName && isNetworkCommand(executableName)) {
     return `Executable blocked by policy: network command ${executableName} is not allowed`;
   }
 
+  if (!shellConfig.allowInlineScripts && hasInlineScript(command)) {
+    return 'Command blocked by policy: inline script execution (-c, -e, -Command, eval) is not allowed';
+  }
+
+  // Enforce non-empty allowedWorkingDirectories in managed-client-mcp-ws mode (mirrors requireShellAllowlist)
+  if (options?.requireShellAllowlist && shellConfig.allowedWorkingDirectories.length === 0) {
+    return 'shell_execute requires at least one allowed working directory in managed-client-mcp-ws mode';
+  }
+
+  // Always validate effective cwd (including the default), not just explicitly provided cwd
   if (cwd) {
     if (shellConfig.allowedWorkingDirectories.length > 0 && !isAllowedPath(cwd, shellConfig.allowedWorkingDirectories)) {
       return 'Working directory is outside the allowed roots';
@@ -167,6 +265,17 @@ function validateShellExecutionRequest(
 
     if (options?.enforcedWorkingDirectoryRoot && !pathMatchesRoot(cwd, options.enforcedWorkingDirectoryRoot)) {
       return `Working directory must stay inside managed workspace: ${options.enforcedWorkingDirectoryRoot}`;
+    }
+  }
+
+  if (!shellConfig.allowPathsOutsideWorkspace) {
+    const disallowedPath = hasPathsOutsideAllowedRoots(
+      command,
+      shellConfig.allowedWorkingDirectories,
+      options?.enforcedWorkingDirectoryRoot,
+    );
+    if (disallowedPath) {
+      return `Command blocked by policy: path argument "${disallowedPath}" is outside the allowed workspace roots`;
     }
   }
 
@@ -204,7 +313,10 @@ export function createMcpServer(sessionManager: SessionManager, clientIp: string
 
         const requestedTimeoutSeconds = Math.max(1, timeout_seconds ?? 120);
         const timeoutSeconds = Math.min(requestedTimeoutSeconds, securityConfig.maxTimeoutSeconds);
-        const session = sessionManager.create(command, effectiveCwd, clientIp, false);
+        const sandboxEnv = securityConfig.sandboxExecution && effectiveCwd
+          ? buildSandboxEnv(effectiveCwd)
+          : undefined;
+        const session = sessionManager.create(command, effectiveCwd, clientIp, false, sandboxEnv);
         const timeoutMs = timeoutSeconds * 1000;
 
         const waitResult = await sessionManager.wait(session.sessionId, {
@@ -390,7 +502,11 @@ After creating a session, use session_wait with idleMs (e.g. 5000-15000) to poll
           return error(validationError, buildShellAllowlistDetails());
         }
 
-        const info = sessionManager.create(command, effectiveCwd, clientIp, enableStdin ?? false);
+        const shellConfig = getBuiltInToolsSecurityConfig().shellExecute;
+        const sandboxEnv = shellConfig.sandboxExecution && effectiveCwd
+          ? buildSandboxEnv(effectiveCwd)
+          : undefined;
+        const info = sessionManager.create(command, effectiveCwd, clientIp, enableStdin ?? false, sandboxEnv);
         emitServerEvent('session:created', { sessionId: info.sessionId, command, clientIp });
         return json(info);
       } catch (err) {

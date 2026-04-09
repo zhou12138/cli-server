@@ -5,6 +5,9 @@ export interface ShellExecuteSecurityConfig {
   allowPipes: boolean;
   allowRedirection: boolean;
   allowNetworkCommands: boolean;
+  allowInlineScripts: boolean;
+  allowPathsOutsideWorkspace: boolean;
+  sandboxExecution: boolean;
   maxCommandLength: number;
   maxTimeoutSeconds: number;
 }
@@ -21,6 +24,8 @@ export interface ManagedMcpServerAdminSecurityConfig {
   enabled: boolean;
   allowHttpServers: boolean;
   allowStdioServers: boolean;
+  sandboxStdioServers: boolean;
+  allowedStdioServerCommands: string[];
 }
 
 export type BuiltInToolsPermissionProfile = 'command-only' | 'interactive-trusted' | 'full-local-admin';
@@ -63,6 +68,9 @@ export function getBuiltInToolsSecurityConfigForProfile(
           allowPipes: false,
           allowRedirection: false,
           allowNetworkCommands: false,
+          allowInlineScripts: false,
+          allowPathsOutsideWorkspace: false,
+          sandboxExecution: true,
           maxCommandLength: 1000,
           maxTimeoutSeconds: 30,
         },
@@ -77,6 +85,8 @@ export function getBuiltInToolsSecurityConfigForProfile(
           enabled: false,
           allowHttpServers: false,
           allowStdioServers: false,
+          sandboxStdioServers: true,
+          allowedStdioServerCommands: [],
         },
       };
     case 'interactive-trusted':
@@ -89,6 +99,9 @@ export function getBuiltInToolsSecurityConfigForProfile(
           allowPipes: true,
           allowRedirection: true,
           allowNetworkCommands: false,
+          allowInlineScripts: false,
+          allowPathsOutsideWorkspace: false,
+          sandboxExecution: true,
           maxCommandLength: 2000,
           maxTimeoutSeconds: 120,
         },
@@ -103,6 +116,8 @@ export function getBuiltInToolsSecurityConfigForProfile(
           enabled: false,
           allowHttpServers: false,
           allowStdioServers: false,
+          sandboxStdioServers: true,
+          allowedStdioServerCommands: [],
         },
       };
     case 'full-local-admin':
@@ -115,6 +130,9 @@ export function getBuiltInToolsSecurityConfigForProfile(
           allowPipes: true,
           allowRedirection: true,
           allowNetworkCommands: true,
+          allowInlineScripts: true,
+          allowPathsOutsideWorkspace: true,
+          sandboxExecution: false,
           maxCommandLength: 4000,
           maxTimeoutSeconds: 120,
         },
@@ -129,6 +147,8 @@ export function getBuiltInToolsSecurityConfigForProfile(
           enabled: true,
           allowHttpServers: true,
           allowStdioServers: true,
+          sandboxStdioServers: false,
+          allowedStdioServerCommands: [],
         },
       };
     default:
@@ -284,6 +304,9 @@ export function applyPermissionProfileGuards(config: BuiltInToolsSecurityConfig)
         allowPipes: false,
         allowRedirection: false,
         allowNetworkCommands: false,
+        allowInlineScripts: false,
+        allowPathsOutsideWorkspace: false,
+        sandboxExecution: true,
       },
       fileRead: {
         ...config.fileRead,
@@ -294,6 +317,8 @@ export function applyPermissionProfileGuards(config: BuiltInToolsSecurityConfig)
         enabled: false,
         allowHttpServers: false,
         allowStdioServers: false,
+        sandboxStdioServers: true,
+        allowedStdioServerCommands: config.managedMcpServerAdmin.allowedStdioServerCommands,
       },
     };
   }
@@ -309,11 +334,16 @@ export function applyPermissionProfileGuards(config: BuiltInToolsSecurityConfig)
       shellExecute: {
         ...config.shellExecute,
         allowNetworkCommands: false,
+        allowInlineScripts: false,
+        allowPathsOutsideWorkspace: false,
+        sandboxExecution: true,
       },
       managedMcpServerAdmin: {
         enabled: false,
         allowHttpServers: false,
         allowStdioServers: false,
+        sandboxStdioServers: true,
+        allowedStdioServerCommands: config.managedMcpServerAdmin.allowedStdioServerCommands,
       },
     };
   }
