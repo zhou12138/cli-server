@@ -9,7 +9,7 @@ import { auditLogger } from '../audit/logger';
 import { emitServerEvent } from '../server';
 import { createMcpServer } from '../mcp/server';
 import type { ManagedClientRuntimeConfig } from './types';
-import { getBuiltInToolsSecurityConfig } from './config';
+import { getBuiltInToolsSecurityConfig, getToolCallApprovalMode } from './config';
 import { ManagedClientMcpToolRegistry } from './mcp-tool-registry';
 import { createManagedClientDefenseLayer } from './tool-defense';
 import { prepareManagedClientWorkspace } from './workspace';
@@ -413,6 +413,8 @@ export class ManagedClientMcpWsRuntime {
   private toolRegistry: ManagedClientMcpToolRegistry | null = null;
   private localClient: Client | null = null;
   private activeConnectionSignal: AbortSignal | null = null;
+  private readonly approvedSessions = new Set<string>();
+  private readonly pendingApprovals = new Map<string, (decision: 'approve-once' | 'approve-all' | 'reject') => void>();
 
   onActivity?: (area: string, action: string, summary: string, status: 'success' | 'info' | 'error', details?: Record<string, unknown>) => void;
 
@@ -421,6 +423,14 @@ export class ManagedClientMcpWsRuntime {
     private readonly sessionManager: SessionManager,
   ) {
     this.defenseLayer = createManagedClientDefenseLayer(config);
+  }
+
+  resolveToolCallApproval(requestId: string, decision: 'approve-once' | 'approve-all' | 'reject'): void {
+    const resolver = this.pendingApprovals.get(requestId);
+    if (resolver) {
+      this.pendingApprovals.delete(requestId);
+      resolver(decision);
+    }
   }
 
   start(): void {
@@ -646,6 +656,11 @@ export class ManagedClientMcpWsRuntime {
     this.expectedServerPublicKeyPem = null;
     this.serverClockOffsetMs = 0;
     this.replayCache.clear();
+    this.approvedSessions.clear();
+    for (const resolver of this.pendingApprovals.values()) {
+      resolver('reject');
+    }
+    this.pendingApprovals.clear();
   }
 
   private purgeExpiredReplayCache(referenceTimeMs: number): void {
@@ -1293,6 +1308,47 @@ export class ManagedClientMcpWsRuntime {
     }
 
     const effectiveArgumentsPayload = requestInspection.argumentsPayload;
+
+    // Tool call approval gate
+    const metaForApproval = isJsonObject(payload.meta) ? payload.meta : null;
+    const toolCallSessionId = typeof metaForApproval?.session_id === 'string' ? metaForApproval.session_id : '';
+
+    if (getToolCallApprovalMode() === 'manual' && !this.approvedSessions.has(toolCallSessionId)) {
+      emitServerEvent('tool-call:approval-required', {
+        requestId,
+        toolName,
+        arguments: effectiveArgumentsPayload,
+        source: binding.source,
+        sourceName: binding.sourceName,
+        sessionId: toolCallSessionId,
+      });
+
+      const decision = await new Promise<'approve-once' | 'approve-all' | 'reject'>((resolve) => {
+        this.pendingApprovals.set(requestId, resolve);
+      });
+
+      if (decision === 'reject') {
+        this.pullStatus = 'task-failed';
+        this.lastTaskCommand = toolName;
+        this.lastPolledAt = new Date().toISOString();
+        this.appendAuditEntry(`[managed-client-mcp-ws] tool_call rejected by user: ${toolName}`, {
+          requestId,
+          toolName,
+          rawPayload: payload,
+        }, 1, 'User rejected tool call');
+        emitServerEvent('managed-client-mcp-ws:task:rejected', {
+          requestId,
+          toolName,
+          code: 'user_rejected',
+        });
+        await this.sendToolError(socket, requestId, 'user_rejected', 'Tool call was rejected by the user');
+        return;
+      }
+
+      if (decision === 'approve-all' && toolCallSessionId) {
+        this.approvedSessions.add(toolCallSessionId);
+      }
+    }
 
     this.pullStatus = 'task-assigned';
     this.pulledTaskCount += 1;

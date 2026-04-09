@@ -260,7 +260,8 @@
     },
     "advancedTitle": "Advanced Restrictions",
     "advancedDescription": "Detailed shell, file read, and managed MCP server restrictions remain on the Built-in Tools page.",
-    "advancedLink": "Open Built-in Tools"
+    "advancedLink": "Open Built-in Tools",
+    "fullLocalAdminWarning": "Warning: Full Local Admin grants unrestricted shell execution, file reads, and external MCP server access. All remote tool calls can read and modify any file on this machine without restriction. Use only if you fully trust the remote side."
   },
   "settings": {
     "title": "Settings",
@@ -409,8 +410,26 @@
     "securityNotice": "Security guardrails will be available in a future release. For now, the server accepts all connections and commands without restriction. Use with caution.",
     "about": "About",
     "aboutDescription": "CLI Server provides a local WebSocket + HTTP gateway for web-based AI agents to execute CLI commands on your machine. It runs a persistent background service on the configured port and logs all command executions for audit purposes.",
+    "aboutDescriptionMcpWs": "X Claw Node is a managed desktop MCP client that connects to a remote MCP Hub via WebSocket. It exposes local tools — shell execution, file access, and external MCP servers — to the remote side under configurable permission profiles, approval gates, and defense layers. All tool calls are audited locally.",
     "version": "Version 0.1.0 (MVP)",
     "language": "Language",
-    "languageDescription": "Interface language (requires restart for tray menu)"
+    "languageDescription": "Interface language (requires restart for tray menu)",
+    "toolCallApprovalTitle": "Tool Call Approval",
+    "toolCallApprovalDescription": "Control whether remote tool calls require manual approval before execution.",
+    "toolCallApprovalManual": "Require approval",
+    "toolCallApprovalManualDescription": "Each tool call must be manually approved before execution. You can approve once or approve all for the current session.",
+    "toolCallApprovalAuto": "No approval needed",
+    "toolCallApprovalAutoDescription": "Tool calls execute automatically without manual confirmation.",
+    "toolCallApprovalAutoWarning": "Warning: All remote tool calls will execute immediately without your confirmation. Use with caution."
+  },
+  "approval": {
+    "title": "Tool Call Approval Required",
+    "queueCount": "{count} tool call(s) pending",
+    "toolName": "Tool",
+    "source": "Source",
+    "arguments": "Arguments",
+    "approveOnce": "Approve Once",
+    "approveAll": "Approve All (this session)",
+    "reject": "Reject"
   }
 }

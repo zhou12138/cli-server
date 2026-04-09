@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { ManagedClientFileMcpServerConfig } from '../main/managed-client/mcp-server-config';
 import type { BuiltInToolsSecurityConfig, BuiltInToolsPermissionProfile, ExternalMcpAccessBlockedReason } from '../main/builtin-tools/types';
+import type { ToolCallApprovalMode } from '../main/managed-client/config';
 
 export interface IOEvent {
   stream: 'stdin' | 'stdout' | 'stderr';
@@ -179,6 +180,9 @@ export interface ElectronAPI {
   clearAuditLog: () => Promise<{ success: boolean; error?: string }>;
   getNotificationEnabled: () => Promise<boolean>;
   setNotificationEnabled: (enabled: boolean) => Promise<boolean>;
+  getToolCallApprovalMode: () => Promise<ToolCallApprovalMode>;
+  setToolCallApprovalMode: (mode: ToolCallApprovalMode) => Promise<ToolCallApprovalMode>;
+  respondToToolCallApproval: (requestId: string, decision: 'approve-once' | 'approve-all' | 'reject') => Promise<void>;
   onServerEvent: (callback: (event: { type: string; data?: unknown }) => void) => () => void;
 }
 
@@ -210,6 +214,9 @@ const api: ElectronAPI = {
   clearAuditLog: () => ipcRenderer.invoke('audit:clear'),
   getNotificationEnabled: () => ipcRenderer.invoke('settings:getNotification'),
   setNotificationEnabled: (enabled) => ipcRenderer.invoke('settings:setNotification', enabled),
+  getToolCallApprovalMode: () => ipcRenderer.invoke('settings:getToolCallApprovalMode'),
+  setToolCallApprovalMode: (mode) => ipcRenderer.invoke('settings:setToolCallApprovalMode', mode),
+  respondToToolCallApproval: (requestId, decision) => ipcRenderer.invoke('tool-approval:respond', requestId, decision),
   onServerEvent: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { type: string; data?: unknown }) => callback(data);
     ipcRenderer.on('server:event', handler);

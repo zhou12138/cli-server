@@ -14,6 +14,8 @@ import {
   type BuiltInToolsPermissionProfile,
 } from '../builtin-tools/types';
 
+export type ToolCallApprovalMode = 'auto' | 'manual';
+
 interface ManagedClientFileConfig {
   mode?: ManagedClientMode;
   bootstrapBaseUrl?: string;
@@ -29,6 +31,7 @@ interface ManagedClientFileConfig {
   enabled?: boolean;
   mcpServers?: Record<string, ManagedClientFileMcpServerConfig>;
   builtInTools?: PartialBuiltInToolsSecurityConfig;
+  toolCallApprovalMode?: ToolCallApprovalMode;
 }
 
 type PartialBuiltInToolsSecurityConfig = {
@@ -275,6 +278,14 @@ export function saveBuiltInToolsSecurityConfig(config: BuiltInToolsSecurityConfi
   saveManagedClientFileConfig({
     builtInTools: serializeBuiltInToolsSecurityConfig(normalizeBuiltInToolsSecurityConfig(config)),
   });
+}
+
+export function getToolCallApprovalMode(): ToolCallApprovalMode {
+  return loadManagedClientFileConfig().toolCallApprovalMode ?? 'manual';
+}
+
+export function setToolCallApprovalMode(mode: ToolCallApprovalMode): void {
+  saveManagedClientFileConfig({ toolCallApprovalMode: mode });
 }
 
 function loadManagedClientMcpFileConfig(): Record<string, ManagedClientFileMcpServerConfig> {

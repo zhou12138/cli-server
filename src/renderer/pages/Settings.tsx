@@ -3,8 +3,9 @@ import { useI18n } from '../hooks/useI18n';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, AlertTriangle } from 'lucide-react';
 import type { Locale } from '../../i18n';
+import type { ToolCallApprovalMode } from '../../main/managed-client/config';
 
 export default function Settings() {
   const { t, locale, setLocale } = useI18n();
@@ -16,6 +17,7 @@ export default function Settings() {
   const [notifyEnabled, setNotifyEnabled] = useState(true);
   const [managedClientMode, setManagedClientMode] = useState<'cli-server' | 'managed-client' | 'managed-client-mcp-ws'>('cli-server');
   const [workspaceDirectory, setWorkspaceDirectory] = useState('');
+  const [approvalMode, setApprovalMode] = useState<ToolCallApprovalMode>('manual');
 
   const mcpUrl = `http://localhost:${savedPort}/mcp`;
   const isServerMode = managedClientMode === 'cli-server';
@@ -25,12 +27,14 @@ export default function Settings() {
       window.electronAPI.getServerStatus(),
       window.electronAPI.getNotificationEnabled(),
       window.electronAPI.getManagedClientBootstrapState(),
-    ]).then(([serverStatus, notificationEnabled, bootstrapState]) => {
+      window.electronAPI.getToolCallApprovalMode(),
+    ]).then(([serverStatus, notificationEnabled, bootstrapState, toolCallApproval]) => {
       setPort(serverStatus.port);
       setSavedPort(serverStatus.port);
       setNotifyEnabled(notificationEnabled);
       setManagedClientMode(bootstrapState.mode);
       setWorkspaceDirectory(bootstrapState.workspaceDirectory);
+      setApprovalMode(toolCallApproval);
     });
   }, []);
 
@@ -140,6 +144,53 @@ export default function Settings() {
         </>
       )}
 
+      {managedClientMode === 'managed-client-mcp-ws' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.toolCallApprovalTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-slate-500">{t('settings.toolCallApprovalDescription')}</p>
+            <div className="space-y-2">
+              <label className="flex items-start gap-3 cursor-pointer rounded-md border border-slate-800 bg-slate-950/80 p-3 transition-colors hover:border-slate-600"
+                onClick={async () => {
+                  setApprovalMode('manual');
+                  await window.electronAPI.setToolCallApprovalMode('manual');
+                }}
+              >
+                <span className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${approvalMode === 'manual' ? 'border-blue-500' : 'border-slate-600'}`}>
+                  {approvalMode === 'manual' && <span className="h-2 w-2 rounded-full bg-blue-500" />}
+                </span>
+                <div>
+                  <div className="text-sm font-medium text-slate-200">{t('settings.toolCallApprovalManual')}</div>
+                  <p className="text-xs text-slate-500 mt-1">{t('settings.toolCallApprovalManualDescription')}</p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer rounded-md border border-slate-800 bg-slate-950/80 p-3 transition-colors hover:border-slate-600"
+                onClick={async () => {
+                  setApprovalMode('auto');
+                  await window.electronAPI.setToolCallApprovalMode('auto');
+                }}
+              >
+                <span className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${approvalMode === 'auto' ? 'border-blue-500' : 'border-slate-600'}`}>
+                  {approvalMode === 'auto' && <span className="h-2 w-2 rounded-full bg-blue-500" />}
+                </span>
+                <div>
+                  <div className="text-sm font-medium text-slate-200">{t('settings.toolCallApprovalAuto')}</div>
+                  <p className="text-xs text-slate-500 mt-1">{t('settings.toolCallApprovalAutoDescription')}</p>
+                  {approvalMode === 'auto' && (
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-400">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{t('settings.toolCallApprovalAutoWarning')}</span>
+                    </div>
+                  )}
+                </div>
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Notification */}
       <Card>
         <CardHeader>
@@ -221,7 +272,11 @@ export default function Settings() {
           <CardTitle>{t('settings.about')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <p className="text-xs text-slate-500">{t('settings.aboutDescription')}</p>
+          <p className="text-xs text-slate-500">
+            {managedClientMode === 'managed-client-mcp-ws'
+              ? t('settings.aboutDescriptionMcpWs')
+              : t('settings.aboutDescription')}
+          </p>
           <div className="text-xs text-slate-600">{t('settings.version')}</div>
         </CardContent>
       </Card>

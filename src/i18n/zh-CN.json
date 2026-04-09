@@ -260,7 +260,8 @@
     },
     "advancedTitle": "高级限制",
     "advancedDescription": "更细的 shell、file read 和 managed MCP server 限制仍然保留在 Built-in Tools 页面。",
-    "advancedLink": "打开 Built-in Tools"
+    "advancedLink": "打开 Built-in Tools",
+    "fullLocalAdminWarning": "警告：完全本地管理员模式授予不受限制的 Shell 执行、文件读取和外部 MCP 服务器访问权限。所有远程工具调用均可不受限制地读取和修改本机上的任何文件。仅在完全信任远程端时使用。"
   },
   "settings": {
     "title": "设置",
@@ -409,8 +410,26 @@
     "securityNotice": "安全护栏功能将在未来版本中推出。当前版本接受所有连接和命令，无任何限制。请谨慎使用。",
     "about": "关于",
     "aboutDescription": "Agent 安全卫士为基于 Web 的 AI Agent 提供本地 WebSocket + HTTP 网关，用于在您的计算机上执行 CLI 命令。它在配置的端口上运行持久后台服务，并记录所有命令执行以供审计。",
+    "aboutDescriptionMcpWs": "X Claw Node 是一个托管桌面 MCP 客户端，通过 WebSocket 连接到远程 MCP Hub。它在可配置的权限配置文件、审批门控和防御层下，将本地工具——Shell 执行、文件访问和外部 MCP 服务器——暴露给远程端。所有工具调用均在本地审计记录。",
     "version": "版本 0.1.0 (MVP)",
     "language": "语言",
-    "languageDescription": "界面语言（托盘菜单需重启生效）"
+    "languageDescription": "界面语言（托盘菜单需重启生效）",
+    "toolCallApprovalTitle": "工具调用审批",
+    "toolCallApprovalDescription": "控制远程工具调用在执行前是否需要手动审批。",
+    "toolCallApprovalManual": "需要审批",
+    "toolCallApprovalManualDescription": "每个工具调用在执行前必须手动审批。您可以选择单次批准或批准当前会话的所有调用。",
+    "toolCallApprovalAuto": "无需审批",
+    "toolCallApprovalAutoDescription": "工具调用自动执行，无需手动确认。",
+    "toolCallApprovalAutoWarning": "警告：所有远程工具调用将立即执行，无需您的确认。请谨慎使用。"
+  },
+  "approval": {
+    "title": "需要工具调用审批",
+    "queueCount": "{count} 个工具调用等待审批",
+    "toolName": "工具",
+    "source": "来源",
+    "arguments": "参数",
+    "approveOnce": "单次批准",
+    "approveAll": "全部批准（本次会话）",
+    "reject": "拒绝"
   }
 }

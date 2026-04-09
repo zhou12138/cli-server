@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../hooks/useI18n';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import { AlertTriangle } from 'lucide-react';
 import {
   DEFAULT_BUILT_IN_TOOLS_SECURITY_CONFIG,
   getDefaultExternalMcpPermissionProfile,
@@ -241,6 +242,12 @@ export default function Permissions() {
               );
             })}
           </div>
+          {selectedProfile === 'full-local-admin' && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-400">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{t('permissions.fullLocalAdminWarning')}</span>
+            </div>
+          )}
           <p className="text-xs text-slate-500">{hasProfileOverrides ? t('builtInTools.permissionProfileOverridesActive') : t('builtInTools.permissionProfileNoOverrides')}</p>
         </CardContent>
       </Card>

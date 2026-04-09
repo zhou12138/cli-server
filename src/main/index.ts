@@ -20,7 +20,10 @@ import {
   saveBuiltInToolsSecurityConfig,
   saveManagedClientFileConfig,
   saveManagedClientMcpServersConfig,
+  getToolCallApprovalMode,
+  setToolCallApprovalMode,
 } from './managed-client/config';
+import type { ToolCallApprovalMode } from './managed-client/config';
 import { parseManagedClientMcpServers, type ManagedClientFileMcpServerConfig } from './managed-client/mcp-server-config';
 import { ManagedClientMcpToolRegistry } from './managed-client/mcp-tool-registry';
 import type { ManagedClientMode, ManagedClientRuntimeConfig } from './managed-client/types';
@@ -417,6 +420,29 @@ app.whenReady().then(async () => {
     appendActivity('settings', 'set-notification', enabled ? 'Enabled activity notifications' : 'Disabled activity notifications', 'success', { enabled });
     return sessionNotificationEnabled;
   });
+
+  // IPC for tool call approval setting
+  ipcMain.handle('settings:getToolCallApprovalMode', () => getToolCallApprovalMode());
+  ipcMain.handle('settings:setToolCallApprovalMode', (_e, mode: ToolCallApprovalMode) => {
+    setToolCallApprovalMode(mode);
+    appendActivity('settings', 'set-tool-call-approval', `Tool call approval mode set to: ${mode}`, 'success', { mode });
+    return getToolCallApprovalMode();
+  });
+
+  // IPC for tool call approval responses from renderer
+  ipcMain.handle('tool-approval:respond', (_e, requestId: string, decision: 'approve-once' | 'approve-all' | 'reject') => {
+    if (managedClientRuntime instanceof ManagedClientMcpWsRuntime) {
+      managedClientRuntime.resolveToolCallApproval(requestId, decision);
+    }
+    const status = decision === 'reject' ? 'error' : 'success';
+    const summaryMap = {
+      'approve-once': 'Tool call approved (once)',
+      'approve-all': 'Tool call approved (all this session)',
+      'reject': 'Tool call rejected by user',
+    } as const;
+    appendActivity('tool-approval', decision, summaryMap[decision], status, { requestId });
+  });
+
   ipcMain.handle('managed-client:getBootstrapState', () => buildBootstrapState());
   ipcMain.handle('managed-client:validateTls', async (_e, payload: {
     baseUrl: string;

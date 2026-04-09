@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Routes, Route } from 'react-router-dom';
 import { I18nProvider } from './hooks/useI18n';
 import type { ManagedClientBootstrapState } from '../preload';
 import Layout from './components/Layout';
+import ToolCallApprovalDialog from './components/ToolCallApprovalDialog';
 import Activities from './pages/Activities';
 import Dashboard from './pages/Dashboard';
 import AuditLog from './pages/AuditLog';
@@ -402,6 +403,7 @@ export default function App() {
 
   return (
     <I18nProvider>
+      <ToolCallApprovalDialog />
       <HashRouter>
         <Routes>
           <Route element={<Layout />}>
