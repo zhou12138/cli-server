@@ -9,3 +9,5 @@ managed-client.mcp-servers.json
 managed-client-workspace/
 .playwright-mcp/
 .superpowers/
+.xclaw-node-data/
+bin/

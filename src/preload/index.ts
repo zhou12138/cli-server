@@ -3,6 +3,8 @@ import type { ManagedClientFileMcpServerConfig } from '../main/managed-client/mc
 import type { BuiltInToolsSecurityConfig, BuiltInToolsPermissionProfile, ExternalMcpAccessBlockedReason } from '../main/builtin-tools/types';
 import type { ToolCallApprovalMode } from '../main/managed-client/config';
 
+console.log('[Preload] Starting initialization');
+
 export interface IOEvent {
   stream: 'stdin' | 'stdout' | 'stderr';
   time: number;
@@ -60,6 +62,7 @@ export interface ElectronAPI {
     signinPageUrl?: string | null;
     tlsServername?: string | null;
     token?: string | null;
+    persistToken?: boolean;
     identityLabel?: string | null;
     identityDetail?: string | null;
   }) => Promise<ManagedClientBootstrapState>;
@@ -225,3 +228,4 @@ const api: ElectronAPI = {
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);
+console.log('[Preload] Exposed electronAPI successfully');

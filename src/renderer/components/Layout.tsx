@@ -49,6 +49,7 @@ export default function Layout() {
   const [signinBaseUrl, setSigninBaseUrl] = useState('');
   const [signinPageUrl, setSigninPageUrl] = useState('');
   const [signinTlsServername, setSigninTlsServername] = useState('');
+  const [persistSigninToken, setPersistSigninToken] = useState(false);
   const [managedClient, setManagedClient] = useState<ManagedClientBootstrapState>({
     mode: 'cli-server',
     headless: false,
@@ -132,6 +133,7 @@ export default function Layout() {
     setSigninBaseUrl(managedClient.baseUrl ?? '');
     setSigninPageUrl(managedClient.signinPageUrl ?? managedClient.baseUrl ?? '');
     setSigninTlsServername('');
+    setPersistSigninToken(false);
     setAuthError('');
     setShowSignInForm(true);
   };
@@ -170,6 +172,7 @@ export default function Layout() {
         signinPageUrl: trimmedSignin || null,
         tlsServername: effectiveTlsServername,
         token: signin.token,
+        persistToken: persistSigninToken,
       });
 
       setManagedClient(next);
@@ -350,6 +353,15 @@ export default function Layout() {
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs leading-5 text-slate-300">
                 The browser will open only after you confirm this form. If the sign-in page returns a base URL, the client will use it. Otherwise it falls back to the value entered here.
               </div>
+
+              <label className="flex items-center gap-2 text-xs text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={persistSigninToken}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => setPersistSigninToken(event.target.checked)}
+                />
+                Remember returned token in config file
+              </label>
 
               {authError && (
                 <div className="rounded-md border border-red-900 bg-red-950/30 px-3 py-2 text-sm text-red-300">

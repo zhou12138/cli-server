@@ -454,7 +454,7 @@ export function getManagedClientRuntimeConfig(version: string, args = process.ar
     ?? null;
   const workspaceRoot = getManagedClientWorkspaceRoot(args);
   const token = normalizeManagedClientToken(
-    getArgValue(args, '--managed-client-token') ?? process.env.MANAGED_CLIENT_BEARER_TOKEN ?? null,
+    getArgValue(args, '--managed-client-token') ?? process.env.MANAGED_CLIENT_BEARER_TOKEN ?? fileConfig.token ?? null,
   );
   const clientId = getArgValue(args, '--managed-client-id') ?? process.env.MANAGED_CLIENT_ID ?? getOrCreateManagedClientId(fileConfig);
   const clientName = getArgValue(args, '--managed-client-name') ?? process.env.MANAGED_CLIENT_NAME ?? fileConfig.clientName ?? os.hostname();

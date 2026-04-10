@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "description": "Local CLI execution gateway for web-based agents",
   "author": "X  Claw Node",
+  "bin": {
+    "clawnode": "bin/clawnode.js"
+  },
   "main": ".vite/build/index.js",
   "scripts": {
     "start": "electron-forge start",
@@ -11,6 +14,8 @@
     "start:managed-client-ui": "electron-forge start -- --enable-managed-client-runtime",
     "start:managed-client-mcp-ws": "electron-forge start -- --managed-client-mcp-ws-only --enable-managed-client-mcp-ws",
     "start:managed-client-mcp-ws-ui": "electron-forge start -- --enable-managed-client-mcp-ws --managed-client-mode=managed-client-mcp-ws",
+    "onboard": "bash ./scripts/XClawNode.sh",
+    "onboard:win": "powershell -ExecutionPolicy Bypass -File ./scripts/XClawNode.ps1",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "lint": "tsc --noEmit"

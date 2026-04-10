@@ -42,25 +42,94 @@ function extractHostname(urlString: string): string {
 
 export default function App() {
   const [bootstrap, setBootstrap] = useState<ManagedClientBootstrapState | null>(null);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
+  const [bootstrapSlow, setBootstrapSlow] = useState(false);
+  
+  // Log to help debug blank page issues
+  console.log('[App] Rendering with state:', { bootstrap, bootstrapError, bootstrapSlow });
   const [baseUrl, setBaseUrl] = useState('');
   const [signinPageUrl, setSigninPageUrl] = useState('');
   const [tlsServername, setTlsServername] = useState('');
   const [token, setToken] = useState('');
+  const [persistToken, setPersistToken] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [signinPending, setSigninPending] = useState(false);
 
   useEffect(() => {
-    window.electronAPI.getManagedClientBootstrapState().then((state) => {
-      setBootstrap(state);
-      setBaseUrl(state.baseUrl ?? '');
-      setSigninPageUrl(state.signinPageUrl ?? state.baseUrl ?? '');
-      setTlsServername(state.tlsServername ?? '');
-    });
+    const timer = window.setTimeout(() => {
+      console.warn('[App] Bootstrap timeout after 8s');
+      setBootstrapSlow(true);
+    }, 8000);
+
+    const loadBootstrap = async () => {
+      try {
+        console.log('[App] Attempting to load bootstrap state...');
+        if (!window.electronAPI || typeof window.electronAPI.getManagedClientBootstrapState !== 'function') {
+          const reason = !window.electronAPI ? 'electronAPI unavailable' : 'getManagedClientBootstrapState not a function';
+          throw new Error(`electronAPI bridge is unavailable: ${reason}. Preload may not have initialized correctly.`);
+        }
+
+        console.log('[App] Calling getManagedClientBootstrapState...');
+        const state = await window.electronAPI.getManagedClientBootstrapState();
+        console.log('[App] Bootstrap state received:', state);
+        setBootstrap(state);
+        setBaseUrl(state.baseUrl ?? '');
+        setSigninPageUrl(state.signinPageUrl ?? state.baseUrl ?? '');
+        setTlsServername(state.tlsServername ?? '');
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error('[App] Bootstrap failed:', msg);
+        setBootstrapError(msg);
+      } finally {
+        window.clearTimeout(timer);
+      }
+    };
+
+    void loadBootstrap();
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, []);
 
+  if (!bootstrap && (bootstrapError || bootstrapSlow)) {
+    return (
+      <I18nProvider>
+        <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+          <Card className="w-full max-w-3xl border-slate-800/80 bg-slate-950/80 shadow-2xl shadow-slate-950/40">
+            <CardHeader>
+              <CardTitle>Renderer Initialization Failed</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-slate-300">
+                The desktop UI could not load bootstrap state from the main process.
+              </p>
+              <div className="rounded-md border border-slate-800 bg-slate-900/70 p-3 text-xs text-slate-300 font-mono whitespace-pre-wrap break-all">
+                {bootstrapError ?? 'Timed out waiting for bootstrap IPC response.'}
+              </div>
+              <p className="text-xs text-slate-500">
+                Try restarting the app. If this persists, run from source with dev tools enabled to inspect renderer console errors.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </I18nProvider>
+    );
+  }
+
   if (!bootstrap) {
-    return null;
+    const errorText = bootstrapError ? ` Error: ${bootstrapError}` : (bootstrapSlow ? ' Bootstrap is taking longer than expected.' : '');
+    return (
+      <I18nProvider>
+        <div style={{ minHeight: '100vh', background: '#020617', color: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'sans-serif' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '16px' }}>Loading desktop UI...{errorText}</div>
+            {bootstrapError && <div style={{ fontSize: '12px', color: '#cbd5e1', marginTop: '12px' }}>Check the browser console (F12) for more details.</div>}
+          </div>
+        </div>
+      </I18nProvider>
+    );
   }
 
   const showManagedDesktopPages = bootstrap.mode === 'managed-client-mcp-ws';
@@ -134,8 +203,8 @@ export default function App() {
     );
   }
 
-  if (bootstrap.mode === 'managed-client' && !bootstrap.headless && bootstrap.needsBaseUrl) {
-    const isDesktopWsMode = false;
+  if (bootstrap.mode !== 'cli-server' && !bootstrap.headless && bootstrap.needsBaseUrl) {
+    const isDesktopWsMode = bootstrap.mode === 'managed-client-mcp-ws';
     const isBusy = saving || signinPending;
     return (
       <I18nProvider>
@@ -254,6 +323,7 @@ export default function App() {
                                 signinPageUrl: trimmedSignin || null,
                                 tlsServername: effectiveTlsServername,
                                 token: signin.token,
+                                persistToken,
                                 identityLabel: signin.username,
                                 identityDetail: signin.displayName,
                               });
@@ -309,6 +379,14 @@ export default function App() {
                         <p className="text-xs leading-5 text-slate-500">
                           The app removes an optional Bearer prefix and forwards the token to the managed MCP WebSocket runtime.
                         </p>
+                        <label className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+                          <input
+                            type="checkbox"
+                            checked={persistToken}
+                            onChange={(event) => setPersistToken(event.target.checked)}
+                          />
+                          Remember token in config file
+                        </label>
                       </div>
                       <button
                         onClick={async () => {
@@ -329,6 +407,7 @@ export default function App() {
                               signinPageUrl: signinPageUrl.trim() || null,
                               tlsServername: tlsServername.trim() || extractHostname(baseUrl.trim()) || null,
                               token: token.trim() || null,
+                              persistToken,
                             });
                             setBootstrap(next);
                           } catch (saveError) {
@@ -358,6 +437,14 @@ export default function App() {
                     <p className="text-xs text-slate-500">
                       Optional. Fill this when the managed client should use a static bearer token for demo or local testing. The client forwards the token as-is after removing an optional Bearer prefix.
                     </p>
+                    <label className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+                      <input
+                        type="checkbox"
+                        checked={persistToken}
+                        onChange={(event) => setPersistToken(event.target.checked)}
+                      />
+                      Remember token in config file
+                    </label>
                   </div>
                   <button
                     onClick={async () => {
@@ -378,6 +465,7 @@ export default function App() {
                           signinPageUrl: signinPageUrl.trim() || null,
                           tlsServername: tlsServername.trim() || extractHostname(baseUrl.trim()) || null,
                           token: token.trim() || null,
+                          persistToken,
                         });
                         setBootstrap(next);
                       } catch (saveError) {

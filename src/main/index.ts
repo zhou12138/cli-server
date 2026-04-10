@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, Notification, ipcMain } from 'electron';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { startServer, stopServer, isServerRunning, emitServerEvent } from './server';
@@ -17,6 +18,7 @@ import {
   getManagedClientMcpServersConfig,
   getManagedClientRuntimeConfig,
   getManagedClientWorkspaceRoot,
+  loadManagedClientFileConfig,
   saveBuiltInToolsSecurityConfig,
   saveManagedClientFileConfig,
   saveManagedClientMcpServersConfig,
@@ -37,6 +39,23 @@ if (process.platform === 'win32') {
     app.quit();
   }
 }
+
+function configureElectronStoragePaths(): void {
+  // Keep Chromium cache in a known writable location to avoid AccessDenied cache errors on Windows.
+  const baseDir = process.env.XCLAW_NODE_DATA_DIR?.trim()
+    ? path.resolve(process.env.XCLAW_NODE_DATA_DIR)
+    : path.resolve(process.cwd(), '.xclaw-node-data');
+  const sessionDir = path.join(baseDir, 'session');
+  const cacheDir = path.join(sessionDir, 'Cache');
+
+  fs.mkdirSync(cacheDir, { recursive: true });
+
+  app.setPath('userData', baseDir);
+  app.setPath('sessionData', sessionDir);
+  app.commandLine.appendSwitch('disk-cache-dir', cacheDir);
+}
+
+configureElectronStoragePaths();
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -105,6 +124,24 @@ function shouldOpenDevTools(): boolean {
 }
 
 function createWindow(): void {
+  const devUrlCandidates: string[] = [];
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    devUrlCandidates.push(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    try {
+      const parsed = new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+      if ((parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') && parsed.protocol.startsWith('http')) {
+        for (let port = 5173; port <= 5183; port += 1) {
+          const candidate = `${parsed.protocol}//${parsed.hostname}:${port}/`;
+          if (!devUrlCandidates.includes(candidate)) {
+            devUrlCandidates.push(candidate);
+          }
+        }
+      }
+    } catch {
+      // Ignore malformed dev URL and let the default load path handle it.
+    }
+  }
+
   mainWindow = new BrowserWindow({
     width: 1000,
     height: 700,
@@ -118,13 +155,96 @@ function createWindow(): void {
     },
   });
 
+  let devUrlIndex = 0;
+  const loadDevUrl = () => {
+    if (!mainWindow) {
+      return;
+    }
+
+    const url = devUrlCandidates[devUrlIndex];
+    if (!url) {
+      return;
+    }
+
+    void mainWindow.loadURL(url).catch((error) => {
+      console.error('[main] Failed to load renderer dev URL', { url, error: String(error) });
+    });
+  };
+
+  const showRendererLoadFailurePage = (message: string) => {
+    if (!mainWindow) {
+      return;
+    }
+
+    const escapedMessage = message
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    const fallbackHtml = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Renderer Load Failed</title>
+    <style>
+      body { margin: 0; font-family: Segoe UI, sans-serif; background: #020617; color: #e2e8f0; }
+      .wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+      .card { width: min(920px, 100%); border: 1px solid #1e293b; background: rgba(15, 23, 42, 0.9); border-radius: 12px; padding: 20px; }
+      h1 { margin: 0 0 10px; font-size: 20px; }
+      p { margin: 0 0 12px; color: #94a3b8; }
+      code { display: block; white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 12px; color: #cbd5e1; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>Renderer failed to load</h1>
+        <p>The desktop UI could not connect to the renderer dev server. Restart onboarding and try UI mode again.</p>
+        <code>${escapedMessage}</code>
+      </div>
+    </div>
+  </body>
+</html>`;
+
+    void mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fallbackHtml)}`);
+  };
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    if (!MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+      console.error('[main] Renderer failed to load', { errorCode, errorDescription, validatedURL });
+      return;
+    }
+
+    console.error('[main] Renderer dev URL failed to load', {
+      errorCode,
+      errorDescription,
+      validatedURL,
+      attemptedIndex: devUrlIndex,
+    });
+
+    if (devUrlIndex < devUrlCandidates.length - 1) {
+      devUrlIndex += 1;
+      setTimeout(() => {
+        loadDevUrl();
+      }, 300);
+      return;
+    }
+
+    const attemptedUrls = devUrlCandidates.join(', ');
+    showRendererLoadFailurePage(`Attempted renderer URLs: ${attemptedUrls}\nLast error: ${errorCode} ${errorDescription}`);
+  });
+
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    loadDevUrl();
   } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+    void mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 
-  if (shouldOpenDevTools()) {
+  // Always open DevTools in dev mode, or if explicitly requested
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL || shouldOpenDevTools()) {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
@@ -381,7 +501,9 @@ function refreshTray(): void {
 app.whenReady().then(async () => {
   managedClientConfig = getManagedClientRuntimeConfig(app.getVersion());
   currentMode = managedClientConfig.enabled ? managedClientConfig.mode : 'cli-server';
-  needsModeSelection = !managedClientConfig.headless;
+  // Only ask for mode selection if no mode is saved yet in the file config
+  const fileConfig = loadManagedClientFileConfig();
+  needsModeSelection = !managedClientConfig.headless && !fileConfig.enabled && !fileConfig.mode;
   registerManagedMcpServerApplyHook(async () => {
     managedClientConfig = {
       ...getManagedClientRuntimeConfig(app.getVersion()),
@@ -600,6 +722,7 @@ app.whenReady().then(async () => {
     signinPageUrl?: string | null;
     tlsServername?: string | null;
     token?: string | null;
+    persistToken?: boolean;
     identityLabel?: string | null;
     identityDetail?: string | null;
   }) => {
@@ -613,7 +736,7 @@ app.whenReady().then(async () => {
       bootstrapBaseUrl: payload.baseUrl,
       signinPageUrl: normalizedSigninPageUrl ? normalizedSigninPageUrl : undefined,
       tlsServername: normalizedTlsServername ? normalizedTlsServername : undefined,
-      token: undefined,
+      token: payload.persistToken ? normalizedToken ?? undefined : undefined,
     });
     managedClientSessionToken = normalizedToken ? normalizedToken : null;
     managedClientIdentityOverride = payload.identityLabel?.trim()
