@@ -1,108 +1,135 @@
-#!/usr/bin/env bash
+#!/bin/bash
+set -e
 
-set -euo pipefail
+AppName="XClawNode"
+RootDir="$(cd "$(dirname "$0")/.." && pwd)"
+DistDir="$RootDir/dist"
 
-APP_NAME="XClawNode"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DIST_DIR="$ROOT_DIR/dist"
-
-print_header() {
+# 输出初始化信息
+function write_header {
   echo "========================================"
-  echo "  $APP_NAME Onboarding"
+  printf "  %s Onboarding\n" "$AppName"
   echo "========================================"
 }
 
-require_cmd() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Error: '$1' is required but not found."
+# 检查命令是否存在
+function test_command_exists {
+  if ! command -v "$1" &> /dev/null; then
+    printf "ERROR: Command '%s' is required but not found.\n" "$1"
     exit 1
   fi
 }
 
-ask_yes_no() {
+# 显示 Yes/No 提示
+function read_yes_no {
   local prompt="$1"
-  local default="$2"
-  local answer
-
+  local default_yes=$2
+  local input
+  local default_text=$( [ "$default_yes" = true ] && echo "Y/n" || echo "y/N" )
   while true; do
-    read -r -p "$prompt [$default]: " answer || true
-    answer="${answer:-$default}"
-    case "${answer,,}" in
-      y|yes) return 0 ;;
-      n|no) return 1 ;;
-      *) echo "Please answer yes or no." ;;
-    esac
+    read -p "$prompt [$default_text]: " input
+    input=$(echo "$input" | tr '[:upper:]' '[:lower:]')
+    if [ -z "$input" ]; then
+      [ "$default_yes" = true ] && return 0 || return 1
+    elif [[ "$input" =~ ^(y|yes)$ ]]; then
+      return 0
+    elif [[ "$input" =~ ^(n|no)$ ]]; then
+      return 1
+    else
+      echo "Invalid input. Please answer 'yes' or 'no'."
+    fi
   done
 }
 
-select_mode() {
-  echo "Choose startup mode:"
+# 模式选择菜单 (增强视觉体验)
+function select_mode {
+  echo -e "\nChoose startup mode:"
   echo "  1) Head UI (Managed MCP WS)"
   echo "  2) Headless (Managed MCP WS)"
-
-  local option
+  echo ""
   while true; do
-    read -r -p "Select [1-2]: " option || true
+    read -p "Select [1-2]: " option
     case "$option" in
       1) echo "head-ui-ws"; return ;;
       2) echo "headless-ws"; return ;;
-      *) echo "Invalid option. Please enter 1 or 2." ;;
+      *) echo "Invalid input. Please select 1 or 2." ;;
     esac
   done
 }
 
-build_bundle() {
-  echo "Creating app package..."
-  (cd "$ROOT_DIR" && npm run make)
+# 打包构建分发包
+function build_bundle {
+  echo "INFO: Generating application package..."
+  pushd "$RootDir" > /dev/null
+  if ! npm run make > /dev/null 2>&1; then
+    echo "ERROR: Build failed during 'make'!"
+    exit 1
+  fi
 
-  mkdir -p "$DIST_DIR"
-  local bundle_name="$APP_NAME-$(date +%Y%m%d-%H%M%S).tar.gz"
+  mkdir -p "$DistDir"
+  local timestamp
+  timestamp="$(date +%Y%m%d-%H%M%S)"
+  local zip_path="$DistDir/$AppName-$timestamp.zip"
+  local make_path="$RootDir/out/make"
 
-  echo "Compressing output to dist/$bundle_name ..."
-  # Electron Forge output is under out/make
-  (cd "$ROOT_DIR" && tar -czf "$DIST_DIR/$bundle_name" out/make)
+  if [ ! -d "$make_path" ]; then
+    echo "ERROR: Build output directory not found: $make_path"
+    exit 1
+  fi
 
-  echo "Bundle created: $DIST_DIR/$bundle_name"
+  echo "INFO: Compressing build to $zip_path ..."
+  if ! zip -r "$zip_path" "$make_path"/* > /dev/null; then
+    echo "ERROR: Compression failed!"
+    exit 1
+  fi
+
+  echo "Bundle created successfully: $zip_path"
+  popd > /dev/null
 }
 
-run_onboarding() {
-  print_header
+# 主脚本
+write_header
+test_command_exists "npm"
 
-  require_cmd npm
-
-  if ask_yes_no "Install dependencies now?" "yes"; then
-    (cd "$ROOT_DIR" && npm install)
+# 安装依赖
+if read_yes_no "Install dependencies now?" true; then
+  echo "INFO: Installing dependencies, please wait..."
+  pushd "$RootDir" > /dev/null
+  if ! npm install --no-audit > /dev/null 2>&1; then
+    echo "ERROR: Failed to install dependencies. Check npm logs for details."
+    exit 1
   fi
+  echo "INFO: Dependencies installed successfully."
+  popd > /dev/null
+fi
 
-  local mode
-  mode="$(select_mode)"
+# 菜单选择模式
+mode=$(select_mode)
+echo "INFO: You have selected mode: '$mode'."
 
-  local base_url token
-  read -r -p "Managed MCP base URL (e.g. ws://localhost:8000/api/mcphub/ws): " base_url || true
-  read -r -p "Managed MCP bearer token (optional): " token || true
+# 配置 Base URL 和 Token
+echo ""
+read -p "Enter Managed MCP Base URL (e.g., ws://localhost:8000/api/mcphub/ws): " base_url
+read -p "Enter Managed MCP Bearer Token (optional): " token
 
-  export MANAGED_CLIENT_BASE_URL="$base_url"
-  if [[ -n "${token:-}" ]]; then
-    export MANAGED_CLIENT_BEARER_TOKEN="$token"
-    if [[ "$mode" == "head-ui-ws" ]]; then
-      echo "Static token detected. Switching to headless mode (no renderer UI required)."
-      mode="headless-ws"
-    fi
-  fi
+export MANAGED_CLIENT_BASE_URL="$base_url"
+export MANAGED_CLIENT_BEARER_TOKEN="$token"
 
-  if ask_yes_no "Build distributable bundle now?" "yes"; then
-    build_bundle
-  fi
+if [ "$mode" == "head-ui-ws" ] && [ -n "$token" ]; then
+  echo "INFO: Static token detected. Switching to 'headless' mode (No UI required)."
+  mode="headless-ws"
+fi
 
-  echo "Launching app..."
-  case "$mode" in
-    head-ui-ws)
-      (cd "$ROOT_DIR" && npm run start:managed-client-mcp-ws-ui)
-      ;;
-    headless-ws)
-      (cd "$ROOT_DIR" && npm run start:managed-client-mcp-ws)
-      ;;
-  esac
-}
+# 构建分发包
+if read_yes_no "Build a distributable package now?" true; then
+  build_bundle
+fi
 
-run_onboarding
+# 启动应用程序
+echo "INFO: Launching application ($mode mode)..."
+pushd "$RootDir" > /dev/null
+case "$mode" in
+  "head-ui-ws") npm run start:managed-client-mcp-ws-ui ;;
+  "headless-ws") npm run start:managed-client-mcp-ws ;;
+esac
+popd > /dev/null
