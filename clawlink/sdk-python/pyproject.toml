@@ -10,9 +10,6 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.8"
 keywords = ["ai", "agent", "mcp", "remote", "device-management", "landgod"]
-
-[project.optional-dependencies]
-redis = ["redis>=4.0.0"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -20,6 +17,9 @@ classifiers = [
     "Topic :: System :: Systems Administration",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+
+[project.optional-dependencies]
+redis = ["redis>=4.0.0"]
 
 [project.urls]
 Homepage = "https://github.com/zhou12138/cli-server"
