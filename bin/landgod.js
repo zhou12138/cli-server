@@ -24,7 +24,8 @@ function printUsage() {
   console.log('');
   console.log('Commands:');
   console.log('  onboard             Run interactive onboarding wizard');
-  console.log('  daemon start        Start headless managed-client-mcp-ws in background');
+  console.log('  daemon start        Start headless daemon (default: Electron mode)');
+  console.log('  daemon start --headless  Start in pure Node.js mode (no Electron needed)');
   console.log('  daemon stop         Stop the background daemon');
   console.log('  health              Show daemon and managed client health');
   console.log('  logs [--follow]     Show daemon stdout/stderr log');
@@ -325,7 +326,7 @@ function buildHeadlessArgs() {
   return [ROOT_DIR, '--enable-managed-client-mcp-ws', '--managed-client-mcp-ws-only'];
 }
 
-function startDaemon() {
+function startDaemon(useHeadlessNode = false) {
   const currentConfig = loadConfig();
   if (!currentConfig.enabled || currentConfig.mode !== 'managed-client-mcp-ws' || !currentConfig.bootstrapBaseUrl) {
     throw new Error('Headless daemon requires managed-client-mcp-ws config with enabled=true and bootstrapBaseUrl.');
@@ -338,18 +339,42 @@ function startDaemon() {
   }
 
   ensureDir(DATA_DIR);
-  const electronBinary = ensureElectronBinary();
   const logFd = fs.openSync(DAEMON_LOG_PATH, 'a');
-  const child = spawn(electronBinary, ["--no-sandbox", "--disable-gpu", ...buildHeadlessArgs()], {
-    cwd: ROOT_DIR,
-    detached: true,
-    stdio: ['ignore', logFd, logFd],
-    env: {
-      ...process.env,
-      DISPLAY: process.env.DISPLAY || ':99',
-      XCLAW_NODE_DATA_DIR: DATA_DIR,
-    },
-  });
+
+  let child;
+  const commonEnv = {
+    ...process.env,
+    DISPLAY: process.env.DISPLAY || ':99',
+    XCLAW_NODE_DATA_DIR: DATA_DIR,
+  };
+
+  if (useHeadlessNode) {
+    // 纯 Node.js headless 模式（无 Electron）
+    const headlessEntry = path.join(ROOT_DIR, '.vite', 'build', 'headless-entry.js');
+    const nodeCmd = process.execPath; // 当前 node 二进制
+
+    if (!fileExists(headlessEntry)) {
+      throw new Error(`Headless entry not found: ${headlessEntry}. Run build first or use --electron mode.`);
+    }
+
+    child = spawn(nodeCmd, [headlessEntry], {
+      cwd: ROOT_DIR,
+      detached: true,
+      stdio: ['ignore', logFd, logFd],
+      env: commonEnv,
+    });
+    console.log(`Headless daemon started in Node.js mode (pid ${child.pid}).`);
+  } else {
+    // Electron 模式（默认）
+    const electronBinary = ensureElectronBinary();
+    child = spawn(electronBinary, ["--no-sandbox", "--disable-gpu", ...buildHeadlessArgs()], {
+      cwd: ROOT_DIR,
+      detached: true,
+      stdio: ['ignore', logFd, logFd],
+      env: commonEnv,
+    });
+    console.log(`Headless daemon started in Electron mode (pid ${child.pid}).`);
+  }
 
   child.unref();
   fs.closeSync(logFd);
@@ -357,12 +382,10 @@ function startDaemon() {
   saveDaemonMeta({
     pid: child.pid,
     startedAt: new Date().toISOString(),
-    mode: 'managed-client-mcp-ws',
+    mode: useHeadlessNode ? 'headless-node' : 'managed-client-mcp-ws',
     logPath: DAEMON_LOG_PATH,
     dataDir: DATA_DIR,
   });
-
-  console.log(`Headless daemon started (pid ${child.pid}).`);
 }
 
 function stopDaemon() {
@@ -818,7 +841,8 @@ async function main() {
 
   if (command === 'daemon') {
     if (args[1] === 'start') {
-      startDaemon();
+      const useHeadlessNode = args.includes('--headless');
+      startDaemon(useHeadlessNode);
       return;
     }
     if (args[1] === 'stop') {

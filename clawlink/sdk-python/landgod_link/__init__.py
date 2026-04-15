@@ -25,19 +25,24 @@ from typing import Optional, Any
 import uuid
 
 
+from landgod_link.store import create_store, StateStore, MemoryStore, RedisStore
+
+
 class LandGod:
     """LandGod Link SDK — Connect AI Agents to LandGod Workers"""
 
-    def __init__(self, server_url: str, admin_token: str = None, timeout: int = 30000):
+    def __init__(self, server_url: str, admin_token: str = None, timeout: int = 30000, store: str = 'memory'):
         """
         Args:
             server_url: Gateway HTTP API URL, e.g. 'http://localhost:8081'
             admin_token: Admin token for token management APIs
             timeout: Default timeout in milliseconds
+            store: State backend — 'memory' (单机) or 'redis://host:port' (分布式)
         """
         self.server_url = server_url.rstrip('/')
         self.admin_token = admin_token
         self.timeout = timeout
+        self.store = create_store(store)
 
     # ========================
     # 连接管理
@@ -78,7 +83,18 @@ class LandGod:
         if target:
             body['connection_id'] = await self._resolve_target(target)
         resp = await self._post('/tool_call', body)
-        return self._parse_tool_result(resp)
+        result = self._parse_tool_result(resp)
+        
+        # 记录执行历史到 store
+        self.store.incr('stats:total_calls')
+        self.store.lpush('history:executions', {
+            'command': command,
+            'target': target,
+            'timestamp': __import__('datetime').datetime.utcnow().isoformat(),
+            'exit_code': result.get('exit_code'),
+        })
+        
+        return result
 
     async def read_file(self, path: str, target: str = None, timeout: int = None) -> dict:
         """读取远程文件"""
