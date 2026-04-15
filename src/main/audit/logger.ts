@@ -1,7 +1,18 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { app } from 'electron';
 import type { AuditEntry } from '../server/types';
+
+function getDataDir(): string {
+  if (process.env.XCLAW_NODE_DATA_DIR) {
+    return process.env.XCLAW_NODE_DATA_DIR;
+  }
+  try {
+    const { app } = require('electron');
+    return app.getPath('userData');
+  } catch {
+    return path.join(process.cwd(), '.xclaw-node-data');
+  }
+}
 
 class AuditLogger {
   private entries: AuditEntry[] = [];
@@ -15,7 +26,7 @@ class AuditLogger {
 
   init(): void {
     if (this.initialized) return;
-    this.filePath = path.join(app.getPath('userData'), 'audit.jsonl');
+    this.filePath = path.join(getDataDir(), 'audit.jsonl');
     this.loadExisting();
     this.initialized = true;
   }

@@ -1,6 +1,17 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { app } from 'electron';
+
+function getDataDir(): string {
+  if (process.env.XCLAW_NODE_DATA_DIR) {
+    return process.env.XCLAW_NODE_DATA_DIR;
+  }
+  try {
+    const { app } = require('electron');
+    return app.getPath('userData');
+  } catch {
+    return path.join(process.cwd(), '.xclaw-node-data');
+  }
+}
 
 export interface ActivityEntry {
   id: string;
@@ -22,7 +33,7 @@ class ActivityLogger {
       return;
     }
 
-    this.filePath = path.join(app.getPath('userData'), 'activities.jsonl');
+    this.filePath = path.join(getDataDir(), 'activities.jsonl');
     this.loadExisting();
     this.initialized = true;
   }
