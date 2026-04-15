@@ -28,7 +28,8 @@ fi
 # ========================
 DEPLOY_KEY="$HOME/.ssh/landgod_deploy"
 DEPLOY_KEY_PUB="$HOME/.ssh/landgod_deploy.pub"
-PACKAGE_PATH="$HOME/cli-server/cli-server-0.1.0.tgz"
+PACKAGE_URL="https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/cli-server-0.1.0.tgz"
+PACKAGE_PATH="$HOME/cli-server/downloads/cli-server-0.1.0.tgz"
 WS_TOKEN="hardcoded-token-1234"
 GATEWAY_URL="ws://localhost:8080"
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
@@ -56,7 +57,6 @@ echo "========================================="
 echo ""
 
 command -v sshpass >/dev/null 2>&1 || err "需要 sshpass，请运行: sudo apt install sshpass"
-[ -f "$PACKAGE_PATH" ] || err "安装包不存在: $PACKAGE_PATH"
 [ -f "$DEPLOY_KEY" ] || err "部署密钥不存在: $DEPLOY_KEY，请运行: ssh-keygen -t ed25519 -f $DEPLOY_KEY -N ''"
 
 # SSH 命令封装（使用密码）
@@ -104,11 +104,19 @@ NODE_VER=$(ssh_key "node --version")
 log "Node.js $NODE_VER"
 
 # ========================
-# Step 4: 传输安装包
+# Step 4: 下载安装包到新机器
 # ========================
-log "Step 4/9: 传输 landgod 安装包..."
-scp -i "$DEPLOY_KEY" $SSH_OPTS "$PACKAGE_PATH" "$TARGET_USER@$TARGET_IP:/tmp/cli-server-0.1.0.tgz"
-log "传输完成"
+log "Step 4/11: 下载 LandGod 安装包..."
+ssh_key "curl -fsSL -o /tmp/cli-server-0.1.0.tgz '$PACKAGE_URL'" 2>/dev/null
+if ssh_key "test -f /tmp/cli-server-0.1.0.tgz && test -s /tmp/cli-server-0.1.0.tgz"; then
+    log "从 GitHub 下载成功"
+elif [ -f "$PACKAGE_PATH" ]; then
+    warn "GitHub 下载失败，使用本地文件传输..."
+    scp -i "$DEPLOY_KEY" $SSH_OPTS "$PACKAGE_PATH" "$TARGET_USER@$TARGET_IP:/tmp/cli-server-0.1.0.tgz"
+    log "本地传输完成"
+else
+    err "安装包下载失败且本地文件不存在"
+fi
 
 # ========================
 # Step 5: 安装 landgod
