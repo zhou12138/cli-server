@@ -1,17 +1,27 @@
 {
   "name": "cli-server",
-  "productName": "CLI Server",
+  "productName": "LandGod",
   "version": "0.1.0",
-  "description": "Local CLI execution gateway for web-based agents",
-  "author": "CLI Server",
+  "description": "AI-driven remote device management — LandGod Worker Node",
+  "author": "LandGod",
+  "bin": {
+    "landgod": "bin/landgod.js"
+  },
   "main": ".vite/build/index.js",
   "scripts": {
     "start": "electron-forge start",
+    "start:managed-client": "electron-forge start -- --managed-client-only --enable-managed-client-runtime",
+    "start:managed-client-ui": "electron-forge start -- --enable-managed-client-runtime",
+    "start:managed-client-mcp-ws": "electron-forge start -- --managed-client-mcp-ws-only --enable-managed-client-mcp-ws",
+    "start:managed-client-mcp-ws-ui": "electron-forge start -- --enable-managed-client-mcp-ws --managed-client-mode=managed-client-mcp-ws",
+    "onboard": "bash ./scripts/landgod-setup.sh",
+    "onboard:win": "powershell -ExecutionPolicy Bypass -File ./scripts/landgod-setup.ps1",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@azure/msal-node": "^5.1.1",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@radix-ui/react-slot": "^1.2.4",
     "class-variance-authority": "^0.7.1",

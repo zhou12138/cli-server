@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import type { ManagedClientBootstrapState } from '../../preload';
 import { useI18n } from '../hooks/useI18n';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -42,6 +43,8 @@ interface ServerStatus {
   activeConnections: number;
 }
 
+type ManagedClientStatus = ManagedClientBootstrapState;
+
 interface UnifiedSession {
   id: string;
   command: string;
@@ -62,6 +65,27 @@ function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60_000).toFixed(1)}m`;
+}
+
+function formatTimestamp(value: string | null): string {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
+}
+
+function getHostnameFromUrl(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return null;
+  }
 }
 
 // Color classes per stream type
@@ -192,10 +216,40 @@ function SessionCard({ session, expanded, onToggle, onKill }: {
 export default function Dashboard() {
   const { t } = useI18n();
   const [status, setStatus] = useState<ServerStatus>({ running: false, port: 19876, activeConnections: 0 });
+  const [managedClient, setManagedClient] = useState<ManagedClientStatus>({
+    mode: 'cli-server',
+    headless: false,
+    baseUrl: null,
+    signinPageUrl: null,
+    tlsServername: null,
+    workspaceRoot: '',
+    workspaceDirectory: '',
+    needsModeSelection: false,
+    needsBaseUrl: false,
+    running: false,
+    sessionAuthenticated: false,
+    clientId: null,
+    connectionId: null,
+    sessionIdentityLabel: null,
+    sessionIdentityDetail: null,
+    pullStatus: 'idle',
+    pulledTaskCount: 0,
+    emptyPollCount: 0,
+    lastPollStatus: null,
+    lastTaskCommand: null,
+    lastPolledAt: null,
+    receivedEventCount: 0,
+    pingCount: 0,
+    pongSentCount: 0,
+    lastEventAt: null,
+    lastEventName: null,
+    lastPingAt: null,
+  });
   const [liveSessions, setLiveSessions] = useState<SessionInfo[]>([]);
   const [recentEntries, setRecentEntries] = useState<AuditEntry[]>([]);
   const [totalAudit, setTotalAudit] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const toggleExpanded = useCallback((id: string) => {
@@ -207,12 +261,14 @@ export default function Dashboard() {
   }, []);
 
   const refresh = useCallback(() => {
-    window.electronAPI.getServerStatus().then(setStatus);
-    // Batch both fetches so the unified list updates atomically
     Promise.all([
+      window.electronAPI.getServerStatus(),
+      window.electronAPI.getManagedClientBootstrapState(),
       window.electronAPI.getSessions({ state: 'running', limit: 50 }),
       window.electronAPI.getAuditEntries({ limit: 20 }),
-    ]).then(([sessionsResult, auditResult]) => {
+    ]).then(([serverStatus, bootstrapState, sessionsResult, auditResult]) => {
+      setStatus(serverStatus);
+      setManagedClient(bootstrapState);
       setLiveSessions(sessionsResult.data as SessionInfo[]);
       setRecentEntries(auditResult.entries as AuditEntry[]);
       setTotalAudit(auditResult.total);
@@ -227,9 +283,40 @@ export default function Dashboard() {
   }, [refresh]);
 
   const handleClearHistory = async () => {
-    await window.electronAPI.clearAuditLog();
+    const result = await window.electronAPI.clearAuditLog();
+    if (!result.success) {
+      setHistoryError(result.error ?? t('dashboard.clearHistoryRequiresSignin'));
+      return;
+    }
+
+    setHistoryError('');
     refresh();
   };
+
+  const isManagedClientMode = managedClient.mode !== 'cli-server';
+  const isManagedMcpWsMode = managedClient.mode === 'managed-client-mcp-ws';
+  const canClearHistory = !isManagedMcpWsMode || managedClient.sessionAuthenticated;
+  const managedConnectionDomain = getHostnameFromUrl(managedClient.baseUrl);
+  const managedConnectionState = managedClient.running
+    ? t('dashboard.connectionStateConnected')
+    : (managedClient.needsBaseUrl ? t('dashboard.connectionStateAwaitingSignin') : t('dashboard.connectionStateDisconnected'));
+  const managedConnectionHint = managedClient.running
+    ? (managedConnectionDomain ? t('dashboard.connectionDomainValue', { domain: managedConnectionDomain }) : t('dashboard.connectionStateWaitingCalls'))
+    : (managedClient.needsBaseUrl ? t('dashboard.connectionStateSigninHint') : t('dashboard.connectionStateDisconnectedHint'));
+  const pullStatusLabel = (() => {
+    switch (managedClient.pullStatus) {
+      case 'waiting':
+        return isManagedMcpWsMode ? t('dashboard.pullWaitingMcpWs') : t('dashboard.pullWaiting');
+      case 'task-assigned':
+        return isManagedMcpWsMode ? t('dashboard.pullAssignedMcpWs') : t('dashboard.pullAssigned');
+      case 'task-completed':
+        return isManagedMcpWsMode ? t('dashboard.pullCompletedMcpWs') : t('dashboard.pullCompleted');
+      case 'task-failed':
+        return isManagedMcpWsMode ? t('dashboard.pullFailedMcpWs') : t('dashboard.pullFailed');
+      default:
+        return t('dashboard.pullIdle');
+    }
+  })();
 
   // Merge live sessions + audit entries, deduplicate, active first
   const liveIds = new Set(liveSessions.map((s) => s.sessionId));
@@ -266,61 +353,169 @@ export default function Dashboard() {
       <h2 className="text-xl font-semibold text-white">{t('dashboard.title')}</h2>
 
       {/* Status Cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('dashboard.serverStatus')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${status.running ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]' : 'bg-red-400'}`} />
-              <span className="text-lg font-bold text-white">
-                {status.running ? t('status.running') : t('status.stopped')}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">{t('dashboard.port', { port: status.port })}</p>
-          </CardContent>
-        </Card>
+      <div className={`grid gap-4 ${isManagedMcpWsMode ? 'md:grid-cols-3' : isManagedClientMode ? 'md:grid-cols-2 xl:grid-cols-4' : 'md:grid-cols-3'}`}>
+        {isManagedMcpWsMode ? (
+          <>
+            <Card className="border-slate-800 bg-slate-900/90">
+              <CardContent className="p-4">
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{t('dashboard.managedConnection')}</div>
+                <div className="mt-3 flex items-center gap-2">
+                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${managedClient.running ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                  <div className="text-xl font-semibold leading-none text-white">{managedConnectionState}</div>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">{managedConnectionHint}</div>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('dashboard.totalSessions')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{totalAudit}</div>
-            <p className="text-xs text-slate-500 mt-1">{t('dashboard.inAuditLog')}</p>
-          </CardContent>
-        </Card>
+            <Card className="border-slate-800 bg-slate-900/90">
+              <CardContent className="p-4">
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{t('dashboard.pullCountsTitle')}</div>
+                <div className="mt-3 flex items-end justify-between gap-3">
+                  <div>
+                    <div className="text-3xl font-semibold leading-none text-white">{managedClient.pulledTaskCount}</div>
+                    <div className="mt-1 text-xs text-slate-500">{t('dashboard.handledLabel')}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-semibold leading-none text-slate-200">{managedClient.emptyPollCount}</div>
+                    <div className="mt-1 text-xs text-slate-500">{t('dashboard.reconnectsLabel')}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('dashboard.serverStatus')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full ${status.running ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]' : 'bg-red-400'}`} />
+                  <span className="text-lg font-bold text-white">
+                    {status.running ? t('status.running') : t('status.stopped')}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">{t('dashboard.port', { port: status.port })}</p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('dashboard.activeSessions')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{liveSessions.length}</div>
-            <p className="text-xs text-slate-500 mt-1">
-              {t('status.activeConnections', { count: status.activeConnections })}
-            </p>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('dashboard.totalSessions')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white">{totalAudit}</div>
+                <p className="text-xs text-slate-500 mt-1">{t('dashboard.inAuditLog')}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('dashboard.activeSessions')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white">{liveSessions.length}</div>
+                <p className="text-xs text-slate-500 mt-1">
+                  {t('status.activeConnections', { count: status.activeConnections })}
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {isManagedMcpWsMode ? (
+          <Card className="border-slate-800 bg-slate-900/90">
+            <CardContent className="p-4">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{t('dashboard.eventMetricsTitle')}</div>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                <div>
+                  <div className="text-2xl font-semibold leading-none text-white">{managedClient.receivedEventCount}</div>
+                  <div className="mt-1 text-xs text-slate-500">{t('dashboard.eventsLabel')}</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-semibold leading-none text-white">{managedClient.pingCount}</div>
+                  <div className="mt-1 text-xs text-slate-500">{t('dashboard.pingsLabel')}</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-semibold leading-none text-white">{managedClient.pongSentCount}</div>
+                  <div className="mt-1 text-xs text-slate-500">{t('dashboard.pongsLabel')}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : isManagedClientMode ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('dashboard.pullStatus')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg font-bold text-white">
+                {isManagedClientMode ? pullStatusLabel : t('dashboard.pullInactive')}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {isManagedClientMode
+                  ? (isManagedMcpWsMode
+                    ? t('dashboard.pullCountsMcpWs', {
+                      pulled: managedClient.pulledTaskCount,
+                      empty: managedClient.emptyPollCount,
+                    })
+                    : t('dashboard.pullCounts', {
+                      pulled: managedClient.pulledTaskCount,
+                      empty: managedClient.emptyPollCount,
+                    }))
+                  : t('dashboard.pullInactiveHint')}
+              </p>
+              {isManagedMcpWsMode && (
+                <>
+                  <p className="text-xs text-slate-500 mt-1 break-all">
+                    {t('dashboard.mcpWsEventMetrics', {
+                      events: managedClient.receivedEventCount,
+                      pings: managedClient.pingCount,
+                      pongs: managedClient.pongSentCount,
+                    })}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1 break-all">
+                    {t('dashboard.mcpWsLastEvent', {
+                      event: managedClient.lastEventName ?? '-',
+                      time: formatTimestamp(managedClient.lastEventAt),
+                    })}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1 break-all">
+                    {t('dashboard.mcpWsLastPing', {
+                      time: formatTimestamp(managedClient.lastPingAt),
+                    })}
+                  </p>
+                </>
+              )}
+              {isManagedClientMode && managedClient.lastTaskCommand && (
+                <p className="text-xs text-slate-500 mt-1 break-all">
+                  {t(isManagedMcpWsMode ? 'dashboard.lastPulledTaskMcpWs' : 'dashboard.lastPulledTask', { command: managedClient.lastTaskCommand })}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
 
       {/* MCP Endpoint */}
-      <div
-        className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 cursor-pointer hover:border-slate-600 transition-colors group"
-        onClick={() => {
-          navigator.clipboard.writeText(`http://localhost:${status.port}/mcp`);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        }}
-        title={t('settings.clickToCopy')}
-      >
-        <span className="text-xs text-slate-500">{t('settings.mcpEndpoint')}:</span>
-        <code className="text-sm text-blue-400 font-mono select-all">{`http://localhost:${status.port}/mcp`}</code>
-        {copied
-          ? <Check className="w-3.5 h-3.5 text-green-400 shrink-0 ml-auto" />
-          : <Copy className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-400 shrink-0 ml-auto transition-colors" />}
-      </div>
+      {!isManagedMcpWsMode && (
+        <div
+          className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 cursor-pointer hover:border-slate-600 transition-colors group"
+          onClick={() => {
+            navigator.clipboard.writeText(`http://localhost:${status.port}/mcp`);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }}
+          title={t('settings.clickToCopy')}
+        >
+          <span className="text-xs text-slate-500">{t('settings.mcpEndpoint')}:</span>
+          <code className="text-sm text-blue-400 font-mono select-all">{`http://localhost:${status.port}/mcp`}</code>
+          {copied
+            ? <Check className="w-3.5 h-3.5 text-green-400 shrink-0 ml-auto" />
+            : <Copy className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-400 shrink-0 ml-auto transition-colors" />}
+        </div>
+      )}
 
       {/* Unified Session List */}
       <div className="space-y-3">
@@ -338,14 +533,18 @@ export default function Dashboard() {
           {totalAudit > 0 && (
             <button
               onClick={handleClearHistory}
-              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-              title={t('dashboard.clearHistory')}
+              disabled={!canClearHistory}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-slate-500 transition-colors enabled:hover:text-red-400 enabled:hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+              title={canClearHistory ? t('dashboard.clearHistory') : t('dashboard.clearHistoryRequiresSignin')}
             >
               <Trash2 className="w-3 h-3" />
               {t('dashboard.clearHistory')}
             </button>
           )}
         </div>
+        {historyError && (
+          <div className="text-xs text-amber-300">{historyError}</div>
+        )}
         {unified.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-sm text-slate-600">

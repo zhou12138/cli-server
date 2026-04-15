@@ -39,7 +39,7 @@ export class SessionManager {
 
   // ── Public API ──
 
-  create(command: string, cwd?: string, clientIp = 'unknown', enableStdin = false): SessionInfo {
+  create(command: string, cwd?: string, clientIp = 'unknown', enableStdin = false, envOverride?: NodeJS.ProcessEnv): SessionInfo {
     const sessionId = randomUUID();
     const resolvedCwd = cwd || process.cwd();
     const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
@@ -50,7 +50,7 @@ export class SessionManager {
 
     const childProcess = spawn(shell, shellArgs, {
       cwd: resolvedCwd,
-      env: process.env,
+      env: envOverride ?? process.env,
       stdio: [enableStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
 
@@ -187,8 +187,13 @@ export class SessionManager {
     const session = this.getSession(sessionId);
 
     // Already exited — resolve immediately
-    if (conditions.exited && session.state === 'exited') {
-      return this.buildWaitResult('exited', session, tailLength);
+    if (session.state === 'exited') {
+      if (conditions.exited) {
+        return this.buildWaitResult('exited', session, tailLength);
+      }
+      if (conditions.idle) {
+        return this.buildWaitResult('idle', session, tailLength);
+      }
     }
 
     return new Promise<WaitResult>((resolve) => {
@@ -207,7 +212,12 @@ export class SessionManager {
       };
 
       const onExit = () => {
-        if (conditions.exited) done('exited');
+        if (conditions.exited) {
+          done('exited');
+        } else if (conditions.idle) {
+          // Process exited — no more output will come; resolve idle immediately
+          done('idle');
+        }
       };
 
       const onOutput = () => {
@@ -217,7 +227,9 @@ export class SessionManager {
         }
       };
 
-      if (conditions.exited) {
+      // Always listen for exit when exited or idle is requested —
+      // an exited process will never produce more output.
+      if (conditions.exited || conditions.idle) {
         session.emitter.on('exit', onExit);
       }
 
