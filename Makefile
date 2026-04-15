@@ -1,0 +1,81 @@
+# ============================================
+# LandGod Makefile — 构建所有安装包
+# ============================================
+#
+# 用法:
+#   make          构建所有安装包
+#   make worker   只构建 Worker 包
+#   make gateway  只构建 Gateway 包 (Node.js + Python)
+#   make clean    清理构建产物
+#
+# 产物输出到 downloads/ 目录
+# ============================================
+
+DOWNLOADS_DIR = downloads
+WORKER_SRC = .
+GATEWAY_NODE_SRC = clawlink/sdk-node
+GATEWAY_PY_SRC = clawlink/sdk-python
+
+# 产物文件名
+WORKER_PKG = $(DOWNLOADS_DIR)/cli-server-0.1.0.tgz
+GATEWAY_NODE_PKG = $(DOWNLOADS_DIR)/landgod-link-0.1.0.tgz
+GATEWAY_PY_WHL = $(DOWNLOADS_DIR)/landgod_link-0.1.0-py3-none-any.whl
+GATEWAY_PY_SDIST = $(DOWNLOADS_DIR)/landgod_link-0.1.0.tar.gz
+
+.PHONY: all worker gateway gateway-node gateway-python clean
+
+# ============================================
+# 默认目标：构建所有包
+# ============================================
+all: worker gateway
+	@echo ""
+	@echo "🏮 所有安装包构建完成："
+	@ls -lh $(DOWNLOADS_DIR)/*.tgz $(DOWNLOADS_DIR)/*.whl 2>/dev/null
+	@echo ""
+
+# ============================================
+# Worker 包 (cli-server)
+# ============================================
+worker: $(WORKER_PKG)
+
+$(WORKER_PKG):
+	@echo "📦 构建 LandGod Worker..."
+	@mkdir -p $(DOWNLOADS_DIR)
+	cd $(WORKER_SRC) && npm pack --quiet
+	mv $(WORKER_SRC)/cli-server-*.tgz $(WORKER_PKG)
+	@echo "✅ Worker 包: $(WORKER_PKG)"
+
+# ============================================
+# Gateway 包 (Node.js + Python)
+# ============================================
+gateway: gateway-node gateway-python
+
+# Node.js Gateway
+gateway-node: $(GATEWAY_NODE_PKG)
+
+$(GATEWAY_NODE_PKG):
+	@echo "📦 构建 LandGod-Link Gateway (Node.js)..."
+	@mkdir -p $(DOWNLOADS_DIR)
+	cd $(GATEWAY_NODE_SRC) && npm pack --quiet
+	mv $(GATEWAY_NODE_SRC)/landgod-link-*.tgz $(GATEWAY_NODE_PKG)
+	@echo "✅ Gateway Node.js 包: $(GATEWAY_NODE_PKG)"
+
+# Python Gateway
+gateway-python: $(GATEWAY_PY_WHL) $(GATEWAY_PY_SDIST)
+
+$(GATEWAY_PY_WHL) $(GATEWAY_PY_SDIST):
+	@echo "📦 构建 LandGod-Link Gateway (Python)..."
+	@mkdir -p $(DOWNLOADS_DIR)
+	cd $(GATEWAY_PY_SRC) && python3 -m build --quiet 2>/dev/null || python3 -m build
+	cp $(GATEWAY_PY_SRC)/dist/landgod_link-*.whl $(GATEWAY_PY_WHL)
+	cp $(GATEWAY_PY_SRC)/dist/landgod_link-*.tar.gz $(GATEWAY_PY_SDIST)
+	@echo "✅ Gateway Python 包: $(GATEWAY_PY_WHL) $(GATEWAY_PY_SDIST)"
+
+# ============================================
+# 清理
+# ============================================
+clean:
+	@echo "🧹 清理构建产物..."
+	rm -f $(DOWNLOADS_DIR)/*.tgz $(DOWNLOADS_DIR)/*.whl $(DOWNLOADS_DIR)/*.tar.gz
+	rm -rf $(GATEWAY_PY_SRC)/dist $(GATEWAY_PY_SRC)/build $(GATEWAY_PY_SRC)/*.egg-info
+	@echo "✅ 清理完成"
