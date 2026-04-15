@@ -25,13 +25,22 @@ GATEWAY_PY_SDIST = $(DOWNLOADS_DIR)/landgod_link-0.1.0.tar.gz
 .PHONY: all worker gateway gateway-node gateway-python clean
 
 # ============================================
-# 默认目标：构建所有包
+# 默认目标：编译 + 构建所有包
 # ============================================
-all: worker gateway
+all: build worker gateway
 	@echo ""
 	@echo "🏮 所有安装包构建完成："
 	@ls -lh $(DOWNLOADS_DIR)/*.tgz $(DOWNLOADS_DIR)/*.whl 2>/dev/null
 	@echo ""
+
+# ============================================
+# 编译 TypeScript (vite)
+# ============================================
+.PHONY: build
+build:
+	@echo "🔨 编译 TypeScript (vite)..."
+	cd $(WORKER_SRC) && npm run package 2>&1 | tail -5
+	@echo "✅ 编译完成"
 
 # ============================================
 # Worker 包 (cli-server)
