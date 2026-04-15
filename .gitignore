@@ -11,3 +11,18 @@ managed-client-workspace/
 .superpowers/
 .xclaw-node-data/
 bin/
+# Runtime data (不提交)
+.xclaw-node-data/
+managed-client.config.json
+managed-client.mcp-servers.json
+
+# Build artifacts
+dist/
+dist-headless/
+*.tgz
+*.whl
+*.tar.gz
+
+# OS files
+.DS_Store
+Thumbs.db
