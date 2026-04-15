@@ -192,24 +192,41 @@ chmod +x /tmp/landgod-deploy.sh
 
 ## Part 3：网络连接方式
 
-Worker 需要能访问 Gateway 的 WebSocket 端口（默认 8080）。
+Worker 需要能访问 Gateway 的 WebSocket 端口（默认 8080）。根据你的网络环境选择合适的方案。
 
-### 场景 1：同一台机器 / 同一局域网
-
-```
-Worker → ws://GATEWAY_IP:8080     直接连接
-```
-
-配置：
-```bash
-landgod config set bootstrapBaseUrl "ws://192.168.1.100:8080"
-```
-
-### 场景 2：跨网络（SSH 隧道）
+### 网络环境总览
 
 ```
-Gateway 机器 → ssh -R 8080:localhost:8080 → Worker 机器
-Worker → ws://localhost:8080
+┌─────────────────────────────────────────────────────────────┐
+│                    Gateway 位置                              │
+│              公网          内网A          内网B              │
+│  Worker ┌──────────┬──────────────┬──────────────┐         │
+│  位置   │          │              │              │         │
+│  同机器 │ ① 直连   │  ① 直连      │  ① 直连      │         │
+│  公网   │ ② 直连   │  ⑤ 需穿透    │  ⑤ 需穿透    │         │
+│  内网A  │ ② 直连   │  ③ 局域网    │  ⑤ 需穿透    │         │
+│  内网B  │ ② 直连   │  ⑤ 需穿透    │  ③/⑤        │         │
+│         └──────────┴──────────────┴──────────────┘         │
+└─────────────────────────────────────────────────────────────┘
+
+① 直连 localhost    — 零配置
+② 直连公网 IP       — 开放端口即可
+③ 局域网直连        — 同一网段内直连
+④ SSH 隧道         — 一端有公网即可
+⑤ 需要穿透         — 双方都在 NAT 后面
+```
+
+---
+
+### 场景 ①：同一台机器
+
+> Gateway 和 Worker 在同一台机器上
+
+```
+┌─────────────────┐
+│ Gateway :8080   │
+│ Worker          │ → ws://localhost:8080
+└─────────────────┘
 ```
 
 配置：
@@ -217,19 +234,189 @@ Worker → ws://localhost:8080
 landgod config set bootstrapBaseUrl "ws://localhost:8080"
 ```
 
-### 场景 3：跨网络（Cloudflare Tunnel）
+**最简单，零网络配置。**
+
+---
+
+### 场景 ②：Worker 能直接访问 Gateway 公网 IP
+
+> Gateway 有公网 IP，Worker 能访问到
 
 ```
-Gateway → cloudflared → wss://xxx.trycloudflare.com
-Worker → wss://xxx.trycloudflare.com
+Worker ──── 公网 ────► Gateway (公网 IP)
+                       20.205.20.239:8080
 ```
 
-### 场景 4：跨网络（Tailscale）
+配置：
+```bash
+landgod config set bootstrapBaseUrl "ws://20.205.20.239:8080"
+```
+
+⚠️ 需要确保 Gateway 的 8080 端口对外开放（云服务器需配置安全组/防火墙）。
+
+---
+
+### 场景 ③：同一局域网
+
+> Gateway 和 Worker 在同一个局域网（同一 VPC、同一 WiFi、同一办公网络）
 
 ```
-Gateway (100.x.x.x) ↔ Worker (100.y.y.y)
-Worker → ws://100.x.x.x:8080
+局域网 192.168.1.0/24
+┌──────────────┐        ┌──────────────┐
+│ Gateway      │◄───────│ Worker       │
+│ 192.168.1.50 │  直连   │ 192.168.1.100│
+└──────────────┘        └──────────────┘
 ```
+
+配置：
+```bash
+landgod config set bootstrapBaseUrl "ws://192.168.1.50:8080"
+```
+
+**同一网段内直连，无需穿透。** 包括：
+- 同一 Azure/AWS VPC 内的虚拟机
+- 同一办公室的电脑
+- 同一家庭网络的设备
+
+---
+
+### 场景 ④：跨网络（一端有公网）— SSH 隧道
+
+> Gateway 有公网 IP，Worker 在内网；或反过来。
+
+**方式 A：正向隧道（Worker 主动连 Gateway）**
+
+```
+内网 Worker → ssh -L 8080:localhost:8080 → 公网 Gateway
+Worker 配置: ws://localhost:8080
+```
+
+```bash
+# 在 Worker 机器上执行
+ssh -L 8080:localhost:8080 user@GATEWAY_PUBLIC_IP
+landgod config set bootstrapBaseUrl "ws://localhost:8080"
+```
+
+**方式 B：反向隧道（Gateway 主动推给 Worker）**
+
+```
+公网 Gateway → ssh -R 8080:localhost:8080 → 内网 Worker
+Worker 配置: ws://localhost:8080
+```
+
+```bash
+# 在 Gateway 机器上执行
+ssh -R 8080:localhost:8080 user@WORKER_IP
+```
+
+Worker 不需要知道 Gateway 在哪，通过 localhost 访问隧道。
+
+---
+
+### 场景 ⑤：双方都在内网（NAT 穿透）
+
+> Gateway 和 Worker 都在不同的内网，没有公网 IP，互相访问不到。
+
+```
+内网 A                              内网 B
+┌──────────┐   ❌ 互不可达   ┌──────────┐
+│ Gateway  │                  │ Worker   │
+│ NAT 后面 │                  │ NAT 后面 │
+└──────────┘                  └──────────┘
+```
+
+**需要第三方中继。以下方案任选其一：**
+
+#### 方案 A：Cloudflare Tunnel（推荐 🌟）
+
+> 只需在 Gateway 端安装 cloudflared，免费，自动 TLS 加密。
+
+```
+内网 A                 Cloudflare              内网 B
+┌──────────┐          ┌────────┐             ┌──────────┐
+│ Gateway  │─────────►│  CF    │◄────────────│ Worker   │
+│cloudflared│ 主动连出  │  Edge  │  公网 URL    │ 连公网URL│
+└──────────┘          └────────┘             └──────────┘
+```
+
+Gateway 端：
+```bash
+# 安装 cloudflared
+curl -fsSL https://pkg.cloudflare.com/cloudflared-linux-amd64.deb -o /tmp/cloudflared.deb
+sudo dpkg -i /tmp/cloudflared.deb
+
+# 启动隧道（自动生成公网 URL）
+cloudflared tunnel --url ws://localhost:8080
+# 输出: https://xxx-yyy-zzz.trycloudflare.com
+```
+
+Worker 端：
+```bash
+landgod config set bootstrapBaseUrl "wss://xxx-yyy-zzz.trycloudflare.com"
+```
+
+✅ 免费、零端口开放、自动 TLS、两端都是主动向外连接。
+
+#### 方案 B：Tailscale
+
+> 两端安装 Tailscale，自动组建 VPN 网络。
+
+```
+Gateway (100.64.x.x) ◄─── WireGuard VPN ───► Worker (100.64.y.y)
+```
+
+两端：
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+```
+
+Worker 端：
+```bash
+landgod config set bootstrapBaseUrl "ws://100.64.x.x:8080"
+```
+
+✅ 加密、NAT 穿透、设备自动发现。需要两端都安装。
+
+#### 方案 C：ngrok
+
+> 只需在 Gateway 端安装，自动生成公网 URL。
+
+Gateway 端：
+```bash
+ngrok http 8080
+# 输出: https://xxxx.ngrok.io
+```
+
+Worker 端：
+```bash
+landgod config set bootstrapBaseUrl "wss://xxxx.ngrok.io"
+```
+
+⚠️ 免费版有连接数限制和 URL 变化。
+
+#### 方案 D：FRP（自建穿透）
+
+> 需要一台有公网 IP 的中继服务器。
+
+```
+内网 Gateway → frpc → 公网 VPS (frps) ← frpc ← 内网 Worker
+```
+
+适合长期稳定使用，但需要自己维护中继服务器。
+
+---
+
+### 方案选择指南
+
+| 你的情况 | 推荐方案 | 理由 |
+|---------|---------|------|
+| 同机器 | ① 直连 localhost | 零配置 |
+| 同局域网 | ③ 内网 IP 直连 | 零配置 |
+| Gateway 有公网 IP | ② 直连公网 | 简单 |
+| 一端有公网 | ④ SSH 隧道 | 无需额外软件 |
+| 都在内网（临时使用） | ⑤A Cloudflare Tunnel | 免费、一分钟搞定 |
+| 都在内网（长期使用） | ⑤B Tailscale | 最稳定 |
 
 ---
 
