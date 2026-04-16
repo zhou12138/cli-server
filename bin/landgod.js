@@ -15,7 +15,7 @@ const DAEMON_LOG_PATH = path.join(DATA_DIR, 'daemon.log');
 const ACTIVITIES_PATH = path.join(DATA_DIR, 'activities.jsonl');
 const AUDIT_PATH = path.join(DATA_DIR, 'audit.jsonl');
 const RECOMMENDED_EXECUTABLES = ['git', 'node', 'npm', 'npx', 'python', 'python3', 'winget', 'wget', 'apt-get'];
-const STARTUP_MODES = ['cli-server', 'managed-client', 'managed-client-mcp-ws'];
+const STARTUP_MODES = ['cli-server', 'managed-client-mcp-ws'];
 const TOOL_CALL_APPROVAL_MODES = ['auto', 'manual'];
 const PERMISSION_PROFILES = ['command-only', 'interactive-trusted', 'full-local-admin'];
 

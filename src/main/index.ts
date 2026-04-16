@@ -8,7 +8,6 @@ import { activityLogger, type ActivityEntry } from './activity/logger';
 import { auditLogger } from './audit/logger';
 import { createT, type Locale } from '../i18n';
 import { SessionManager } from './session/manager';
-import { ManagedClientRuntime } from './managed-client/runtime';
 import { ManagedClientMcpWsRuntime, validateManagedClientTlsConfig } from './managed-client/mcp-ws-runtime';
 import { registerManagedMcpServerApplyHook } from './managed-client/admin-tools';
 import { startManagedClientSignin, type ManagedClientSigninResult } from './managed-client/signin';
@@ -299,7 +298,7 @@ function createTray(isManagedClientMode: boolean): void {
 }
 
 const sessionManager = new SessionManager();
-type ManagedClientRuntimeInstance = ManagedClientRuntime | ManagedClientMcpWsRuntime;
+type ManagedClientRuntimeInstance = ManagedClientMcpWsRuntime;
 
 let managedClientRuntime: ManagedClientRuntimeInstance | null = null;
 let managedClientConfig = getManagedClientRuntimeConfig(app.getVersion());
@@ -471,13 +470,9 @@ function buildBootstrapState() {
 }
 
 function createManagedClientRuntime(config: ManagedClientRuntimeConfig): ManagedClientRuntimeInstance {
-  if (config.mode === 'managed-client-mcp-ws') {
-    const runtime = new ManagedClientMcpWsRuntime(config, sessionManager);
-    runtime.onActivity = appendActivity;
-    return runtime;
-  }
-
-  return new ManagedClientRuntime(config, sessionManager);
+  const runtime = new ManagedClientMcpWsRuntime(config, sessionManager);
+  runtime.onActivity = appendActivity;
+  return runtime;
 }
 
 async function ensureServerStarted(): Promise<void> {
