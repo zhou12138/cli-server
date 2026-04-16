@@ -23,17 +23,18 @@ function printUsage() {
   console.log('Usage: landgod <command>');
   console.log('');
   console.log('Commands:');
-  console.log('  onboard             Run interactive onboarding wizard');
-  console.log('  daemon start        Start headless daemon (default: Electron mode)');
-  console.log('  daemon start --headless  Start in pure Node.js mode (no Electron needed)');
-  console.log('  daemon stop         Stop the background daemon');
-  console.log('  health              Show daemon and managed client health');
-  console.log('  logs [--follow]     Show daemon stdout/stderr log');
-  console.log('  activities          Show structured activity log entries');
-  console.log('  audit log           Show structured audit log entries');
-  console.log('  config              Edit managed-client.config.json interactively');
-  console.log('  config show         Print managed-client.config.json');
-  console.log('  config set k v      Set config value non-interactively');
+  console.log('  onboard                   Interactive setup wizard');
+  console.log('  start                     Start worker daemon');
+  console.log('  start --headless          Start in headless mode (no GUI, recommended for servers)');
+  console.log('  stop                      Stop worker daemon');
+  console.log('  status                    Show worker status');
+  console.log('  logs [--follow]           Show daemon logs');
+  console.log('  activities                Show activity log');
+  console.log('  audit                     Show audit log');
+  console.log('  config                    Edit config interactively');
+  console.log('  config show               Print current config');
+  console.log('  config set <key> <value>  Set config value');
+  console.log('  --version, -v             Show version');
 }
 
 function ensureDir(dirPath) {
@@ -413,7 +414,7 @@ function printHealth() {
   const activities = loadJsonLines(ACTIVITIES_PATH);
   const latestActivity = activities.length > 0 ? activities[activities.length - 1] : null;
 
-  console.log('LandGod Health');
+  console.log('LandGod Status');
   console.log('---------------');
   console.log(`Config path: ${CONFIG_PATH}`);
   console.log(`Enabled: ${config.enabled === true ? 'yes' : 'no'}`);
@@ -859,25 +860,32 @@ async function main() {
     return;
   }
 
+  if (command === '--version' || command === '-v') {
+    console.log('landgod 0.1.0');
+    return;
+  }
+
   if (command === 'onboard') {
     await runOnboard();
     return;
   }
 
-  if (command === 'daemon') {
-    if (args[1] === 'start') {
-      const useHeadlessNode = args.includes('--headless');
-      startDaemon(useHeadlessNode);
-      return;
-    }
-    if (args[1] === 'stop') {
-      stopDaemon();
-      return;
-    }
-    throw new Error('Usage: landgod daemon <start|stop>');
+  if (command === 'start' || (command === 'daemon' && args[1] === 'start')) {
+    const useHeadlessNode = args.includes('--headless');
+    startDaemon(useHeadlessNode);
+    return;
   }
 
-  if (command === 'health') {
+  if (command === 'stop' || (command === 'daemon' && args[1] === 'stop')) {
+    stopDaemon();
+    return;
+  }
+
+  if (command === 'daemon') {
+    throw new Error('Usage: landgod start|stop');
+  }
+
+  if (command === 'status' || command === 'health') {
     printHealth();
     return;
   }
@@ -902,7 +910,9 @@ async function main() {
       printAuditLog(args.slice(2));
       return;
     }
-    throw new Error('Usage: landgod audit log [--limit N] [--search QUERY] [--json] [--follow]');
+    // 'landgod audit' 直接等同于 'landgod audit log'
+    printAuditLog(args.slice(1));
+    return;
   }
 
   if (command === 'config') {
