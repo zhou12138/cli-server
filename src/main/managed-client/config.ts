@@ -371,7 +371,7 @@ function parseManagedClientMode(value: string | undefined | null): ManagedClient
     return null;
   }
 
-  if (value === 'managed-client' || value === 'managed-client-mcp-ws') {
+  if (value === 'managed-client-mcp-ws') {
     return value;
   }
 
@@ -426,16 +426,11 @@ export function getManagedClientRuntimeConfig(version: string, args = process.ar
     || hasArg(args, '--enable-managed-client-mcp-ws')
     || hasArg(args, '--managed-client-mcp-ws-only');
 
-  const pollingManagedMode =
-    explicitMode === 'managed-client'
-    || hasArg(args, '--enable-managed-client-runtime')
-    || hasArg(args, '--managed-client-only')
+  const enabled = wsManagedMode
     || parseBooleanFlag(process.env.ENABLE_MANAGED_CLIENT_RUNTIME)
     || fileConfig.enabled === true;
-
-  const enabled = wsManagedMode || pollingManagedMode;
-  const mode: ManagedClientMode = wsManagedMode ? 'managed-client-mcp-ws' : 'managed-client';
-  const headless = hasArg(args, '--managed-client-only') || hasArg(args, '--managed-client-mcp-ws-only');
+  const mode: ManagedClientMode = 'managed-client-mcp-ws';
+  const headless = hasArg(args, '--managed-client-mcp-ws-only');
   const baseUrl =
     getArgValue(args, '--managed-client-base-url')
     ?? fileConfig.bootstrapBaseUrl

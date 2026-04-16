@@ -28,8 +28,8 @@ fi
 # ========================
 DEPLOY_KEY="$HOME/.ssh/landgod_deploy"
 DEPLOY_KEY_PUB="$HOME/.ssh/landgod_deploy.pub"
-PACKAGE_URL="https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/cli-server-0.1.0.tgz"
-PACKAGE_PATH="$HOME/cli-server/downloads/cli-server-0.1.0.tgz"
+PACKAGE_URL="https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-0.1.0.tgz"
+PACKAGE_PATH="$HOME/cli-server/downloads/landgod-0.1.0.tgz"
 WS_TOKEN="hardcoded-token-1234"
 GATEWAY_URL="ws://localhost:8080"
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
@@ -107,12 +107,12 @@ log "Node.js $NODE_VER"
 # Step 4: 下载安装包到新机器
 # ========================
 log "Step 4/11: 下载 LandGod 安装包..."
-ssh_key "curl -fsSL -o /tmp/cli-server-0.1.0.tgz '$PACKAGE_URL'" 2>/dev/null
-if ssh_key "test -f /tmp/cli-server-0.1.0.tgz && test -s /tmp/cli-server-0.1.0.tgz"; then
+ssh_key "curl -fsSL -o /tmp/landgod-0.1.0.tgz '$PACKAGE_URL'" 2>/dev/null
+if ssh_key "test -f /tmp/landgod-0.1.0.tgz && test -s /tmp/landgod-0.1.0.tgz"; then
     log "从 GitHub 下载成功"
 elif [ -f "$PACKAGE_PATH" ]; then
     warn "GitHub 下载失败，使用本地文件传输..."
-    scp -i "$DEPLOY_KEY" $SSH_OPTS "$PACKAGE_PATH" "$TARGET_USER@$TARGET_IP:/tmp/cli-server-0.1.0.tgz"
+    scp -i "$DEPLOY_KEY" $SSH_OPTS "$PACKAGE_PATH" "$TARGET_USER@$TARGET_IP:/tmp/landgod-0.1.0.tgz"
     log "本地传输完成"
 else
     err "安装包下载失败且本地文件不存在"
@@ -122,7 +122,7 @@ fi
 # Step 5: 安装 landgod
 # ========================
 log "Step 5/9: 安装 landgod..."
-ssh_key "sudo npm install -g /tmp/cli-server-0.1.0.tgz 2>&1 | tail -3"
+ssh_key "sudo npm install -g /tmp/landgod-0.1.0.tgz 2>&1 | tail -3"
 ssh_key "which landgod >/dev/null" || err "landgod 安装失败"
 log "landgod 已安装"
 
@@ -155,7 +155,7 @@ ssh_key "sudo tee $CLAWNODE_ROOT/managed-client.config.json > /dev/null" << EOF
     "permissionProfile": "full-local-admin",
     "shellExecute": {
       "enabled": true,
-      "allowedExecutableNames": ["git","node","npm","npx","python","python3","echo","ls","cat","whoami","hostname","uname","pwd","curl","bash","sh","mkdir","rm","cp","mv"],
+      "allowedExecutableNames": ["git","node","npm","npx","python","python3","echo","ls","cat","whoami","hostname","uname","pwd","curl","mkdir","rm","cp","mv","free","df","ps","nproc","grep","wc"],
       "allowedWorkingDirectories": ["/home/$TARGET_USER","/tmp","$CLAWNODE_ROOT"]
     }
   }
@@ -304,7 +304,7 @@ echo "  🔥 焚毁凭据"
 echo "========================================="
 # 密码不保存到任何文件，仅在内存中使用
 # 清理临时文件
-ssh_key "rm -f /tmp/cli-server-0.1.0.tgz" 2>/dev/null
+ssh_key "rm -f /tmp/landgod-0.1.0.tgz" 2>/dev/null
 log "临时文件已清理"
 log "密码仅在内存中使用，已随进程结束销毁"
 

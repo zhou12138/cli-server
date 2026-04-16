@@ -15,7 +15,7 @@ const DAEMON_LOG_PATH = path.join(DATA_DIR, 'daemon.log');
 const ACTIVITIES_PATH = path.join(DATA_DIR, 'activities.jsonl');
 const AUDIT_PATH = path.join(DATA_DIR, 'audit.jsonl');
 const RECOMMENDED_EXECUTABLES = ['git', 'node', 'npm', 'npx', 'python', 'python3', 'winget', 'wget', 'apt-get'];
-const STARTUP_MODES = ['cli-server', 'managed-client', 'managed-client-mcp-ws'];
+const STARTUP_MODES = ['cli-server', 'managed-client-mcp-ws'];
 const TOOL_CALL_APPROVAL_MODES = ['auto', 'manual'];
 const PERMISSION_PROFILES = ['command-only', 'interactive-trusted', 'full-local-admin'];
 
@@ -536,6 +536,31 @@ function setConfigFromCommand(keyPath, rawValue) {
   const current = loadConfig();
   const next = JSON.parse(JSON.stringify(current || {}));
   const parsedValue = parseConfigValue(rawValue);
+
+  // P0 安全检查：警告危险的 shell 白名单配置
+  if (keyPath === 'builtInTools.shellExecute.allowedExecutableNames') {
+    const DANGEROUS_EXECUTABLES = ['bash', 'sh', 'zsh', 'dash', 'ksh', 'csh', 'fish', 'cmd', 'powershell', 'pwsh'];
+    const names = Array.isArray(parsedValue) ? parsedValue : [];
+    const dangerous = names.filter(n => DANGEROUS_EXECUTABLES.includes(n.toLowerCase()));
+    if (dangerous.length > 0) {
+      console.warn(`\n⚠️  SECURITY WARNING: Adding shell interpreters to allowlist: ${dangerous.join(', ')}`);
+      console.warn('   This effectively bypasses ALL command restrictions.');
+      console.warn('   Any command can be executed via: bash -c "arbitrary command"');
+      console.warn('   Consider removing these from the allowlist.\n');
+    }
+  }
+
+  // P0 安全检查：警告危险的工作目录配置（包含配置文件路径）
+  if (keyPath === 'builtInTools.shellExecute.allowedWorkingDirectories') {
+    const dirs = Array.isArray(parsedValue) ? parsedValue : [];
+    const configDir = path.dirname(CONFIG_PATH);
+    const dangerous = dirs.filter(d => configDir.startsWith(d) || d.startsWith(configDir));
+    if (dangerous.length > 0) {
+      console.warn(`\n⚠️  SECURITY WARNING: Working directory allowlist includes config path: ${dangerous.join(', ')}`);
+      console.warn('   Commands could read/modify LandGod configuration files.');
+      console.warn('   Consider using a separate directory.\n');
+    }
+  }
 
   setValueByPath(next, keyPath, parsedValue);
   applyConfigSideEffects(next, keyPath, parsedValue);
