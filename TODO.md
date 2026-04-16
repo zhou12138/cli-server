@@ -75,7 +75,7 @@
 - [x] `docs/03-deploy-gateway.md` — Gateway 部署指南
 - [x] `docs/04-connect-install-worker.md` — 连接安装 Worker
 - [x] `docs/05-onboard-landgod.md` — 模板化配置
-- [x] `docs/06-network-setup.md` — 网络环境指南
+- [x] `docs/00-network-prerequisites.md` — 网络环境指南
 - [x] `docs/07-architecture-comparison.md` — 架构对比 + 场景推荐
 
 ### 🔲 待开发

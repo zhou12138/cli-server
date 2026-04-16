@@ -2,6 +2,8 @@
 
 > Worker（landgod）是远程执行节点，部署在需要被管理的设备上。
 
+> **前置条件**：确保本机能访问 Gateway 的 8080 端口（`ws://GATEWAY:8080`）。不同网络环境的配置见 [docs/00-network-prerequisites.md](../docs/00-network-prerequisites.md)。
+
 ## 一键安装
 
 ```bash
@@ -90,7 +92,7 @@ Worker 需要能访问 Gateway 的 WebSocket 端口（默认 8080）。
 | 同一局域网 | `ws://内网IP:8080` |
 | 跨网络 | SSH 隧道 / Cloudflare Tunnel / Tailscale |
 
-详见 [docs/06-network-setup.md](../docs/06-network-setup.md)
+详见 [docs/00-network-prerequisites.md](../docs/00-network-prerequisites.md)
 
 ## 自动部署（可选）
 
