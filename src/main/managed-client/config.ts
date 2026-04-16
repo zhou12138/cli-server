@@ -155,12 +155,18 @@ function normalizeBuiltInToolsSecurityConfig(parsed: unknown): BuiltInToolsSecur
         typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { enabled?: unknown }).enabled : undefined,
         defaults.shellExecute.enabled,
       ),
-      allowedExecutableNames: parseStringList(
-        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { allowedExecutableNames?: unknown }).allowedExecutableNames : undefined,
-      ),
-      allowedWorkingDirectories: parseStringList(
-        typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { allowedWorkingDirectories?: unknown }).allowedWorkingDirectories : undefined,
-      ),
+      allowedExecutableNames: (() => {
+        const list = parseStringList(
+          typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { allowedExecutableNames?: unknown }).allowedExecutableNames : undefined,
+        );
+        return list.length > 0 ? list : defaults.shellExecute.allowedExecutableNames;
+      })(),
+      allowedWorkingDirectories: (() => {
+        const list = parseStringList(
+          typeof shellExecute === 'object' && shellExecute !== null ? (shellExecute as { allowedWorkingDirectories?: unknown }).allowedWorkingDirectories : undefined,
+        );
+        return list.length > 0 ? list : defaults.shellExecute.allowedWorkingDirectories;
+      })(),
       allowPipes: typeof shellExecute === 'object' && shellExecute !== null && 'allowPipes' in shellExecute
         ? parseBooleanValue((shellExecute as { allowPipes?: unknown }).allowPipes, defaults.shellExecute.allowPipes)
         : !parseBooleanValue(
