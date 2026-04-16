@@ -155,7 +155,7 @@ ssh_key "sudo tee $CLAWNODE_ROOT/managed-client.config.json > /dev/null" << EOF
     "permissionProfile": "full-local-admin",
     "shellExecute": {
       "enabled": true,
-      "allowedExecutableNames": ["git","node","npm","npx","python","python3","echo","ls","cat","whoami","hostname","uname","pwd","curl","bash","sh","mkdir","rm","cp","mv"],
+      "allowedExecutableNames": ["git","node","npm","npx","python","python3","echo","ls","cat","whoami","hostname","uname","pwd","curl","mkdir","rm","cp","mv","free","df","ps","nproc","grep","wc"],
       "allowedWorkingDirectories": ["/home/$TARGET_USER","/tmp","$CLAWNODE_ROOT"]
     }
   }
