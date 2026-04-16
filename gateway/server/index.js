@@ -147,6 +147,13 @@ const connectedClients = new Map(); // connectionId -> { client, binding }
 // WebSocket 服务
 // ========================
 const server = new WebSocket.Server({ port: WS_PORT });
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`ERROR: Port ${WS_PORT} is already in use. Kill the old process first.`);
+        process.exit(1);
+    }
+    console.error('WebSocket server error:', err.message);
+});
 console.log(`WebSocket server running at ws://0.0.0.0:${WS_PORT}`);
 
 server.on("connection", (client, req) => {
@@ -214,8 +221,19 @@ server.on("connection", (client, req) => {
                     serverKeyId,
                 };
 
+                // 清理同名旧连接（防止重连后残留）
+                for (const [oldConnId, oldInfo] of connectedClients) {
+                    if (oldInfo.binding && oldInfo.binding.clientName === message.params.client_name && oldConnId !== connectionId) {
+                        console.log(`[register] Removing stale connection for ${message.params.client_name}: ${oldConnId}`);
+                        if (oldInfo.client.readyState === WebSocket.OPEN) {
+                            oldInfo.client.close(1000, 'Replaced by new connection');
+                        }
+                        connectedClients.delete(oldConnId);
+                    }
+                }
+
                 // 保存连接信息
-                connectedClients.set(connectionId, { client, binding, pendingRequests });
+                connectedClients.set(connectionId, { client, binding, pendingRequests, token });
 
                 const response = {
                     type: "res", id: taskId, ok: true,
@@ -334,17 +352,25 @@ function sendToolCall(connectionId, toolName, args, timeout = 30000) {
 const httpServer = http.createServer(async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
 
-    // GET /clients - 列出所有已连接的客户端
+    // GET /clients - 列出所有已连接的客户端（自动清理死连接）
     if (req.method === 'GET' && req.url === '/clients') {
         const clients = [];
+        const toDelete = [];
         for (const [connId, info] of connectedClients) {
+            if (info.client.readyState !== WebSocket.OPEN) {
+                toDelete.push(connId);
+                continue;
+            }
             clients.push({
                 connectionId: connId,
                 clientId: info.binding.clientId,
                 clientName: info.binding.clientName,
                 sessionId: info.binding.sessionId,
-                connected: info.client.readyState === WebSocket.OPEN,
+                connected: true,
             });
+        }
+        for (const connId of toDelete) {
+            connectedClients.delete(connId);
         }
         res.writeHead(200);
         res.end(JSON.stringify({ clients }));
@@ -367,11 +393,10 @@ const httpServer = http.createServer(async (req, res) => {
                     return;
                 }
 
-                // 按 clientName 或 connection_id 查找目标
                 let targetConnId = connection_id;
                 if (!targetConnId && clientName) {
                     for (const [connId, info] of connectedClients) {
-                        if (info.binding && info.binding.clientName === clientName) {
+                        if (info.binding && info.binding.clientName === clientName && info.client.readyState === WebSocket.OPEN) {
                             targetConnId = connId;
                             break;
                         }
@@ -383,7 +408,13 @@ const httpServer = http.createServer(async (req, res) => {
                     }
                 }
                 if (!targetConnId) {
-                    const firstEntry = connectedClients.entries().next().value;
+                    let firstEntry = null;
+                    for (const [connId, info] of connectedClients) {
+                        if (info.client.readyState === WebSocket.OPEN) {
+                            firstEntry = [connId, info];
+                            break;
+                        }
+                    }
                     if (!firstEntry) {
                         res.writeHead(404);
                         res.end(JSON.stringify({ error: "No connected clients" }));
