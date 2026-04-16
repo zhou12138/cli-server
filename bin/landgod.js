@@ -810,14 +810,19 @@ async function runOnboard() {
 
   const currentConfig = loadConfig();
 
-  // Step 1: 选择模式
+  // Step 1: 安装依赖
+  if (await askYesNo('Install dependencies now?', true)) {
+    runCommand(getNpmCommand(), ['install']);
+  }
+
+  // Step 2: 选择模式
   const modeLabel = await askChoice('Choose mode:', ['GUI (图形界面)', 'Headless (无界面，推荐)'], 1);
   let useHeadless = modeLabel === 'Headless (无界面，推荐)';
 
-  // Step 2: Gateway URL
+  // Step 3: Gateway URL
   const baseUrl = await askInput('Gateway URL', currentConfig.bootstrapBaseUrl || currentConfig.baseUrl || 'ws://localhost:8080');
 
-  // Step 3: Token
+  // Step 4: Token
   const token = await askInput('Token (optional)', currentConfig.token || '');
 
   if (token && !useHeadless) {
@@ -825,14 +830,35 @@ async function runOnboard() {
     useHeadless = true;
   }
 
-  // Step 4: Permission profile
+  // Step 5: Sign-in page URL (GUI 模式)
+  let signinPageUrl = currentConfig.signinPageUrl || '';
+  if (!useHeadless) {
+    signinPageUrl = await askInput('Sign-in page URL (optional, skip to use default)', signinPageUrl);
+  }
+
+  // Step 6: TLS servername (可选)
+  const tlsServername = await askInput('TLS servername override (optional, skip if unsure)', currentConfig.tlsServername || '');
+
+  // Step 7: Permission profile
   const permissionProfile = await askChoice('Permission level:', PERMISSION_PROFILES, 1);
 
-  // Step 5: 安装依赖（GUI 模式需要 Electron）
-  if (!useHeadless) {
-    console.log('');
-    console.log('GUI mode requires Electron. Installing dependencies...');
-    runCommand(getNpmCommand(), ['install']);
+  // Step 8: Tool call approval mode
+  const approvalMode = await askChoice('Tool call approval mode:', TOOL_CALL_APPROVAL_MODES, 0);
+
+  // Step 9: 自定义白名单（可选）
+  const executablePrompt = await askInput('Configure executable allowlist? (y/N, or paste names)', '');
+  let customExecutables = null;
+  if (executablePrompt.trim().toLowerCase() === 'y' || executablePrompt.trim().toLowerCase() === 'yes') {
+    const selected = await askMultiSelect('Select executables:', RECOMMENDED_EXECUTABLES, RECOMMENDED_EXECUTABLES);
+    const manual = await askInput('Additional executables (comma separated, optional)', '');
+    customExecutables = Array.from(new Set([...(selected || []), ...parseListInput(manual)]));
+  } else if (executablePrompt.trim() && executablePrompt.trim().toLowerCase() !== 'n' && executablePrompt.trim().toLowerCase() !== 'no') {
+    customExecutables = parseListInput(executablePrompt);
+    if (customExecutables.length > 0) {
+      console.log('Detected pasted executable list and applied.');
+    } else {
+      customExecutables = null;
+    }
   }
 
   // 保存配置
@@ -843,20 +869,28 @@ async function runOnboard() {
     mode: 'managed-client-mcp-ws',
     bootstrapBaseUrl: baseUrl,
     token: token || currentConfig.token,
-    toolCallApprovalMode: 'auto',
+    signinPageUrl: signinPageUrl || undefined,
+    tlsServername: tlsServername || undefined,
+    toolCallApprovalMode: approvalMode,
     builtInTools: mergeBuiltInTools(currentConfig, { permissionProfile }),
   };
+
+  if (customExecutables && customExecutables.length > 0) {
+    config.builtInTools = mergeBuiltInTools(config, {
+      shellExecute: { enabled: true, allowedExecutableNames: customExecutables },
+    });
+  }
 
   saveConfig(config);
   console.log('');
   console.log('Config saved.');
 
-  // Step 6: 启动
+  // Step 10: 启动
   if (await askYesNo('Start now?', true)) {
     if (useHeadless) {
       startDaemon(true);
     } else {
-      startDaemon(false);
+      launchUiMode();
     }
   } else {
     console.log('');
