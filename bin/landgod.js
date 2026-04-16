@@ -31,6 +31,7 @@ function printUsage() {
   console.log('  logs [--follow]           Show daemon logs');
   console.log('  activities                Show activity log');
   console.log('  audit                     Show audit log');
+  console.log('  audit clear               Clear audit log');
   console.log('  config                    Edit config interactively');
   console.log('  config show               Print current config');
   console.log('  config set <key> <value>  Set config value');
@@ -960,6 +961,16 @@ async function main() {
   }
 
   if (command === 'audit') {
+    if (args[1] === 'clear') {
+      const auditPath = path.join(DATA_DIR, 'audit.jsonl');
+      if (fileExists(auditPath)) {
+        fs.writeFileSync(auditPath, '', 'utf-8');
+        console.log('Audit log cleared.');
+      } else {
+        console.log('No audit log to clear.');
+      }
+      return;
+    }
     if (args[1] === 'log') {
       printAuditLog(args.slice(2));
       return;
