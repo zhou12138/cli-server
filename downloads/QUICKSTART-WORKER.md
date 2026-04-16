@@ -19,7 +19,7 @@ Headless 模式无需额外安装，直接配置即可。
 
 Electron 模式需要：
 ```bash
-cd $(node -e "console.log(require.resolve('cli-server/package.json').replace('/package.json',''))")
+cd $(node -e "console.log(require.resolve('landgod/package.json').replace('/package.json',''))")
 npm install
 # Linux 还需要: sudo apt-get install -y libgtk-3-0 libnss3 libasound2t64 libcups2 xvfb
 ```

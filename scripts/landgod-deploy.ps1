@@ -21,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 # ========================
 $DeployKey = "$HOME\.ssh\landgod_deploy"
 $DeployKeyPub = "$HOME\.ssh\landgod_deploy.pub"
-$PackagePath = Join-Path $PSScriptRoot '..\cli-server-0.1.0.tgz'
+$PackagePath = Join-Path $PSScriptRoot '..\landgod-0.1.0.tgz'
 $WsToken = 'hardcoded-token-1234'
 $GatewayUrl = 'ws://localhost:8080'
 
@@ -91,12 +91,12 @@ Log "Node.js 已就绪"
 
 # Step 4: 传输安装包
 Log 'Step 4/9: 传输安装包...'
-& pscp.exe -pw $Pass $PackagePath "${User}@${IP}:/tmp/cli-server-0.1.0.tgz"
+& pscp.exe -pw $Pass $PackagePath "${User}@${IP}:/tmp/landgod-0.1.0.tgz"
 Log '传输完成'
 
 # Step 5: 安装 LandGod
 Log 'Step 5/9: 安装 LandGod...'
-Invoke-SSH 'sudo npm install -g /tmp/cli-server-0.1.0.tgz'
+Invoke-SSH 'sudo npm install -g /tmp/landgod-0.1.0.tgz'
 Log 'LandGod 已安装'
 
 # Step 6: 安装系统依赖
@@ -126,7 +126,7 @@ $configJson = @"
   }
 }
 "@
-Invoke-SSH "sudo tee /usr/lib/node_modules/cli-server/managed-client.config.json > /dev/null << 'EOF'
+Invoke-SSH "sudo tee /usr/lib/node_modules/landgod/managed-client.config.json > /dev/null << 'EOF'
 $configJson
 EOF"
 Log "配置写入完成 (clientId: $clientId)"
@@ -155,7 +155,7 @@ Write-Host ''
 Write-Host '========================================='
 Write-Host '  🔥 焚毁凭据'
 Write-Host '========================================='
-Invoke-SSHKey 'rm -f /tmp/cli-server-0.1.0.tgz'
+Invoke-SSHKey 'rm -f /tmp/landgod-0.1.0.tgz'
 Log '临时文件已清理'
 Log '密码仅在内存中使用，已随进程结束销毁'
 

@@ -43,7 +43,7 @@ build:
 	@echo "✅ 编译完成"
 
 # ============================================
-# Worker 包 (cli-server)
+# Worker 包 (landgod)
 # ============================================
 worker: $(WORKER_PKG)
 
@@ -51,7 +51,7 @@ $(WORKER_PKG):
 	@echo "📦 构建 LandGod Worker..."
 	@mkdir -p $(DOWNLOADS_DIR)
 	cd $(WORKER_SRC) && npm pack --quiet
-	mv $(WORKER_SRC)/cli-server-*.tgz $(WORKER_PKG)
+	mv $(WORKER_SRC)/landgod-*.tgz $(WORKER_PKG)
 	@echo "✅ Worker 包: $(WORKER_PKG)"
 
 # ============================================

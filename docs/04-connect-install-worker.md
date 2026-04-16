@@ -50,7 +50,7 @@ chmod +x /tmp/landgod-deploy.sh
 npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-0.1.0.tgz
 
 # 2. 安装 Electron 依赖（Electron 模式）或跳过（Headless 模式）
-cd $(node -e "console.log(require.resolve('cli-server/package.json').replace('/package.json',''))")
+cd $(node -e "console.log(require.resolve('landgod/package.json').replace('/package.json',''))")
 npm install  # Electron 模式需要
 
 # 3. 系统依赖（Linux Electron 模式）
