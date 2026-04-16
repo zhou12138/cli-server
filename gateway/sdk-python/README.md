@@ -5,13 +5,13 @@ Agent Sidecar Gateway for remote device management.
 ## Install
 
 ```bash
-pip install landgod-link
+pip install landgod-gateway
 ```
 
 ## Usage
 
 ```python
-from landgod_link import LandGod
+from landgod_gateway import LandGod
 
 link = LandGod('http://localhost:8081')
 result = link.execute_sync('hostname', target='ZhouTest4')

@@ -13,14 +13,14 @@
 
 DOWNLOADS_DIR = downloads
 WORKER_SRC = .
-GATEWAY_NODE_SRC = clawlink/sdk-node
-GATEWAY_PY_SRC = clawlink/sdk-python
+GATEWAY_NODE_SRC = gateway/sdk-node
+GATEWAY_PY_SRC = gateway/sdk-python
 
 # 产物文件名
-WORKER_PKG = $(DOWNLOADS_DIR)/cli-server-0.1.0.tgz
-GATEWAY_NODE_PKG = $(DOWNLOADS_DIR)/landgod-link-0.1.0.tgz
-GATEWAY_PY_WHL = $(DOWNLOADS_DIR)/landgod_link-0.1.0-py3-none-any.whl
-GATEWAY_PY_SDIST = $(DOWNLOADS_DIR)/landgod_link-0.1.0.tar.gz
+WORKER_PKG = $(DOWNLOADS_DIR)/landgod-0.1.0.tgz
+GATEWAY_NODE_PKG = $(DOWNLOADS_DIR)/landgod-gateway-0.1.0.tgz
+GATEWAY_PY_WHL = $(DOWNLOADS_DIR)/landgod_gateway-0.1.0-py3-none-any.whl
+GATEWAY_PY_SDIST = $(DOWNLOADS_DIR)/landgod_gateway-0.1.0.tar.gz
 
 .PHONY: all worker gateway gateway-node gateway-python clean
 
@@ -66,7 +66,7 @@ $(GATEWAY_NODE_PKG):
 	@echo "📦 构建 LandGod-Link Gateway (Node.js)..."
 	@mkdir -p $(DOWNLOADS_DIR)
 	cd $(GATEWAY_NODE_SRC) && npm pack --quiet
-	mv $(GATEWAY_NODE_SRC)/landgod-link-*.tgz $(GATEWAY_NODE_PKG)
+	mv $(GATEWAY_NODE_SRC)/landgod-gateway-*.tgz $(GATEWAY_NODE_PKG)
 	@echo "✅ Gateway Node.js 包: $(GATEWAY_NODE_PKG)"
 
 # Python Gateway
@@ -76,8 +76,8 @@ $(GATEWAY_PY_WHL) $(GATEWAY_PY_SDIST):
 	@echo "📦 构建 LandGod-Link Gateway (Python)..."
 	@mkdir -p $(DOWNLOADS_DIR)
 	cd $(GATEWAY_PY_SRC) && python3 -m build --quiet 2>/dev/null || python3 -m build
-	cp $(GATEWAY_PY_SRC)/dist/landgod_link-*.whl $(GATEWAY_PY_WHL)
-	cp $(GATEWAY_PY_SRC)/dist/landgod_link-*.tar.gz $(GATEWAY_PY_SDIST)
+	cp $(GATEWAY_PY_SRC)/dist/landgod_gateway-*.whl $(GATEWAY_PY_WHL)
+	cp $(GATEWAY_PY_SRC)/dist/landgod_gateway-*.tar.gz $(GATEWAY_PY_SDIST)
 	@echo "✅ Gateway Python 包: $(GATEWAY_PY_WHL) $(GATEWAY_PY_SDIST)"
 
 # ============================================

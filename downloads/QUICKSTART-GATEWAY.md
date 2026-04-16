@@ -1,28 +1,28 @@
 # 🚀 快速开始：安装 Gateway
 
-> Gateway（landgod-link）是 Agent 的边车服务，部署在 Agent 同一台机器上。
+> Gateway（landgod-gateway）是 Agent 的边车服务，部署在 Agent 同一台机器上。
 
 ## 一键安装
 
 ```bash
-npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-link-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-gateway-0.1.0.tgz
 ```
 
 或从本地：
 ```bash
-npm install -g ./landgod-link-0.1.0.tgz
+npm install -g ./landgod-gateway-0.1.0.tgz
 ```
 
 ## 启动
 
 ```bash
-landgod-link start --daemon
+landgod-gateway start --daemon
 ```
 
 ## 验证
 
 ```bash
-landgod-link status
+landgod-gateway status
 curl -s http://localhost:8081/health
 ```
 
@@ -56,27 +56,27 @@ API: http://localhost:8081
 
 ```bash
 # Linux systemd
-sudo tee /etc/systemd/system/landgod-link.service > /dev/null << 'EOF'
+sudo tee /etc/systemd/system/landgod-gateway.service > /dev/null << 'EOF'
 [Unit]
 Description=LandGod-Link Gateway
 After=network.target
 [Service]
 Type=simple
 User=$USER
-ExecStart=landgod-link start
+ExecStart=landgod-gateway start
 Restart=always
 RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
-sudo systemctl daemon-reload && sudo systemctl enable landgod-link
+sudo systemctl daemon-reload && sudo systemctl enable landgod-gateway
 ```
 
 ## Python 版本（可选）
 
 ```bash
-pip install ./landgod_link-0.1.0-py3-none-any.whl
-pip install landgod-link[redis]  # 分布式支持
+pip install ./landgod_gateway-0.1.0-py3-none-any.whl
+pip install landgod-gateway[redis]  # 分布式支持
 ```
 
 ## 下一步

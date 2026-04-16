@@ -9,7 +9,7 @@ const { generateKeyPairSync, createHash, sign, randomUUID } = require('node:cryp
 const AUTH_TOKEN = process.env.LANDGOD_AUTH_TOKEN || "hardcoded-token-1234";
 const WS_PORT = parseInt(process.env.LANDGOD_WS_PORT || "8080");
 const HTTP_PORT = parseInt(process.env.LANDGOD_HTTP_PORT || "8081");
-const DATA_DIR = process.env.LANDGOD_DATA_DIR || require('path').join(require('os').homedir(), '.landgod-link');
+const DATA_DIR = process.env.LANDGOD_DATA_DIR || require('path').join(require('os').homedir(), '.landgod-gateway');
 
 // ========================
 // 生成 Ed25519 密钥对

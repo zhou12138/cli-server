@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * landgod-link — Agent Sidecar Gateway
+ * landgod-gateway — Agent Sidecar Gateway
  * 
  * Usage:
- *   landgod-link start [options]
- *   landgod-link status
- *   landgod-link stop
+ *   landgod-gateway start [options]
+ *   landgod-gateway status
+ *   landgod-gateway stop
  * 
  * Options:
  *   --port <port>       HTTP API port (default: 8081)
  *   --ws-port <port>    WebSocket port (default: 8080)
- *   --data-dir <dir>    Data directory (default: ~/.landgod-link)
+ *   --data-dir <dir>    Data directory (default: ~/.landgod-gateway)
  *   --daemon            Run in background
  */
 
@@ -19,7 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
-const DATA_DIR = process.env.LANDGOD_LINK_DATA || path.join(require('os').homedir(), '.landgod-link');
+const DATA_DIR = process.env.LANDGOD_LINK_DATA || path.join(require('os').homedir(), '.landgod-gateway');
 const PID_FILE = path.join(DATA_DIR, 'gateway.pid');
 const LOG_FILE = path.join(DATA_DIR, 'gateway.log');
 const SERVER_SCRIPT = path.join(__dirname, '..', 'server', 'index.js');
@@ -28,22 +28,22 @@ function ensureDir(dir) { fs.mkdirSync(dir, { recursive: true }); }
 
 function printUsage() {
     console.log(`
-landgod-link — Agent Sidecar Gateway 🏮
+landgod-gateway — Agent Sidecar Gateway 🏮
 
 Usage:
-  landgod-link start [options]    Start the gateway
-  landgod-link stop               Stop the gateway
-  landgod-link status             Show gateway status
-  landgod-link --help             Show this help
+  landgod-gateway start [options]    Start the gateway
+  landgod-gateway stop               Stop the gateway
+  landgod-gateway status             Show gateway status
+  landgod-gateway --help             Show this help
 
 Options:
   --port <port>       HTTP API port (default: 8081)
   --ws-port <port>    WebSocket port for Workers (default: 8080)
-  --data-dir <dir>    Data directory (default: ~/.landgod-link)
+  --data-dir <dir>    Data directory (default: ~/.landgod-gateway)
   --daemon            Run in background
 
 Quick Start:
-  1. landgod-link start
+  1. landgod-gateway start
   2. Tell your Agent: POST http://localhost:8081/tool_call
 
 API Endpoints:

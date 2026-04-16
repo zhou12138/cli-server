@@ -30,7 +30,7 @@
 ### ✅ 已完成
 - [x] Gateway Token 管理 API（POST/GET/DELETE /tokens）
 - [x] MCP Server 默认 publishedRemotely=true, trustLevel=trusted
-- [x] landgod-link systemd 服务（Gateway 开机自启 + 崩溃自动重启）
+- [x] landgod-gateway systemd 服务（Gateway 开机自启 + 崩溃自动重启）
 - [x] headless-bootstrap.js（Electron mock，纯 Node.js 运行）
 - [x] Makefile 含 vite 编译（make = 编译 + 打包）
 - [x] Python SDK 分布式状态存储（memory / Redis）
@@ -70,7 +70,7 @@
 ### ✅ 已完成
 - [x] `docs/SETUP.md` — 完整搭建指南
 - [x] `docs/DOWNLOADS.md` — 产物说明 + API 文档
-- [x] `docs/01-landgod-link-api.md` — API 参考 + 端口说明
+- [x] `docs/01-landgod-gateway-api.md` — API 参考 + 端口说明
 - [x] `docs/02-mcp-ws-protocol.md` — WebSocket 协议规范
 - [x] `docs/03-deploy-gateway.md` — Gateway 部署指南
 - [x] `docs/04-connect-install-worker.md` — 连接安装 Worker
@@ -86,13 +86,13 @@
 
 ### ✅ 已完成
 - [x] `clawnode` → `landgod`
-- [x] `clawlink` → `landgod-link`
+- [x] `gateway` → `landgod-gateway`
 - [x] `XClawNode` → `LandGod`
 - [x] 旧文件清理（clawnode.js, XClawNode.sh 等）
 
 ### 🔲 待开发
-- [ ] **P3** 仓库名 `cli-server` → `landgod`（需要你操作 GitHub）
-- [ ] **P3** `clawlink/` 目录 → `packages/`（monorepo 标准化）
+- [ ] **P3** 仓库名 `landgod` → `landgod`（需要你操作 GitHub）
+- [ ] **P3** `gateway/` 目录 → `packages/`（monorepo 标准化）
 
 ## 已知问题
 

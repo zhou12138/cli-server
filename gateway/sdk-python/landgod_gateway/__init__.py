@@ -2,7 +2,7 @@
 LandGod Link — Python SDK for AI Agent remote device management
 
 Usage:
-    from landgod_link import LandGod
+    from landgod_gateway import LandGod
     
     link = LandGod('http://localhost:8081')
     
@@ -25,7 +25,7 @@ from typing import Optional, Any
 import uuid
 
 
-from landgod_link.store import create_store, StateStore, MemoryStore, RedisStore
+from landgod_gateway.store import create_store, StateStore, MemoryStore, RedisStore
 
 
 class LandGod:

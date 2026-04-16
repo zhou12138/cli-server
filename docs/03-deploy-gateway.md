@@ -9,30 +9,30 @@
 
 ```bash
 # 从 GitHub 安装
-npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-link-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-gateway-0.1.0.tgz
 
 # 或从本地文件
-npm install -g ./downloads/landgod-link-0.1.0.tgz
+npm install -g ./downloads/landgod-gateway-0.1.0.tgz
 ```
 
 ## 启动
 
 ```bash
 # 后台启动（推荐）
-landgod-link start --daemon
+landgod-gateway start --daemon
 
 # 前台启动（调试）
-landgod-link start
+landgod-gateway start
 
 # 自定义端口
-landgod-link start --daemon --port 9081 --ws-port 9080
+landgod-gateway start --daemon --port 9081 --ws-port 9080
 ```
 
 ## 验证
 
 ```bash
 # 检查状态
-landgod-link status
+landgod-gateway status
 
 # 测试 API
 curl -s http://localhost:8081/health
@@ -46,16 +46,16 @@ curl -s http://localhost:8081/health
 ## 管理
 
 ```bash
-landgod-link status     # 查看状态
-landgod-link stop       # 停止
+landgod-gateway status     # 查看状态
+landgod-gateway stop       # 停止
 ```
 
 ## 数据目录
 
-默认：`~/.landgod-link/`
+默认：`~/.landgod-gateway/`
 
 ```
-~/.landgod-link/
+~/.landgod-gateway/
 ├── gateway.pid      进程 PID
 ├── gateway.log      运行日志
 └── tokens.json      Token 注册表
@@ -75,7 +75,7 @@ Agent 用自带的 HTTP 能力调用即可，不需要安装 SDK。
 
 ### Linux (systemd)
 ```bash
-sudo tee /etc/systemd/system/landgod-link.service > /dev/null << 'EOF'
+sudo tee /etc/systemd/system/landgod-gateway.service > /dev/null << 'EOF'
 [Unit]
 Description=LandGod-Link Gateway
 After=network.target
@@ -83,7 +83,7 @@ After=network.target
 [Service]
 Type=simple
 User=YOUR_USER
-ExecStart=/usr/bin/env landgod-link start
+ExecStart=/usr/bin/env landgod-gateway start
 Restart=always
 RestartSec=5
 
@@ -92,6 +92,6 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable landgod-link
-sudo systemctl start landgod-link
+sudo systemctl enable landgod-gateway
+sudo systemctl start landgod-gateway
 ```

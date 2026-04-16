@@ -159,21 +159,21 @@ Worker 连接 `ws://GATEWAY:8080/api/mcphub/ws`，使用 Bearer Token 认证。
 
 ### 安装
 ```bash
-npm install -g landgod-link-0.1.0.tgz
+npm install -g landgod-gateway-0.1.0.tgz
 ```
 
 ### CLI
 ```bash
-landgod-link start [--daemon] [--port 8081] [--ws-port 8080]
-landgod-link stop
-landgod-link status
+landgod-gateway start [--daemon] [--port 8081] [--ws-port 8080]
+landgod-gateway stop
+landgod-gateway status
 ```
 
 ### 配置
 环境变量：
 - `LANDGOD_HTTP_PORT` — HTTP 端口（默认 8081）
 - `LANDGOD_WS_PORT` — WebSocket 端口（默认 8080）
-- `LANDGOD_DATA_DIR` — 数据目录（默认 ~/.landgod-link）
+- `LANDGOD_DATA_DIR` — 数据目录（默认 ~/.landgod-gateway）
 - `LANDGOD_AUTH_TOKEN` — 默认认证 Token
 
 ---
@@ -182,13 +182,13 @@ landgod-link status
 
 ### 安装
 ```bash
-pip install landgod_link-0.1.0-py3-none-any.whl
-pip install landgod-link[redis]  # 可选 Redis 支持
+pip install landgod_gateway-0.1.0-py3-none-any.whl
+pip install landgod-gateway[redis]  # 可选 Redis 支持
 ```
 
 ### 使用
 ```python
-from landgod_link import LandGod
+from landgod_gateway import LandGod
 
 # 单机模式
 link = LandGod('http://localhost:8081', store='memory')

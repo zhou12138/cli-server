@@ -4,10 +4,10 @@
 
 | 包 | 用途 | 安装对象 |
 |---|------|---------|
-| `cli-server-0.1.0.tgz` | LandGod Worker（土地公） | 远程设备 |
-| `landgod-link-0.1.0.tgz` | Gateway 网关 (Node.js) | Agent 同机 |
-| `landgod_link-0.1.0-py3-none-any.whl` | Gateway 网关 (Python) | Agent 同机 |
-| `landgod_link-0.1.0.tar.gz` | Gateway 网关 (Python 源码) | Agent 同机 |
+| `landgod-0.1.0.tgz` | LandGod Worker（土地公） | 远程设备 |
+| `landgod-gateway-0.1.0.tgz` | Gateway 网关 (Node.js) | Agent 同机 |
+| `landgod_gateway-0.1.0-py3-none-any.whl` | Gateway 网关 (Python) | Agent 同机 |
+| `landgod_gateway-0.1.0.tar.gz` | Gateway 网关 (Python 源码) | Agent 同机 |
 
 ## 快速开始
 

@@ -47,7 +47,7 @@ chmod +x /tmp/landgod-deploy.sh
 # 在目标机器上执行
 
 # 1. 安装 Worker
-npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/cli-server-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-0.1.0.tgz
 
 # 2. 安装 Electron 依赖（Electron 模式）或跳过（Headless 模式）
 cd $(node -e "console.log(require.resolve('cli-server/package.json').replace('/package.json',''))")
@@ -65,7 +65,7 @@ sudo apt-get install -y libgtk-3-0 libnss3 libasound2t64 libcups2 xvfb
 
 ```bash
 # 一键安装
-npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/cli-server-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-0.1.0.tgz
 ```
 
 然后按 [05-onboard-landgod.md](./05-onboard-landgod.md) 配置。

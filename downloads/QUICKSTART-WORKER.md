@@ -5,7 +5,7 @@
 ## 一键安装
 
 ```bash
-npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/cli-server-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-0.1.0.tgz
 ```
 
 ## 选择运行模式
