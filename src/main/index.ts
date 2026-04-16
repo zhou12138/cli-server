@@ -41,9 +41,9 @@ if (process.platform === 'win32') {
 
 function configureElectronStoragePaths(): void {
   // Keep Chromium cache in a known writable location to avoid AccessDenied cache errors on Windows.
-  const baseDir = process.env.XCLAW_NODE_DATA_DIR?.trim()
-    ? path.resolve(process.env.XCLAW_NODE_DATA_DIR)
-    : path.resolve(process.cwd(), '.xclaw-node-data');
+  const baseDir = process.env.LANDGOD_DATA_DIR?.trim()
+    ? path.resolve(process.env.LANDGOD_DATA_DIR)
+    : path.resolve(process.cwd(), '.landgod-data');
   const sessionDir = path.join(baseDir, 'session');
   const cacheDir = path.join(sessionDir, 'Cache');
 

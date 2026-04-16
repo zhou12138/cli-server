@@ -9,7 +9,7 @@ const { spawn, spawnSync } = require('node:child_process');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const CONFIG_PATH = path.join(ROOT_DIR, 'managed-client.config.json');
-const DATA_DIR = path.join(ROOT_DIR, '.xclaw-node-data');
+const DATA_DIR = path.join(ROOT_DIR, '.landgod-data');
 const DAEMON_META_PATH = path.join(DATA_DIR, 'daemon.json');
 const DAEMON_LOG_PATH = path.join(DATA_DIR, 'daemon.log');
 const ACTIVITIES_PATH = path.join(DATA_DIR, 'activities.jsonl');
@@ -346,7 +346,7 @@ function startDaemon(useHeadlessNode = false) {
   const commonEnv = {
     ...process.env,
     DISPLAY: process.env.DISPLAY || ':99',
-    XCLAW_NODE_DATA_DIR: DATA_DIR,
+    LANDGOD_DATA_DIR: DATA_DIR,
   };
 
   if (useHeadlessNode) {
@@ -791,7 +791,7 @@ function launchHeadlessForeground() {
     stdio: 'inherit',
     env: {
       ...process.env,
-      XCLAW_NODE_DATA_DIR: DATA_DIR,
+      LANDGOD_DATA_DIR: DATA_DIR,
     },
   });
 

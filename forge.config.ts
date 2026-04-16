@@ -8,15 +8,15 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    name: 'X Claw Node',
-    executableName: 'xclaw-node', // 设置输出的二进制文件名
+    name: 'LandGod Worker',
+    executableName: 'landgod', // 设置输出的二进制文件名
     dir: '.',
   },
   makers: [
     new MakerSquirrel({ name: 'cli-server', authors: 'CLI Server' }),
     new MakerDMG({ format: 'ULFO' }),
-    new MakerDeb({ options: { name: 'xclaw-node', bin: 'xclaw-node' } }),
-    new MakerRpm({ options: { name: 'xclaw-node', bin: 'xclaw-node', license: 'MIT' } }),
+    new MakerDeb({ options: { name: 'landgod', bin: 'landgod' } }),
+    new MakerRpm({ options: { name: 'landgod', bin: 'landgod', license: 'MIT' } }),
   ],
   plugins: [
     new VitePlugin({

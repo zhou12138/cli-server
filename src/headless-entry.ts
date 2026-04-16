@@ -6,7 +6,7 @@
  *   --managed-client-mcp-ws-only      仅运行 managed client（无 HTTP server）
  * 
  * 环境变量:
- *   XCLAW_NODE_DATA_DIR   数据目录（默认: .xclaw-node-data）
+ *   LANDGOD_DATA_DIR   数据目录（默认: .landgod-data）
  *   DISPLAY               虚拟显示（Linux headless 用）
  */
 
@@ -23,11 +23,11 @@ import { emitServerEvent, onServerEvent } from './server';
 // 数据目录（替代 Electron 的 app.getPath）
 // ========================
 const ROOT_DIR = path.resolve(__dirname, '..');
-const DATA_DIR = process.env.XCLAW_NODE_DATA_DIR || path.join(ROOT_DIR, '.xclaw-node-data');
+const DATA_DIR = process.env.LANDGOD_DATA_DIR || path.join(ROOT_DIR, '.landgod-data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 // 设置全局数据目录供 logger 使用
-process.env.XCLAW_NODE_DATA_DIR = DATA_DIR;
+process.env.LANDGOD_DATA_DIR = DATA_DIR;
 
 // ========================
 // 初始化

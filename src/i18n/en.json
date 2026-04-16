@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "X  Claw Node",
-    "managedTitle": "X  Claw Node"
+    "title": "LandGod Worker",
+    "managedTitle": "LandGod Worker"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -410,7 +410,7 @@
     "securityNotice": "Security guardrails will be available in a future release. For now, the server accepts all connections and commands without restriction. Use with caution.",
     "about": "About",
     "aboutDescription": "CLI Server provides a local WebSocket + HTTP gateway for web-based AI agents to execute CLI commands on your machine. It runs a persistent background service on the configured port and logs all command executions for audit purposes.",
-    "aboutDescriptionMcpWs": "X Claw Node is a managed desktop MCP client that connects to a remote MCP Hub via WebSocket. It exposes local tools — shell execution, file access, and external MCP servers — to the remote side under configurable permission profiles, approval gates, and defense layers. All tool calls are audited locally.",
+    "aboutDescriptionMcpWs": "LandGod Worker is a managed desktop MCP client that connects to a remote MCP Hub via WebSocket. It exposes local tools — shell execution, file access, and external MCP servers — to the remote side under configurable permission profiles, approval gates, and defense layers. All tool calls are audited locally.",
     "version": "Version 0.1.0 (MVP)",
     "language": "Language",
     "languageDescription": "Interface language (requires restart for tray menu)",

@@ -233,7 +233,7 @@ Wants=landgod-tunnel.service
 [Service]
 Type=simple
 Environment=DISPLAY=:99
-Environment=XCLAW_NODE_DATA_DIR=$CLAWNODE_ROOT/.xclaw-node-data
+Environment=LANDGOD_DATA_DIR=$CLAWNODE_ROOT/.landgod-data
 ExecStart=$ELECTRON_BIN --no-sandbox --disable-gpu $CLAWNODE_ROOT --enable-managed-client-mcp-ws --managed-client-mcp-ws-only
 Restart=always
 RestartSec=10
