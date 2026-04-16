@@ -46,7 +46,7 @@ async def clients(request: web.Request) -> web.Response:
     result = []
     seen = set()
     for cid, info in gw.ws_handler.connections.items():
-        if not info["ws"].closed and info["binding"]:
+        if info["ws"].protocol.state.name != "CLOSED" and info["binding"]:
             seen.add(cid)
             result.append({
                 "connectionId": cid,

@@ -21,14 +21,16 @@ class WSHandler:
         # connection_id -> {ws, binding, pending_requests, token}
         self.connections: dict[str, dict] = {}
 
-    async def handle(self, websocket, path: str) -> None:
+    async def handle(self, websocket) -> None:
         # Only accept /api/mcphub/ws
+        # websockets >= 13: path from request
+        path = websocket.request.path if hasattr(websocket, 'request') and websocket.request else "/api/mcphub/ws"
         if path != "/api/mcphub/ws":
             await websocket.close(4000, "Invalid path")
             return
 
         # Token auth
-        auth = websocket.request_headers.get("Authorization", "")
+        auth = websocket.request.headers.get("Authorization", "")
         token = auth.split(" ", 1)[1] if auth.startswith("Bearer ") else ""
         if not await self.gw.is_valid_token(token):
             logger.warning("Connection rejected: invalid token")
@@ -201,7 +203,7 @@ class WSHandler:
             return None
 
         ws = conn["ws"]
-        if ws.closed:
+        if ws.protocol.state.name == "CLOSED":
             return None
 
         request_id = f"tool_call-{uuid.uuid4()}"
@@ -233,13 +235,13 @@ class WSHandler:
     def find_connection_by_client_name(self, client_name: str) -> str | None:
         """Find local connection_id by clientName."""
         for cid, info in self.connections.items():
-            if info["binding"] and info["binding"]["clientName"] == client_name and not info["ws"].closed:
+            if info["binding"] and info["binding"]["clientName"] == client_name and info["ws"].protocol.state.name != "CLOSED":
                 return cid
         return None
 
     def get_first_open_connection(self) -> str | None:
         for cid, info in self.connections.items():
-            if not info["ws"].closed:
+            if info["ws"].protocol.state.name != "CLOSED":
                 return cid
         return None
 
