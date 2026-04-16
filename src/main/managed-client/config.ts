@@ -272,18 +272,29 @@ export function saveManagedClientFileConfig(config: ManagedClientFileConfig): vo
 
 export function getBuiltInToolsSecurityConfig(): BuiltInToolsSecurityConfig {
   const config = normalizeBuiltInToolsSecurityConfig(loadManagedClientFileConfig().builtInTools);
+  const defaults = getBuiltInToolsSecurityConfigForProfile(config.permissionProfile);
+
+  // 如果用户未配置白名单（空数组），使用 profile 默认值
+  const execNames = config.shellExecute.allowedExecutableNames.length === 0
+    ? defaults.shellExecute.allowedExecutableNames
+    : config.shellExecute.allowedExecutableNames;
 
   // 运行时填充默认工作目录（如果用户未配置）
-  if (config.shellExecute.allowedWorkingDirectories.length === 0) {
+  let workDirs = config.shellExecute.allowedWorkingDirectories;
+  if (workDirs.length === 0) {
     const os = require('node:os');
     const p = require('node:path');
-    const home = os.homedir();
-    const tmp = os.tmpdir();
-    const installDir = p.resolve(process.cwd());
-    config.shellExecute.allowedWorkingDirectories = [home, tmp, installDir];
+    workDirs = [os.homedir(), os.tmpdir(), p.resolve(process.cwd())];
   }
 
-  return config;
+  return {
+    ...config,
+    shellExecute: {
+      ...config.shellExecute,
+      allowedExecutableNames: execNames,
+      allowedWorkingDirectories: workDirs,
+    },
+  };
 }
 
 export function saveBuiltInToolsSecurityConfig(config: BuiltInToolsSecurityConfig): void {

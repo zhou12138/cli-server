@@ -368,7 +368,7 @@ function startDaemon(useHeadlessNode = false) {
   } else {
     // Electron 模式（默认）
     const electronBinary = ensureElectronBinary();
-    child = spawn(electronBinary, ["--no-sandbox", "--disable-gpu", ...buildHeadlessArgs()], {
+    child = spawn(electronBinary, ["--no-sandbox", "--disable-gpu", "--disable-software-rasterizer", "--in-process-gpu", ...buildHeadlessArgs()], {
       cwd: ROOT_DIR,
       detached: true,
       stdio: ['ignore', logFd, logFd],
