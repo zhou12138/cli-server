@@ -71,9 +71,22 @@ function startGateway(args) {
 
     const existingPid = getPid();
     if (existingPid) {
-        console.log(`Gateway is already running (pid ${existingPid})`);
-        return;
+        console.log(`Stopping old gateway (pid ${existingPid})...`);
+        try { process.kill(existingPid); } catch {}
+        try { fs.unlinkSync(PID_FILE); } catch {}
+        // Wait for port release
+        const { execSync } = require('child_process');
+        try { execSync(`sleep 1`); } catch {}
     }
+
+    // Check port availability
+    const net = require('net');
+    const portCheck = (p) => new Promise((resolve) => {
+        const s = net.createServer();
+        s.once('error', () => resolve(false));
+        s.once('listening', () => { s.close(); resolve(true); });
+        s.listen(p);
+    });
 
     ensureDir(dataDir);
 

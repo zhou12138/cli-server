@@ -147,6 +147,13 @@ const connectedClients = new Map(); // connectionId -> { client, binding }
 // WebSocket 服务
 // ========================
 const server = new WebSocket.Server({ port: WS_PORT });
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`ERROR: Port ${WS_PORT} is already in use. Kill the old process first.`);
+        process.exit(1);
+    }
+    console.error('WebSocket server error:', err.message);
+});
 console.log(`WebSocket server running at ws://0.0.0.0:${WS_PORT}`);
 
 server.on("connection", (client, req) => {

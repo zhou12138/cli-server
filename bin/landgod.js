@@ -334,9 +334,15 @@ function startDaemon(useHeadlessNode = false) {
   }
 
   const existing = getDaemonMeta();
-  if (existing && isProcessRunning(existing.pid)) {
-    console.log(`Daemon is already running (pid ${existing.pid}).`);
-    return;
+  if (existing && existing.pid) {
+    if (isProcessRunning(existing.pid)) {
+      console.log(`Stopping old daemon (pid ${existing.pid})...`);
+      try { process.kill(existing.pid); } catch {}
+    }
+    clearDaemonMeta();
+    // Wait for process cleanup
+    const wait = (ms) => { const end = Date.now() + ms; while (Date.now() < end) {} };
+    wait(2000);
   }
 
   ensureDir(DATA_DIR);
