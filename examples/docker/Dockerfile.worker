@@ -1,0 +1,13 @@
+FROM node:22-alpine
+
+# 安装 LandGod Worker (Headless 模式，无需 Electron)
+COPY downloads/landgod-0.1.0.tgz /tmp/
+RUN npm install -g /tmp/landgod-0.1.0.tgz && rm /tmp/*.tgz
+
+# 配置文件（运行时挂载或构建时注入）
+COPY examples/config-templates/managed-client.config.json \
+     /usr/local/lib/node_modules/landgod/managed-client.config.json
+
+WORKDIR /usr/local/lib/node_modules/landgod
+
+CMD ["node", "bin/headless-bootstrap.js"]

@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # Gateway — Agent 边车网关
+  gateway:
+    build:
+      context: ../../
+      dockerfile: examples/docker/Dockerfile.gateway
+    ports:
+      - "8081:8081"   # Agent HTTP API
+      - "8080:8080"   # Worker WebSocket
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Worker — 土地公 (Headless)
+  worker:
+    build:
+      context: ../../
+      dockerfile: examples/docker/Dockerfile.worker
+    depends_on:
+      gateway:
+        condition: service_healthy
+    environment:
+      - LANDGOD_GATEWAY_URL=ws://gateway:8080
+    restart: always
+
+  # 多个 Worker 示例
+  # worker-2:
+  #   build:
+  #     context: ../../
+  #     dockerfile: examples/docker/Dockerfile.worker
+  #   depends_on:
+  #     gateway:
+  #       condition: service_healthy
+  #   environment:
+  #     - LANDGOD_GATEWAY_URL=ws://gateway:8080
+  #   restart: always

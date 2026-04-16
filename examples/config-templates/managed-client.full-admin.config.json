@@ -1,0 +1,25 @@
+{
+  "clientId": "REPLACE_WITH_UUID",
+  "clientName": "REPLACE_WITH_DEVICE_NAME",
+  "enabled": true,
+  "mode": "managed-client-mcp-ws",
+  "bootstrapBaseUrl": "ws://REPLACE_WITH_GATEWAY:8080",
+  "token": "REPLACE_WITH_TOKEN",
+  "toolCallApprovalMode": "auto",
+  "builtInTools": {
+    "permissionProfile": "full-local-admin",
+    "shellExecute": {
+      "enabled": true,
+      "allowedExecutableNames": [
+        "git", "node", "npm", "npx", "python", "python3",
+        "echo", "ls", "cat", "whoami", "hostname", "uname", "pwd", "curl",
+        "free", "df", "ps", "nproc", "grep", "wc",
+        "mkdir", "rm", "cp", "mv"
+      ],
+      "allowedWorkingDirectories": [
+        "/home/REPLACE_WITH_USER",
+        "/tmp"
+      ]
+    }
+  }
+}
