@@ -804,51 +804,65 @@ function launchHeadlessForeground() {
 
 async function runOnboard() {
   console.log('========================================');
-  console.log('  XLandGod Onboarding');
+  console.log('  LandGod Worker Setup');
   console.log('========================================');
+  console.log('');
 
-  if (await askYesNo('Install dependencies now?', true)) {
-    runCommand(getNpmCommand(), ['install']);
-  }
-
-  const modeLabel = await askChoice('Choose startup mode:', ['GUI (图形界面)', 'Headless (无界面，推荐)'], 0);
-  let useHeadless = modeLabel === 'Headless (无界面，推荐)';
   const currentConfig = loadConfig();
-  const baseUrl = await askInput('Managed MCP base URL', currentConfig.bootstrapBaseUrl || currentConfig.baseUrl || '');
-  const token = await askInput('Managed MCP bearer token (optional)', '');
+
+  // Step 1: 选择模式
+  const modeLabel = await askChoice('Choose mode:', ['GUI (图形界面)', 'Headless (无界面，推荐)'], 1);
+  let useHeadless = modeLabel === 'Headless (无界面，推荐)';
+
+  // Step 2: Gateway URL
+  const baseUrl = await askInput('Gateway URL', currentConfig.bootstrapBaseUrl || currentConfig.baseUrl || 'ws://localhost:8080');
+
+  // Step 3: Token
+  const token = await askInput('Token (optional)', currentConfig.token || '');
 
   if (token && !useHeadless) {
-    console.log('Static token detected. Switching to headless mode because no renderer sign-in is required.');
+    console.log('Token detected. Switching to headless mode.');
     useHeadless = true;
   }
 
-  const seed = {
+  // Step 4: Permission profile
+  const permissionProfile = await askChoice('Permission level:', PERMISSION_PROFILES, 1);
+
+  // Step 5: 安装依赖（GUI 模式需要 Electron）
+  if (!useHeadless) {
+    console.log('');
+    console.log('GUI mode requires Electron. Installing dependencies...');
+    runCommand(getNpmCommand(), ['install']);
+  }
+
+  // 保存配置
+  const config = {
+    ...currentConfig,
+    clientId: ensureClientId(currentConfig),
     enabled: true,
     mode: 'managed-client-mcp-ws',
     bootstrapBaseUrl: baseUrl,
     token: token || currentConfig.token,
+    toolCallApprovalMode: 'auto',
+    builtInTools: mergeBuiltInTools(currentConfig, { permissionProfile }),
   };
 
-  if (!useHeadless) {
-    seed.signinPageUrl = await askInput('Sign-in page URL (optional)', currentConfig.signinPageUrl || '');
-  }
+  saveConfig(config);
+  console.log('');
+  console.log('Config saved.');
 
-  await runConfigWizard(seed);
-
-  if (await askYesNo('Build distributable bundle now?', true)) {
-    runCommand(getNpmCommand(), ['run', 'make']);
-  }
-
-  if (useHeadless) {
-    if (await askYesNo('Run headless mode as a background daemon?', true)) {
-      startDaemon();
-      return;
+  // Step 6: 启动
+  if (await askYesNo('Start now?', true)) {
+    if (useHeadless) {
+      startDaemon(true);
+    } else {
+      startDaemon(false);
     }
-    launchHeadlessForeground();
-    return;
+  } else {
+    console.log('');
+    console.log('To start later:');
+    console.log(useHeadless ? '  landgod start --headless' : '  landgod start');
   }
-
-  launchUiMode();
 }
 
 async function main() {
