@@ -9,10 +9,10 @@ managed-client.mcp-servers.json
 managed-client-workspace/
 .playwright-mcp/
 .superpowers/
-.xclaw-node-data/
+.landgod-data/
 bin/
 # Runtime data (不提交)
-.xclaw-node-data/
+.landgod-data/
 managed-client.config.json
 managed-client.mcp-servers.json
 

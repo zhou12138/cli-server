@@ -9,7 +9,7 @@ const { spawn, spawnSync } = require('node:child_process');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const CONFIG_PATH = path.join(ROOT_DIR, 'managed-client.config.json');
-const DATA_DIR = path.join(ROOT_DIR, '.xclaw-node-data');
+const DATA_DIR = path.join(ROOT_DIR, '.landgod-data');
 const DAEMON_META_PATH = path.join(DATA_DIR, 'daemon.json');
 const DAEMON_LOG_PATH = path.join(DATA_DIR, 'daemon.log');
 const ACTIVITIES_PATH = path.join(DATA_DIR, 'activities.jsonl');
@@ -23,17 +23,19 @@ function printUsage() {
   console.log('Usage: landgod <command>');
   console.log('');
   console.log('Commands:');
-  console.log('  onboard             Run interactive onboarding wizard');
-  console.log('  daemon start        Start headless daemon (default: Electron mode)');
-  console.log('  daemon start --headless  Start in pure Node.js mode (no Electron needed)');
-  console.log('  daemon stop         Stop the background daemon');
-  console.log('  health              Show daemon and managed client health');
-  console.log('  logs [--follow]     Show daemon stdout/stderr log');
-  console.log('  activities          Show structured activity log entries');
-  console.log('  audit log           Show structured audit log entries');
-  console.log('  config              Edit managed-client.config.json interactively');
-  console.log('  config show         Print managed-client.config.json');
-  console.log('  config set k v      Set config value non-interactively');
+  console.log('  onboard                   Interactive setup wizard');
+  console.log('  start                     Start worker daemon');
+  console.log('  start --headless          Start in headless mode (no GUI, recommended for servers)');
+  console.log('  stop                      Stop worker daemon');
+  console.log('  status                    Show worker status');
+  console.log('  logs [--follow]           Show daemon logs');
+  console.log('  activities                Show activity log');
+  console.log('  audit                     Show audit log');
+  console.log('  audit clear               Clear audit log');
+  console.log('  config                    Edit config interactively');
+  console.log('  config show               Print current config');
+  console.log('  config set <key> <value>  Set config value');
+  console.log('  --version, -v             Show version');
 }
 
 function ensureDir(dirPath) {
@@ -333,9 +335,15 @@ function startDaemon(useHeadlessNode = false) {
   }
 
   const existing = getDaemonMeta();
-  if (existing && isProcessRunning(existing.pid)) {
-    console.log(`Daemon is already running (pid ${existing.pid}).`);
-    return;
+  if (existing && existing.pid) {
+    if (isProcessRunning(existing.pid)) {
+      console.log(`Stopping old daemon (pid ${existing.pid})...`);
+      try { process.kill(existing.pid); } catch {}
+    }
+    clearDaemonMeta();
+    // Wait for process cleanup
+    const wait = (ms) => { const end = Date.now() + ms; while (Date.now() < end) {} };
+    wait(2000);
   }
 
   ensureDir(DATA_DIR);
@@ -345,7 +353,7 @@ function startDaemon(useHeadlessNode = false) {
   const commonEnv = {
     ...process.env,
     DISPLAY: process.env.DISPLAY || ':99',
-    XCLAW_NODE_DATA_DIR: DATA_DIR,
+    LANDGOD_DATA_DIR: DATA_DIR,
   };
 
   if (useHeadlessNode) {
@@ -367,7 +375,7 @@ function startDaemon(useHeadlessNode = false) {
   } else {
     // Electron 模式（默认）
     const electronBinary = ensureElectronBinary();
-    child = spawn(electronBinary, ["--no-sandbox", "--disable-gpu", ...buildHeadlessArgs()], {
+    child = spawn(electronBinary, ["--no-sandbox", "--disable-gpu", "--disable-software-rasterizer", "--in-process-gpu", ...buildHeadlessArgs()], {
       cwd: ROOT_DIR,
       detached: true,
       stdio: ['ignore', logFd, logFd],
@@ -413,7 +421,7 @@ function printHealth() {
   const activities = loadJsonLines(ACTIVITIES_PATH);
   const latestActivity = activities.length > 0 ? activities[activities.length - 1] : null;
 
-  console.log('LandGod Health');
+  console.log('LandGod Status');
   console.log('---------------');
   console.log(`Config path: ${CONFIG_PATH}`);
   console.log(`Enabled: ${config.enabled === true ? 'yes' : 'no'}`);
@@ -790,7 +798,7 @@ function launchHeadlessForeground() {
     stdio: 'inherit',
     env: {
       ...process.env,
-      XCLAW_NODE_DATA_DIR: DATA_DIR,
+      LANDGOD_DATA_DIR: DATA_DIR,
     },
   });
 
@@ -803,51 +811,99 @@ function launchHeadlessForeground() {
 
 async function runOnboard() {
   console.log('========================================');
-  console.log('  XLandGod Onboarding');
+  console.log('  LandGod Worker Setup');
   console.log('========================================');
+  console.log('');
 
+  const currentConfig = loadConfig();
+
+  // Step 1: 安装依赖
   if (await askYesNo('Install dependencies now?', true)) {
     runCommand(getNpmCommand(), ['install']);
   }
 
-  const modeLabel = await askChoice('Choose startup mode:', ['Head UI (Managed MCP WS)', 'Headless (Managed MCP WS)'], 0);
-  let useHeadless = modeLabel === 'Headless (Managed MCP WS)';
-  const currentConfig = loadConfig();
-  const baseUrl = await askInput('Managed MCP base URL', currentConfig.bootstrapBaseUrl || currentConfig.baseUrl || '');
-  const token = await askInput('Managed MCP bearer token (optional)', '');
+  // Step 2: 选择模式
+  const modeLabel = await askChoice('Choose mode:', ['GUI (图形界面)', 'Headless (无界面，推荐)'], 1);
+  let useHeadless = modeLabel === 'Headless (无界面，推荐)';
+
+  // Step 3: Gateway URL
+  const baseUrl = await askInput('Gateway URL', currentConfig.bootstrapBaseUrl || currentConfig.baseUrl || 'ws://localhost:8080');
+
+  // Step 4: Token
+  const token = await askInput('Token (optional)', currentConfig.token || '');
 
   if (token && !useHeadless) {
-    console.log('Static token detected. Switching to headless mode because no renderer sign-in is required.');
+    console.log('Token detected. Switching to headless mode.');
     useHeadless = true;
   }
 
-  const seed = {
+  // Step 5: Sign-in page URL (GUI 模式)
+  let signinPageUrl = currentConfig.signinPageUrl || '';
+  if (!useHeadless) {
+    signinPageUrl = await askInput('Sign-in page URL (optional, skip to use default)', signinPageUrl);
+  }
+
+  // Step 6: TLS servername (可选)
+  const tlsServername = await askInput('TLS servername override (optional, skip if unsure)', currentConfig.tlsServername || '');
+
+  // Step 7: Permission profile
+  const permissionProfile = await askChoice('Permission level:', PERMISSION_PROFILES, 1);
+
+  // Step 8: Tool call approval mode
+  const approvalMode = await askChoice('Tool call approval mode:', TOOL_CALL_APPROVAL_MODES, 0);
+
+  // Step 9: 自定义白名单（可选）
+  const executablePrompt = await askInput('Configure executable allowlist? (y/N, or paste names)', '');
+  let customExecutables = null;
+  if (executablePrompt.trim().toLowerCase() === 'y' || executablePrompt.trim().toLowerCase() === 'yes') {
+    const selected = await askMultiSelect('Select executables:', RECOMMENDED_EXECUTABLES, RECOMMENDED_EXECUTABLES);
+    const manual = await askInput('Additional executables (comma separated, optional)', '');
+    customExecutables = Array.from(new Set([...(selected || []), ...parseListInput(manual)]));
+  } else if (executablePrompt.trim() && executablePrompt.trim().toLowerCase() !== 'n' && executablePrompt.trim().toLowerCase() !== 'no') {
+    customExecutables = parseListInput(executablePrompt);
+    if (customExecutables.length > 0) {
+      console.log('Detected pasted executable list and applied.');
+    } else {
+      customExecutables = null;
+    }
+  }
+
+  // 保存配置
+  const config = {
+    ...currentConfig,
+    clientId: ensureClientId(currentConfig),
     enabled: true,
     mode: 'managed-client-mcp-ws',
     bootstrapBaseUrl: baseUrl,
     token: token || currentConfig.token,
+    signinPageUrl: signinPageUrl || undefined,
+    tlsServername: tlsServername || undefined,
+    toolCallApprovalMode: approvalMode,
+    builtInTools: mergeBuiltInTools(currentConfig, { permissionProfile }),
   };
 
-  if (!useHeadless) {
-    seed.signinPageUrl = await askInput('Sign-in page URL (optional)', currentConfig.signinPageUrl || '');
+  if (customExecutables && customExecutables.length > 0) {
+    config.builtInTools = mergeBuiltInTools(config, {
+      shellExecute: { enabled: true, allowedExecutableNames: customExecutables },
+    });
   }
 
-  await runConfigWizard(seed);
+  saveConfig(config);
+  console.log('');
+  console.log('Config saved.');
 
-  if (await askYesNo('Build distributable bundle now?', true)) {
-    runCommand(getNpmCommand(), ['run', 'make']);
-  }
-
-  if (useHeadless) {
-    if (await askYesNo('Run headless mode as a background daemon?', true)) {
-      startDaemon();
-      return;
+  // Step 10: 启动
+  if (await askYesNo('Start now?', true)) {
+    if (useHeadless) {
+      startDaemon(true);
+    } else {
+      launchUiMode();
     }
-    launchHeadlessForeground();
-    return;
+  } else {
+    console.log('');
+    console.log('To start later:');
+    console.log(useHeadless ? '  landgod start --headless' : '  landgod start');
   }
-
-  launchUiMode();
 }
 
 async function main() {
@@ -859,25 +915,32 @@ async function main() {
     return;
   }
 
+  if (command === '--version' || command === '-v') {
+    console.log(`landgod ${require(require('path').resolve(__dirname, '..', 'package.json')).version}`);
+    return;
+  }
+
   if (command === 'onboard') {
     await runOnboard();
     return;
   }
 
-  if (command === 'daemon') {
-    if (args[1] === 'start') {
-      const useHeadlessNode = args.includes('--headless');
-      startDaemon(useHeadlessNode);
-      return;
-    }
-    if (args[1] === 'stop') {
-      stopDaemon();
-      return;
-    }
-    throw new Error('Usage: landgod daemon <start|stop>');
+  if (command === 'start' || (command === 'daemon' && args[1] === 'start')) {
+    const useHeadlessNode = args.includes('--headless');
+    startDaemon(useHeadlessNode);
+    return;
   }
 
-  if (command === 'health') {
+  if (command === 'stop' || (command === 'daemon' && args[1] === 'stop')) {
+    stopDaemon();
+    return;
+  }
+
+  if (command === 'daemon') {
+    throw new Error('Usage: landgod start|stop');
+  }
+
+  if (command === 'status' || command === 'health') {
     printHealth();
     return;
   }
@@ -898,11 +961,23 @@ async function main() {
   }
 
   if (command === 'audit') {
+    if (args[1] === 'clear') {
+      const auditPath = path.join(DATA_DIR, 'audit.jsonl');
+      if (fileExists(auditPath)) {
+        fs.writeFileSync(auditPath, '', 'utf-8');
+        console.log('Audit log cleared.');
+      } else {
+        console.log('No audit log to clear.');
+      }
+      return;
+    }
     if (args[1] === 'log') {
       printAuditLog(args.slice(2));
       return;
     }
-    throw new Error('Usage: landgod audit log [--limit N] [--search QUERY] [--json] [--follow]');
+    // 'landgod audit' 直接等同于 'landgod audit log'
+    printAuditLog(args.slice(1));
+    return;
   }
 
   if (command === 'config') {

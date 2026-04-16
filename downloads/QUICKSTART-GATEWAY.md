@@ -2,6 +2,8 @@
 
 > Gateway（landgod-gateway）是 Agent 的边车服务，部署在 Agent 同一台机器上。
 
+> **前置条件**：确保目标 Worker 能通过网络访问本机 8080 端口。不同网络环境的配置见 [docs/00-network-prerequisites.md](../docs/00-network-prerequisites.md)。
+
 ## 一键安装
 
 ```bash
@@ -22,7 +24,8 @@ landgod-gateway start --daemon
 ## 验证
 
 ```bash
-landgod-gateway status
+landgod-gateway --version   # 确认版本号
+landgod-gateway status      # 查看运行状态
 curl -s http://localhost:8081/health
 ```
 

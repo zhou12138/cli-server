@@ -383,7 +383,9 @@ const httpServer = http.createServer(async (req, res) => {
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
-                const { connection_id, tool_name, arguments: args, timeout } = JSON.parse(body);
+                const parsed = JSON.parse(body);
+                const { connection_id, tool_name, arguments: args, timeout } = parsed;
+                const clientName = parsed.clientName || parsed.client_name || (parsed.target && parsed.target.clientName);
 
                 if (!tool_name) {
                     res.writeHead(400);
@@ -391,8 +393,20 @@ const httpServer = http.createServer(async (req, res) => {
                     return;
                 }
 
-                // 如果没有指定 connection_id，使用第一个活跃的客户端
                 let targetConnId = connection_id;
+                if (!targetConnId && clientName) {
+                    for (const [connId, info] of connectedClients) {
+                        if (info.binding && info.binding.clientName === clientName && info.client.readyState === WebSocket.OPEN) {
+                            targetConnId = connId;
+                            break;
+                        }
+                    }
+                    if (!targetConnId) {
+                        res.writeHead(404);
+                        res.end(JSON.stringify({ error: "No connected client named: " + clientName }));
+                        return;
+                    }
+                }
                 if (!targetConnId) {
                     let firstEntry = null;
                     for (const [connId, info] of connectedClients) {

@@ -63,7 +63,7 @@ export function getBuiltInToolsSecurityConfigForProfile(
         permissionProfile,
         shellExecute: {
           enabled: true,
-          allowedExecutableNames: [],
+          allowedExecutableNames: ["echo", "ls", "cat", "whoami", "hostname", "uname", "pwd", "node", "ps", "df", "free", "nproc", "wc", "grep", "head", "tail", "date", "uptime", "env"],
           allowedWorkingDirectories: [],
           allowPipes: false,
           allowRedirection: false,
@@ -94,7 +94,7 @@ export function getBuiltInToolsSecurityConfigForProfile(
         permissionProfile,
         shellExecute: {
           enabled: true,
-          allowedExecutableNames: [],
+          allowedExecutableNames: ["echo", "ls", "cat", "whoami", "hostname", "uname", "pwd", "node", "npm", "npx", "git", "python", "python3", "curl", "ps", "df", "free", "nproc", "wc", "grep", "head", "tail", "date", "uptime", "env", "which", "find", "sort", "uniq", "tr", "cut", "awk", "sed"],
           allowedWorkingDirectories: [],
           allowPipes: true,
           allowRedirection: true,
@@ -125,7 +125,7 @@ export function getBuiltInToolsSecurityConfigForProfile(
         permissionProfile,
         shellExecute: {
           enabled: true,
-          allowedExecutableNames: [],
+          allowedExecutableNames: ["echo", "ls", "cat", "whoami", "hostname", "uname", "pwd", "node", "npm", "npx", "git", "python", "python3", "curl", "ps", "df", "free", "nproc", "wc", "grep", "head", "tail", "date", "uptime", "env", "which", "find", "sort", "uniq", "tr", "cut", "awk", "sed", "mkdir", "rm", "cp", "mv", "chmod", "chown", "tar", "gzip", "wget", "ping", "netstat", "ss", "ip", "systemctl", "journalctl", "apt", "yum", "dnf"],
           allowedWorkingDirectories: [],
           allowPipes: true,
           allowRedirection: true,

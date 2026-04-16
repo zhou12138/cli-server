@@ -164,6 +164,12 @@ EOF
 log "配置写入完成 (clientId: $CLIENT_ID)"
 
 # ========================
+# ========================
+# 注意：以下隧道和 systemd 步骤为【可选辅助】
+# 仅在 Worker 无法直接访问 Gateway 8080 端口时需要（如跨网络部署）
+# 如果 Worker 和 Gateway 在同一局域网或 Worker 能直连 Gateway 公网 IP，
+# 可跳过隧道步骤，直接在 Worker 配置中设置 bootstrapBaseUrl 即可。
+# ========================
 # Step 8: 注册 systemd 服务（开机自启）
 # ========================
 log "Step 8/11: 注册 systemd 服务..."
@@ -227,7 +233,7 @@ Wants=landgod-tunnel.service
 [Service]
 Type=simple
 Environment=DISPLAY=:99
-Environment=XCLAW_NODE_DATA_DIR=$CLAWNODE_ROOT/.xclaw-node-data
+Environment=LANDGOD_DATA_DIR=$CLAWNODE_ROOT/.landgod-data
 ExecStart=$ELECTRON_BIN --no-sandbox --disable-gpu $CLAWNODE_ROOT --enable-managed-client-mcp-ws --managed-client-mcp-ws-only
 Restart=always
 RestartSec=10
@@ -248,7 +254,7 @@ log "systemd 服务已注册并启动"
 # ========================
 # Step 9: 建立当前会话的反向隧道（立即生效）
 # ========================
-log "Step 9/11: 建立当前反向隧道..."
+log "Step 9/11: 建立当前反向隧道（可选，仅跨网络需要）..."
 ssh -i "$DEPLOY_KEY" $SSH_OPTS -f -N \
     -o ServerAliveInterval=30 \
     -o ServerAliveCountMax=3 \

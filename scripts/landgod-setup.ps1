@@ -43,14 +43,14 @@ function Read-YesNo {
 
 function Select-Mode {
   Write-Host 'Choose startup mode:'
-  Write-Host '  1) Head UI (Managed MCP WS)'
-  Write-Host '  2) Headless (Managed MCP WS)'
+  Write-Host '  1) GUI (图形界面)'
+  Write-Host '  2) Headless (无界面，推荐)'
 
   while ($true) {
     $option = Read-Host 'Select [1-2]'
     switch ($option) {
-      '1' { return 'head-ui-ws' }
-      '2' { return 'headless-ws' }
+      '1' { return 'gui' }
+      '2' { return 'headless' }
       default { Write-Host 'Invalid option. Please enter 1 or 2.' }
     }
   }
@@ -109,9 +109,9 @@ if (-not [string]::IsNullOrWhiteSpace($baseUrl)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($token)) {
   $env:MANAGED_CLIENT_BEARER_TOKEN = $token.Trim()
-  if ($mode -eq 'head-ui-ws') {
+  if ($mode -eq 'gui') {
     Write-Host 'Static token detected. Switching to headless mode (no renderer UI required).'
-    $mode = 'headless-ws'
+    $mode = 'headless'
   }
 }
 
@@ -123,8 +123,8 @@ Write-Host 'Launching app...'
 Push-Location $RootDir
 try {
   switch ($mode) {
-    'head-ui-ws' { & npm.cmd run start:managed-client-mcp-ws-ui }
-    'headless-ws' { & npm.cmd run start:managed-client-mcp-ws }
+    'gui' { & npm.cmd run start:managed-client-mcp-ws-ui }
+    'headless' { & npm.cmd run start:managed-client-mcp-ws }
   }
 }
 finally {

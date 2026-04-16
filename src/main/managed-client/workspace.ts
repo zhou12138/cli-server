@@ -27,7 +27,7 @@ function getDefaultWorkspaceBaseDir(): string {
 }
 
 export function getDefaultManagedClientWorkspaceRoot(baseDir = getDefaultWorkspaceBaseDir()): string {
-  return path.resolve(baseDir, 'X Claw Node');
+  return path.resolve(baseDir, 'LandGod Worker');
 }
 
 export function getManagedClientWorkspacePaths(rootDir: string): ManagedClientWorkspacePaths {

@@ -44,14 +44,14 @@ function read_yes_no {
 # 模式选择菜单 (增强视觉体验)
 function select_mode {
   echo -e "\nChoose startup mode:"
-  echo "  1) Head UI (Managed MCP WS)"
-  echo "  2) Headless (Managed MCP WS)"
+  echo "  1) GUI (图形界面)"
+  echo "  2) Headless (无界面，推荐)"
   echo ""
   while true; do
     read -p "Select [1-2]: " option
     case "$option" in
-      1) echo "head-ui-ws"; return ;;
-      2) echo "headless-ws"; return ;;
+      1) echo "gui"; return ;;
+      2) echo "headless"; return ;;
       *) echo "Invalid input. Please select 1 or 2." ;;
     esac
   done
@@ -115,9 +115,9 @@ read -p "Enter Managed MCP Bearer Token (optional): " token
 export MANAGED_CLIENT_BASE_URL="$base_url"
 export MANAGED_CLIENT_BEARER_TOKEN="$token"
 
-if [ "$mode" == "head-ui-ws" ] && [ -n "$token" ]; then
+if [ "$mode" == "gui" ] && [ -n "$token" ]; then
   echo "INFO: Static token detected. Switching to 'headless' mode (No UI required)."
-  mode="headless-ws"
+  mode="headless"
 fi
 
 # 构建分发包
@@ -129,7 +129,7 @@ fi
 echo "INFO: Launching application ($mode mode)..."
 pushd "$RootDir" > /dev/null
 case "$mode" in
-  "head-ui-ws") npm run start:managed-client-mcp-ws-ui ;;
-  "headless-ws") npm run start:managed-client-mcp-ws ;;
+  "gui") npm run start:managed-client-mcp-ws-ui ;;
+  "headless") npm run start:managed-client-mcp-ws ;;
 esac
 popd > /dev/null

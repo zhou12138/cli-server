@@ -2,14 +2,14 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 function getDataDir(): string {
-  if (process.env.XCLAW_NODE_DATA_DIR) {
-    return process.env.XCLAW_NODE_DATA_DIR;
+  if (process.env.LANDGOD_DATA_DIR) {
+    return process.env.LANDGOD_DATA_DIR;
   }
   try {
     const { app } = require('electron');
     return app.getPath('userData');
   } catch {
-    return path.join(process.cwd(), '.xclaw-node-data');
+    return path.join(process.cwd(), '.landgod-data');
   }
 }
 
