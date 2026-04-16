@@ -102,6 +102,14 @@ Worker 需要能访问 Gateway 的 WebSocket 端口（默认 8080）。
 ./scripts/landgod-deploy.sh <IP> <用户名> <密码> [设备名]
 ```
 
+## 验证安装
+
+```bash
+landgod --version     # 确认版本号
+landgod --help        # 查看可用命令
+```
+
+
 ## 故障排查
 
 | 问题 | 解决 |

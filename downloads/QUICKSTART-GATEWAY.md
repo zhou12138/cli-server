@@ -24,7 +24,8 @@ landgod-gateway start --daemon
 ## 验证
 
 ```bash
-landgod-gateway status
+landgod-gateway --version   # 确认版本号
+landgod-gateway status      # 查看运行状态
 curl -s http://localhost:8081/health
 ```
 
