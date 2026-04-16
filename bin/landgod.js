@@ -915,7 +915,7 @@ async function main() {
   }
 
   if (command === '--version' || command === '-v') {
-    console.log('landgod 0.1.0');
+    console.log(`landgod ${require(require('path').resolve(__dirname, '..', 'package.json')).version}`);
     return;
   }
 

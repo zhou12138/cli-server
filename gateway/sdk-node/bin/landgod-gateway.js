@@ -34,6 +34,7 @@ Usage:
   landgod-gateway start [options]    Start the gateway
   landgod-gateway stop               Stop the gateway
   landgod-gateway status             Show gateway status
+  landgod-gateway --version          Show version
   landgod-gateway --help             Show this help
 
 Options:
@@ -180,6 +181,10 @@ const args = process.argv.slice(2);
 const command = args[0];
 
 switch (command) {
+    case '--version':
+    case '-v':
+        console.log(`landgod-gateway ${require('../package.json').version}`);
+        break;
     case 'start':
         startGateway(args.slice(1));
         break;
