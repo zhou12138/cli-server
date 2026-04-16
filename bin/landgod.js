@@ -810,8 +810,8 @@ async function runOnboard() {
     runCommand(getNpmCommand(), ['install']);
   }
 
-  const modeLabel = await askChoice('Choose startup mode:', ['Head UI (Managed MCP WS)', 'Headless (Managed MCP WS)'], 0);
-  let useHeadless = modeLabel === 'Headless (Managed MCP WS)';
+  const modeLabel = await askChoice('Choose startup mode:', ['GUI (图形界面)', 'Headless (无界面，推荐)'], 0);
+  let useHeadless = modeLabel === 'Headless (无界面，推荐)';
   const currentConfig = loadConfig();
   const baseUrl = await askInput('Managed MCP base URL', currentConfig.bootstrapBaseUrl || currentConfig.baseUrl || '');
   const token = await askInput('Managed MCP bearer token (optional)', '');
