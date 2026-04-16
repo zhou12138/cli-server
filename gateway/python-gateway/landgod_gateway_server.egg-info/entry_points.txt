@@ -1,0 +1,2 @@
+[console_scripts]
+landgod-gateway-py = landgod_gateway_server.__main__:main
