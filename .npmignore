@@ -1,0 +1,8 @@
+# npm pack 排除
+.xclaw-node-data/
+managed-client.config.json
+managed-client.mcp-servers.json
+dist/
+dist-headless/
+out/
+*.bak

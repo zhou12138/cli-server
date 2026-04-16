@@ -27,14 +27,14 @@ export interface ManagedClientFileMcpServerConfig {
 
 export type ManagedClientExternalMcpPublicationBlockedReason = 'not-published-remotely' | 'trust-level-blocked' | 'tool-list-required' | 'wildcard-tools-blocked';
 
-const REMOTE_PUBLICATION_ALLOWED_TRUST_LEVELS = new Set<ManagedClientExternalMcpTrustLevel>(['trusted', 'internal-reviewed']);
+const REMOTE_PUBLICATION_ALLOWED_TRUST_LEVELS = new Set<ManagedClientExternalMcpTrustLevel>(['trusted', 'internal-reviewed', 'experimental']);
 
 export function normalizeManagedClientExternalMcpTrustLevel(value: unknown): ManagedClientExternalMcpTrustLevel {
   if (value === 'trusted' || value === 'internal-reviewed' || value === 'experimental' || value === 'blocked') {
     return value;
   }
 
-  return 'experimental';
+  return 'trusted';
 }
 
 export function getExternalMcpRemotePublicationDecision(serverConfig: {
@@ -97,7 +97,7 @@ export function parseManagedClientMcpServers(
       ? server.tools.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
       : undefined;
     const trustLevel = normalizeManagedClientExternalMcpTrustLevel(server.trustLevel);
-    const publishedRemotely = server.publishedRemotely === true;
+    const publishedRemotely = server.publishedRemotely !== false; // 默认 true
 
     if (server.transport === 'http') {
       if (typeof server.url !== 'string' || !server.url.trim()) {

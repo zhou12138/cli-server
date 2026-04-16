@@ -98,25 +98,40 @@ curl -s http://localhost:8081/health
 npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/cli-server-0.1.0.tgz
 ```
 
-#### Step 2：安装 Electron 依赖
+#### Step 2：选择运行模式
+
+LandGod 支持两种运行模式：
+
+| 模式 | 需要 Electron | 需要系统依赖 | 适合场景 |
+|------|-------------|-------------|---------|
+| **Headless (推荐)** | ❌ 不需要 | ❌ 不需要 | 服务器、CLI、跨平台 |
+| **Electron** | ✅ ~170MB | ✅ libgtk, xvfb... | 需要 UI 界面时 |
+
+**选择 A：Headless 模式（推荐，纯 Node.js）**
+
+无需额外安装，直接跳到 Step 5 配置。
+
+**选择 B：Electron 模式（需要 UI 时）**
 
 ```bash
+# 安装 Electron 依赖
 cd $(node -e "console.log(require.resolve('cli-server/package.json').replace('/package.json',''))")
 npm install
-```
 
-#### Step 3：安装系统依赖（Linux）
-
-```bash
+# 安装系统依赖（Linux）
 sudo apt-get install -y libgtk-3-0 libnss3 libasound2t64 libcups2 xvfb
 ```
 
-#### Step 4：启动虚拟显示（Linux headless 服务器）
+#### Step 3：启动虚拟显示（仅 Electron 模式 + Linux headless 服务器）
 
 ```bash
 Xvfb :99 -screen 0 1280x1024x24 &
 export DISPLAY=:99
 ```
+
+> 💡 Headless 模式不需要此步骤。
+
+#### Step 4：（已合并到 Step 2）
 
 #### Step 5：配置连接
 
@@ -138,8 +153,15 @@ landgod config set builtInTools.shellExecute.allowedWorkingDirectories '["/home/
 #### Step 6：启动 Worker
 
 ```bash
+# Headless 模式（推荐，无需 Electron）
+landgod daemon start --headless
+
+# 或 Electron 模式
 landgod daemon start
 ```
+
+> 💡 Headless 模式下，Worker 使用纯 Node.js 运行，不需要 Electron、xvfb、libgtk 等依赖。
+> 支持 Linux、macOS、Windows 三平台。
 
 #### Step 7：验证
 
@@ -542,8 +564,8 @@ curl -s -X POST http://localhost:8081/tool_call \
 | `landgod-link: command not found` | 运行 `hash -r` 刷新 shell 缓存 |
 | Gateway 启动失败 `EADDRINUSE` | 端口被占用：`fuser -k 8080/tcp; fuser -k 8081/tcp` |
 | Worker 连不上 Gateway | 检查网络/隧道：`curl http://localhost:8080`（应返回 `Upgrade Required`）|
-| `Electron is not installed` | 在 Worker 安装目录执行 `npm install` |
-| `Missing X server` | 安装 xvfb：`sudo apt install xvfb && Xvfb :99 &` |
+| `Electron is not installed` | 使用 `--headless` 模式，或在 Worker 安装目录执行 `npm install` |
+| `Missing X server` | 使用 `--headless` 模式，或安装 xvfb: `sudo apt install xvfb && Xvfb :99 &` |
 | 命令被拒绝 `outside the allowlist` | 用 `landgod config set` 添加命令到白名单 |
 
 ---
