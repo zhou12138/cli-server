@@ -271,7 +271,19 @@ export function saveManagedClientFileConfig(config: ManagedClientFileConfig): vo
 }
 
 export function getBuiltInToolsSecurityConfig(): BuiltInToolsSecurityConfig {
-  return normalizeBuiltInToolsSecurityConfig(loadManagedClientFileConfig().builtInTools);
+  const config = normalizeBuiltInToolsSecurityConfig(loadManagedClientFileConfig().builtInTools);
+
+  // 运行时填充默认工作目录（如果用户未配置）
+  if (config.shellExecute.allowedWorkingDirectories.length === 0) {
+    const os = require('node:os');
+    const p = require('node:path');
+    const home = os.homedir();
+    const tmp = os.tmpdir();
+    const installDir = p.resolve(process.cwd());
+    config.shellExecute.allowedWorkingDirectories = [home, tmp, installDir];
+  }
+
+  return config;
 }
 
 export function saveBuiltInToolsSecurityConfig(config: BuiltInToolsSecurityConfig): void {
