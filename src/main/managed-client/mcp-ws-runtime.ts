@@ -1059,7 +1059,6 @@ export class ManagedClientMcpWsRuntime {
       clientName: this.config.clientName,
     });
     const registerResponse = await this.sendRequest(socket, signal, 'register', {
-      token: this.config.token || '',
       client_id: this.config.clientId,
       client_name: this.config.clientName,
     });
