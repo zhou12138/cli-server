@@ -120,9 +120,14 @@ function loadTokens() {
         }
         console.log(`Loaded ${tokenRegistry.size} tokens from ${TOKEN_FILE}`);
     } catch {
-        // 兼容旧模式：硬编码 token
-        tokenRegistry.set(AUTH_TOKEN, { device_name: '*', created_at: 'legacy', active: true });
-        console.log('No token file found, using legacy hardcoded token');
+        console.log('No token file found, using configured auth token');
+    }
+    // Always ensure current auth token is registered
+    tokenRegistry.set(AUTH_TOKEN, { device_name: '*', created_at: 'legacy', active: true });
+    // Remove old hardcoded token if custom token is set
+    if (AUTH_TOKEN !== "hardcoded-token-1234" && tokenRegistry.has("hardcoded-token-1234")) {
+        tokenRegistry.delete("hardcoded-token-1234");
+        console.log('Removed default hardcoded-token-1234 (custom token configured)');
     }
 }
 
