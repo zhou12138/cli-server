@@ -33,6 +33,10 @@ SSH is only needed during initial deployment (install + config).
 
 ## Packages (all from GitHub)
 
+⚠️ **Always install from GitHub URL. Never SCP/copy packages between machines — this is forbidden.**
+
+If GitHub is unreachable (e.g. China networks), configure a proxy on the target machine first, or ask the user to manually download and transfer the package.
+
 ```bash
 # Node.js Gateway
 npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.0.tgz
@@ -47,7 +51,7 @@ pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod
 pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway-0.1.0-py3-none-any.whl
 ```
 
-⚠️ China networks can't reach GitHub — SCP the tgz/whl from a reachable machine instead.
+⚠️ If GitHub is unreachable (China networks), configure a proxy or ask the user to download and transfer the package manually. Do NOT use SCP between machines.
 
 ## 1. Gateway Setup
 
