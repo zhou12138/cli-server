@@ -245,3 +245,53 @@ curl -X POST http://localhost:8081/tokens \
 | China can't install from GitHub | Network timeout | SCP tgz/whl from reachable machine |
 | Quick Tunnel URL changed | Tunnel restarted | Update worker `bootstrapBaseUrl` + restart |
 | `allowedExecutableNames: []` error | Config serialization bug | Rebuild with latest source |
+
+## 7. Lessons Learned (Operational Pitfalls)
+
+### Token must match everywhere
+Gateway and all workers must use the **same token**. Mismatched tokens cause `Connection closed while waiting for session_opened` — looks like a protocol bug but is just auth failure. Before debugging WebSocket issues, always verify:
+```bash
+# On gateway: check what token it's using
+cat /proc/$(pgrep -f landgod-gateway)/environ | tr '\0' '\n' | grep TOKEN
+
+# On worker: check its token
+landgod config show | grep token
+```
+
+### Quick Tunnel URL changes on every restart
+Cloudflare Quick Tunnel (`cloudflared tunnel --url`) generates a **random URL** each time. When the tunnel restarts, ALL workers using it must be updated. This is the #1 cause of "worker was online but now disconnected."
+
+**Mitigation:** Use a domain with named tunnel. Until then, after every tunnel restart:
+1. Note the new `trycloudflare.com` URL
+2. Update every worker: `landgod config set bootstrapBaseUrl wss://NEW_URL`
+3. Restart worker: `landgod daemon stop && landgod daemon start --headless`
+
+### Don't mix Python and Node.js gateways
+Only ONE gateway should run at a time. If both Python and Node.js gateways exist on the machine, confusion arises (wrong code version, different token stores). Pick one and uninstall the other:
+```bash
+# Uninstall Node.js gateway
+npm uninstall -g landgod-gateway
+
+# Or uninstall Python gateway
+pip uninstall landgod-gateway-server
+```
+
+### Gateway code lives in TWO directories
+Node.js gateway code exists in both `gateway/server/` and `gateway/sdk-node/`. The Makefile builds from `sdk-node/`. **Always sync changes to both:**
+```bash
+cp gateway/server/index.js gateway/sdk-node/server/index.js
+```
+
+### Worker headless mode on Windows needs correct cwd
+Windows headless daemon must run from the landgod package directory:
+```cmd
+cd /d C:\...\node_modules\landgod
+node .vite\build\headless-entry.js
+```
+Using `landgod daemon start --headless` may fail because the child process inherits wrong cwd. Use `schtasks` with a `.bat` file that `cd`s first.
+
+### Worker keepalive is per-machine
+Each worker machine needs its own keepalive (cron on Linux, schtasks on Windows). The gateway keepalive doesn't help workers — they're separate processes on separate machines.
+
+### `git add -A` is dangerous
+Never use `git add -A` in the cli-server repo — it will commit `node_modules/`, `out/`, `.vite/`, and other build artifacts. Always use `git add <specific files>` or `git add -f downloads/`.
