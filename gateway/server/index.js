@@ -9,7 +9,11 @@ const { generateKeyPairSync, createHash, sign, randomUUID } = require('node:cryp
 // Parse --token CLI argument
 const tokenArg = process.argv.find(a => a.startsWith('--token='));
 const tokenArgValue = tokenArg ? tokenArg.split('=')[1] : (process.argv.indexOf('--token') >= 0 ? process.argv[process.argv.indexOf('--token') + 1] : null);
-const AUTH_TOKEN = tokenArgValue || process.env.LANDGOD_AUTH_TOKEN || "hardcoded-token-1234";
+const AUTH_TOKEN = tokenArgValue || process.env.LANDGOD_AUTH_TOKEN || "";
+if (!AUTH_TOKEN) {
+    console.error("ERROR: Auth token is required. Use --token=YOUR_TOKEN or set LANDGOD_AUTH_TOKEN environment variable.");
+    process.exit(1);
+}
 const WS_PORT = parseInt(process.env.LANDGOD_WS_PORT || "8080");
 const HTTP_PORT = parseInt(process.env.LANDGOD_HTTP_PORT || "8081");
 const DATA_DIR = process.env.LANDGOD_DATA_DIR || require('path').join(require('os').homedir(), '.landgod-gateway');
@@ -124,10 +128,10 @@ function loadTokens() {
     }
     // Always ensure current auth token is registered
     tokenRegistry.set(AUTH_TOKEN, { device_name: '*', created_at: 'legacy', active: true });
-    // Remove old hardcoded token if custom token is set
-    if (AUTH_TOKEN !== "hardcoded-token-1234" && tokenRegistry.has("hardcoded-token-1234")) {
+    // Clean up legacy hardcoded tokens
+    if (tokenRegistry.has("hardcoded-token-1234")) {
         tokenRegistry.delete("hardcoded-token-1234");
-        console.log('Removed default hardcoded-token-1234 (custom token configured)');
+        console.log('Removed legacy hardcoded-token-1234 from token store');
     }
 }
 

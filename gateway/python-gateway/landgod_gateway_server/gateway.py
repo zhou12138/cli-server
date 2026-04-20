@@ -31,7 +31,9 @@ class Gateway:
         self.ws_port = ws_port
         self.http_port = http_port
         self.redis_url = redis_url
-        self.auth_token = auth_token or os.environ.get("LANDGOD_AUTH_TOKEN", "hardcoded-token-1234")
+        self.auth_token = auth_token or os.environ.get("LANDGOD_AUTH_TOKEN", "")
+        if not self.auth_token:
+            raise ValueError("Auth token is required. Use --token or set LANDGOD_AUTH_TOKEN environment variable.")
         self.data_dir = data_dir or os.path.join(os.path.expanduser("~"), ".landgod-gateway")
         self.node_id = f"node-{uuid.uuid4().hex[:8]}"
 
@@ -72,10 +74,10 @@ class Gateway:
             logger.info("No token file found, using configured auth token")
         # Always ensure the current auth_token is registered
         self.store.tokens[self.auth_token] = {"device_name": "*", "created_at": "legacy", "active": True}
-        # Remove old hardcoded token if a custom token is set
-        if self.auth_token != "hardcoded-token-1234" and "hardcoded-token-1234" in self.store.tokens:
+        # Clean up any legacy hardcoded tokens from old installations
+        if "hardcoded-token-1234" in self.store.tokens:
             del self.store.tokens["hardcoded-token-1234"]
-            logger.info("Removed default hardcoded-token-1234 (custom token configured)")
+            logger.info("Removed legacy hardcoded-token-1234 from token store")
 
     def _save_tokens(self) -> None:
         if isinstance(self.store, MemoryStore):

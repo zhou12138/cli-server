@@ -18,7 +18,7 @@ Before deploying a worker to a new machine, you need:
    - **SSH reverse tunnel**: gateway SSHs to worker, maps port 8080 back
    - **Cloudflare Tunnel**: gateway exposes 8080 via `wss://xxx.trycloudflare.com`
    - ⚠️ The worker initiates the WebSocket connection **outbound** — the gateway does NOT need to reach the worker. Only the worker needs to reach the gateway.
-4. **Token** — A valid gateway token for the worker to authenticate. Use the default `hardcoded-token-1234` or create one via `POST /tokens`.
+4. **Token** — A valid gateway token for the worker to authenticate. Use the default `YOUR_SECRET_TOKEN` or create one via `POST /tokens`.
 
 ### Network direction
 
@@ -70,7 +70,7 @@ LANDGOD_AUTH_TOKEN=YOUR_SECRET_TOKEN landgod-gateway-py start
 landgod-gateway-py start --token YOUR_SECRET_TOKEN --redis redis://host:6379
 ```
 
-⚠️ **Always set a custom token.** The default `hardcoded-token-1234` is public and insecure. Generate a random token: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`
+⚠️ **Always set a custom token.** The default `YOUR_SECRET_TOKEN` is public and insecure. Generate a random token: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`
 
 ### Node.js Gateway
 
