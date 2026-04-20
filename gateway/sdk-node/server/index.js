@@ -6,7 +6,14 @@ const { generateKeyPairSync, createHash, sign, randomUUID } = require('node:cryp
 // ========================
 // 配置
 // ========================
-const AUTH_TOKEN = process.env.LANDGOD_AUTH_TOKEN || "hardcoded-token-1234";
+// Parse --token CLI argument
+const tokenArg = process.argv.find(a => a.startsWith('--token='));
+const tokenArgValue = tokenArg ? tokenArg.split('=')[1] : (process.argv.indexOf('--token') >= 0 ? process.argv[process.argv.indexOf('--token') + 1] : null);
+const AUTH_TOKEN = tokenArgValue || process.env.LANDGOD_AUTH_TOKEN || "";
+if (!AUTH_TOKEN) {
+    console.error("ERROR: Auth token is required. Use --token=YOUR_TOKEN or set LANDGOD_AUTH_TOKEN environment variable.");
+    process.exit(1);
+}
 const WS_PORT = parseInt(process.env.LANDGOD_WS_PORT || "8080");
 const HTTP_PORT = parseInt(process.env.LANDGOD_HTTP_PORT || "8081");
 const DATA_DIR = process.env.LANDGOD_DATA_DIR || require('path').join(require('os').homedir(), '.landgod-gateway');
@@ -104,11 +111,16 @@ function signToolCall(requestId, toolName, argumentsPayload, binding) {
 // ========================
 // Token 注册表
 // ========================
-const TOKEN_FILE = require('path').join(DATA_DIR, 'tokens.json');
+// tokens.json no longer used (single-token mode)
 const tokenRegistry = new Map();
 
 function loadTokens() {
     require('fs').mkdirSync(DATA_DIR, { recursive: true });
+    // Single-token mode: only the startup token is valid
+    tokenRegistry.clear();
+    tokenRegistry.set(AUTH_TOKEN, { device_name: '*', created_at: 'startup', active: true });
+    console.log('Auth token registered (single-token mode)');
+});
     try {
         const data = require('fs').readFileSync(TOKEN_FILE, 'utf-8');
         const tokens = JSON.parse(data);
@@ -117,15 +129,19 @@ function loadTokens() {
         }
         console.log(`Loaded ${tokenRegistry.size} tokens from ${TOKEN_FILE}`);
     } catch {
-        // 兼容旧模式：硬编码 token
-        tokenRegistry.set(AUTH_TOKEN, { device_name: '*', created_at: 'legacy', active: true });
-        console.log('No token file found, using legacy hardcoded token');
+        console.log('No token file found, using configured auth token');
+    }
+    // Always ensure current auth token is registered
+    tokenRegistry.set(AUTH_TOKEN, { device_name: '*', created_at: 'legacy', active: true });
+    // Clean up legacy hardcoded tokens
+    if (tokenRegistry.has("hardcoded-token-1234")) {
+        tokenRegistry.delete("hardcoded-token-1234");
+        console.log('Removed legacy hardcoded-token-1234 from token store');
     }
 }
 
 function saveTokens() {
-    const obj = Object.fromEntries(tokenRegistry);
-    require('fs').writeFileSync(TOKEN_FILE, JSON.stringify(obj, null, 2));
+    // Single-token mode: no file persistence
 }
 
 function isValidToken(token) {
@@ -383,7 +399,9 @@ const httpServer = http.createServer(async (req, res) => {
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
-                const { connection_id, tool_name, arguments: args, timeout } = JSON.parse(body);
+                const parsed = JSON.parse(body);
+                const { connection_id, tool_name, arguments: args, timeout } = parsed;
+                const clientName = parsed.clientName || parsed.client_name || (parsed.target && parsed.target.clientName);
 
                 if (!tool_name) {
                     res.writeHead(400);
@@ -391,8 +409,20 @@ const httpServer = http.createServer(async (req, res) => {
                     return;
                 }
 
-                // 如果没有指定 connection_id，使用第一个活跃的客户端
                 let targetConnId = connection_id;
+                if (!targetConnId && clientName) {
+                    for (const [connId, info] of connectedClients) {
+                        if (info.binding && info.binding.clientName === clientName && info.client.readyState === WebSocket.OPEN) {
+                            targetConnId = connId;
+                            break;
+                        }
+                    }
+                    if (!targetConnId) {
+                        res.writeHead(404);
+                        res.end(JSON.stringify({ error: "No connected client named: " + clientName }));
+                        return;
+                    }
+                }
                 if (!targetConnId) {
                     let firstEntry = null;
                     for (const [connId, info] of connectedClients) {
