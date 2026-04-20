@@ -35,16 +35,16 @@ SSH is only needed during initial deployment (install + config).
 
 ```bash
 # Node.js Gateway
-npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-gateway-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.0.tgz
 
 # Node.js Worker
-npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.0.tgz
 
 # Python Gateway (single-node + Redis cluster)
-pip install https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod_gateway_server-0.1.0-py3-none-any.whl
+pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.0-py3-none-any.whl
 
 # Python SDK (for calling gateway from Python)
-pip install https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod_gateway-0.1.0-py3-none-any.whl
+pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway-0.1.0-py3-none-any.whl
 ```
 
 ⚠️ China networks can't reach GitHub — SCP the tgz/whl from a reachable machine instead.
