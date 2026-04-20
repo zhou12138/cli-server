@@ -59,39 +59,20 @@ class Gateway:
         self._load_tokens()
 
     def _load_tokens(self) -> None:
-        """Load tokens from disk (memory store only, for backward compat)."""
-        if not isinstance(self.store, MemoryStore):
-            return
-        token_file = os.path.join(self.data_dir, "tokens.json")
+        """Register the single auth token. No tokens.json file used."""
         os.makedirs(self.data_dir, exist_ok=True)
-        try:
-            with open(token_file) as f:
-                tokens = json.load(f)
-            for k, v in tokens.items():
-                self.store.tokens[k] = v
-            logger.info(f"Loaded {len(self.store.tokens)} tokens from {token_file}")
-        except FileNotFoundError:
-            logger.info("No token file found, using configured auth token")
-        # Always ensure the current auth_token is registered
-        self.store.tokens[self.auth_token] = {"device_name": "*", "created_at": "legacy", "active": True}
-        # Clean up any legacy hardcoded tokens from old installations
-        if "hardcoded-token-1234" in self.store.tokens:
-            del self.store.tokens["hardcoded-token-1234"]
-            logger.info("Removed legacy hardcoded-token-1234 from token store")
+        # Only the startup token is valid — no file-based token registry
+        if isinstance(self.store, MemoryStore):
+            self.store.tokens.clear()
+            self.store.tokens[self.auth_token] = {"device_name": "*", "created_at": "startup", "active": True}
+        logger.info(f"Auth token registered (single-token mode)")
 
     def _save_tokens(self) -> None:
-        if isinstance(self.store, MemoryStore):
-            token_file = os.path.join(self.data_dir, "tokens.json")
-            with open(token_file, "w") as f:
-                json.dump(self.store.tokens, f, indent=2)
+        pass  # Single-token mode: no file persistence
 
     async def is_valid_token(self, token: str) -> bool:
-        if not token:
-            return False
-        if token == self.auth_token:
-            return True
-        info = await self.store.get_token(token)
-        return info is not None and info.get("active", False)
+        """Single-token mode: only the startup auth_token is valid."""
+        return bool(token) and token == self.auth_token
 
     async def start(self) -> None:
         """Start the gateway (WS + HTTP servers)."""
