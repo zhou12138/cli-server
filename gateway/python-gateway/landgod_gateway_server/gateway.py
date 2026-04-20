@@ -69,8 +69,13 @@ class Gateway:
                 self.store.tokens[k] = v
             logger.info(f"Loaded {len(self.store.tokens)} tokens from {token_file}")
         except FileNotFoundError:
-            self.store.tokens[self.auth_token] = {"device_name": "*", "created_at": "legacy", "active": True}
-            logger.info("No token file found, using legacy hardcoded token")
+            logger.info("No token file found, using configured auth token")
+        # Always ensure the current auth_token is registered
+        self.store.tokens[self.auth_token] = {"device_name": "*", "created_at": "legacy", "active": True}
+        # Remove old hardcoded token if a custom token is set
+        if self.auth_token != "hardcoded-token-1234" and "hardcoded-token-1234" in self.store.tokens:
+            del self.store.tokens["hardcoded-token-1234"]
+            logger.info("Removed default hardcoded-token-1234 (custom token configured)")
 
     def _save_tokens(self) -> None:
         if isinstance(self.store, MemoryStore):

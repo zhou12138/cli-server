@@ -22,7 +22,8 @@ import { emitServerEvent, onServerEvent } from './server';
 // ========================
 // 数据目录（替代 Electron 的 app.getPath）
 // ========================
-const ROOT_DIR = path.resolve(__dirname, '..');
+// __dirname is .vite/build/ in built mode, need to go up 2 levels to package root
+const ROOT_DIR = path.resolve(__dirname, '..', '..');
 const DATA_DIR = process.env.LANDGOD_DATA_DIR || path.join(ROOT_DIR, '.landgod-data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
