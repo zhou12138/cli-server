@@ -245,3 +245,38 @@ curl -X POST http://localhost:8081/tokens \
 | China can't install from GitHub | Network timeout | SCP tgz/whl from reachable machine |
 | Quick Tunnel URL changed | Tunnel restarted | Update worker `bootstrapBaseUrl` + restart |
 | `allowedExecutableNames: []` error | Config serialization bug | Rebuild with latest source |
+
+## 7. Common Pitfalls
+
+### Token mismatch
+Gateway and workers must use the **exact same token**. Symptom: `Connection closed while waiting for session_opened`. Fix: verify token on both sides before debugging anything else.
+
+### Quick Tunnel URL changes on restart
+`cloudflared tunnel --url` generates a random URL each time. After restart:
+1. Get new URL from log
+2. Update all tunnel-connected workers: `landgod config set bootstrapBaseUrl wss://NEW_URL`
+3. Restart workers
+
+For stable URL, use a domain with Cloudflare named tunnel.
+
+### Only run one gateway
+Never run Python and Node.js gateways simultaneously on the same machine — port conflicts and token confusion. Pick one, uninstall the other.
+
+### Windows headless requires correct working directory
+`landgod daemon start --headless` on Windows may fail because the config file is read from `process.cwd()`. Always `cd` to the landgod package directory first:
+```cmd
+cd /d C:\...\node_modules\landgod
+node .vite\build\headless-entry.js
+```
+Use a `.bat` file with `schtasks` for persistence.
+
+### Worker keepalive is per-machine
+Each machine running a worker needs its own keepalive:
+- **Linux:** cron job checking `pgrep -f headless-entry` every minute
+- **Windows:** `schtasks /SC ONSTART` with bat file
+
+### China networks can't reach GitHub
+`npm install` from GitHub URL will timeout. Ask the user to configure a proxy on the target machine or download the package manually. **Do not SCP packages between machines.**
+
+### After `make clean && make`, verify packages
+Always check that `downloads/` contains all expected packages. The Makefile may not build the Python Gateway Server — build it separately with `python3 -m build` in `gateway/python-gateway/`.
