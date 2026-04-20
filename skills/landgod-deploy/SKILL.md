@@ -11,7 +11,7 @@ Deploy LandGod gateway and workers for AI-driven remote device fleet management.
 
 Before deploying a worker to a new machine, you need:
 
-1. **SSH access to the target machine** — You must be able to SSH in to install packages and configure the worker. Get credentials from 太白金星 or the device owner.
+1. **SSH access to the target machine** — You must be able to SSH in to install packages and configure the worker. Ask the user to provide SSH credentials (IP, username, password/key). ⚠️ **Never store credentials in chat, logs, or memory files.** Use them only for the current session and discard immediately after.
 2. **Node.js 22+** on the target — If not installed, install it first (`apt install nodejs` / `yum install nodejs` / download from nodejs.org for Windows).
 3. **Network path from worker → gateway** — The worker needs to reach the gateway's WebSocket port (8080). This can be:
    - **Direct**: worker can reach `ws://GATEWAY_IP:8080` (same LAN or open port)
