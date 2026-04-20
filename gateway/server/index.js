@@ -111,11 +111,16 @@ function signToolCall(requestId, toolName, argumentsPayload, binding) {
 // ========================
 // Token 注册表
 // ========================
-const TOKEN_FILE = require('path').join(DATA_DIR, 'tokens.json');
+// tokens.json no longer used (single-token mode)
 const tokenRegistry = new Map();
 
 function loadTokens() {
     require('fs').mkdirSync(DATA_DIR, { recursive: true });
+    // Single-token mode: only the startup token is valid
+    tokenRegistry.clear();
+    tokenRegistry.set(AUTH_TOKEN, { device_name: '*', created_at: 'startup', active: true });
+    console.log('Auth token registered (single-token mode)');
+});
     try {
         const data = require('fs').readFileSync(TOKEN_FILE, 'utf-8');
         const tokens = JSON.parse(data);
@@ -136,8 +141,7 @@ function loadTokens() {
 }
 
 function saveTokens() {
-    const obj = Object.fromEntries(tokenRegistry);
-    require('fs').writeFileSync(TOKEN_FILE, JSON.stringify(obj, null, 2));
+    // Single-token mode: no file persistence
 }
 
 function isValidToken(token) {
