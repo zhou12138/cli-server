@@ -82,10 +82,59 @@ Response structure:
 |------|-------------|---------|
 | `shell_execute` | Run shell command | `{"command":"ls -la"}` |
 | `file_read` | Read file content | `{"path":"/etc/hostname"}` |
+| `remote_configure_mcp_server` | Install/update MCP server on worker | See MCP section below |
 | `session_create` | Create interactive session | `{"command":"python3"}` |
 | `session_stdin` | Send input to session | `{"sessionId":"...","data":"print('hi')\\n"}` |
 | `session_read_output` | Read session output | `{"sessionId":"...","stream":"stdout"}` |
 | `session_wait` | Wait for session state | `{"sessionId":"...","exited":true}` |
+
+## Remote MCP Server Configuration
+
+Install or update external MCP servers on workers remotely via `remote_configure_mcp_server`.
+
+⚠️ Requires worker `permissionProfile` = `full-local-admin` and `managedMcpServerAdmin.enabled = true`.
+
+### Install HTTP MCP server
+```bash
+curl -s -m 30 -X POST http://localhost:8081/tool_call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clientName":"ZhouTest1",
+    "tool_name":"remote_configure_mcp_server",
+    "arguments":{
+      "name":"my-mcp-service",
+      "transport":"http",
+      "url":"http://localhost:3000/mcp",
+      "tools":["tool1","tool2"],
+      "published_remotely":true
+    }
+  }'
+```
+
+### Install stdio MCP server
+```bash
+curl -s -m 30 -X POST http://localhost:8081/tool_call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clientName":"ZhouTest1",
+    "tool_name":"remote_configure_mcp_server",
+    "arguments":{
+      "name":"playwright",
+      "transport":"stdio",
+      "command":"npx",
+      "args":["@anthropic/mcp-playwright"],
+      "tools":["browser_navigate","browser_screenshot"],
+      "published_remotely":true
+    }
+  }'
+```
+
+### Trust levels
+- `experimental` (default for remote-created) — local only, not published upstream
+- `trusted` — published remotely (must be manually promoted by device owner)
+- `blocked` — disabled
+
+New servers created via `remote_configure_mcp_server` default to `experimental`. The device operator must promote to `trusted` before tools are published upstream.
 
 ## Batch Operations
 
