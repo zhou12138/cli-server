@@ -59,15 +59,29 @@ pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod
 
 ```bash
 pip install <whl from above>
-landgod-gateway-py start                           # single node
-landgod-gateway-py start --redis redis://host:6379 # cluster
+
+# Start with custom token (recommended — avoid using default hardcoded token)
+landgod-gateway-py start --token YOUR_SECRET_TOKEN
+
+# Or via environment variable
+LANDGOD_AUTH_TOKEN=YOUR_SECRET_TOKEN landgod-gateway-py start
+
+# Cluster mode with Redis
+landgod-gateway-py start --token YOUR_SECRET_TOKEN --redis redis://host:6379
 ```
+
+⚠️ **Always set a custom token.** The default `hardcoded-token-1234` is public and insecure. Generate a random token: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`
 
 ### Node.js Gateway
 
 ```bash
 npm install -g <tgz from above>
-landgod-gateway start --daemon
+
+# Start with custom token
+landgod-gateway start --daemon --token YOUR_SECRET_TOKEN
+
+# Or via environment variable
+LANDGOD_AUTH_TOKEN=YOUR_SECRET_TOKEN landgod-gateway start --daemon
 ```
 
 ### systemd keepalive
