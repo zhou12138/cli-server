@@ -40,6 +40,8 @@ all: build worker gateway
 build:
 	@echo "🔨 编译 TypeScript (vite)..."
 	cd $(WORKER_SRC) && npm run package 2>&1 | tail -5
+	@echo "🔨 构建 headless-entry.js..."
+	cd $(WORKER_SRC) && npx esbuild src/main/headless-entry.ts --bundle --platform=node --outfile=.vite/build/headless-entry.js --external:electron --external:bufferutil --external:utf-8-validate --loader:.ts=ts --tsconfig=tsconfig.json 2>&1 | tail -2
 	@echo "✅ 编译完成"
 
 # ============================================
