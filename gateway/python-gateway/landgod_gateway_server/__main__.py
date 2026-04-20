@@ -64,6 +64,13 @@ def _start(args):
 
     from .gateway import Gateway
 
+    # Debug: verify token is passed correctly in daemon mode
+    _effective_token = args.token or os.environ.get("LANDGOD_AUTH_TOKEN", "")
+    if _effective_token:
+        print(f"[startup] Token configured: {_effective_token[:8]}... (len={len(_effective_token)})")
+    else:
+        print("[startup] ERROR: No token configured!")
+    
     gw = Gateway(
         ws_port=args.ws_port,
         http_port=args.port,
