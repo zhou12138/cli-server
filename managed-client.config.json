@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "mode": "managed-client-mcp-ws",
+  "bootstrapBaseUrl": "ws://localhost:8080",
+  "token": "hardcoded-token-1234",
+  "clientId": "b2e14373-04c0-4f6a-81b3-3832fe7e2dfd",
+  "toolCallApprovalMode": "auto",
+  "builtInTools": {
+    "permissionProfile": "full-local-admin"
+  }
+}

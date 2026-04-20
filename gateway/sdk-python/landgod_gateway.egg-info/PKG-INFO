@@ -1,0 +1,37 @@
+Metadata-Version: 2.4
+Name: landgod-gateway
+Version: 0.1.0
+Summary: LandGod Link — Python SDK for AI Agent remote device management
+License: MIT
+Project-URL: Homepage, https://github.com/zhou12138/cli-server
+Keywords: ai,agent,mcp,remote,device-management,landgod
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: System :: Systems Administration
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Provides-Extra: redis
+Requires-Dist: redis>=4.0.0; extra == "redis"
+
+# LandGod Link — Python SDK
+
+Agent Sidecar Gateway for remote device management.
+
+## Install
+
+```bash
+pip install landgod-gateway
+```
+
+## Usage
+
+```python
+from landgod_gateway import LandGod
+
+link = LandGod('http://localhost:8081')
+result = link.execute_sync('hostname', target='ZhouTest4')
+print(result['stdout'])
+```
+

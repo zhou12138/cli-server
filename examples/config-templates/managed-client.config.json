@@ -1,0 +1,12 @@
+{
+  "clientId": "REPLACE_WITH_UUID",
+  "clientName": "REPLACE_WITH_DEVICE_NAME",
+  "enabled": true,
+  "mode": "managed-client-mcp-ws",
+  "bootstrapBaseUrl": "ws://REPLACE_WITH_GATEWAY:8080",
+  "token": "REPLACE_WITH_TOKEN",
+  "toolCallApprovalMode": "auto",
+  "builtInTools": {
+    "permissionProfile": "command-only"
+  }
+}
