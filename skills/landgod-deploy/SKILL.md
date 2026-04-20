@@ -246,52 +246,37 @@ curl -X POST http://localhost:8081/tokens \
 | Quick Tunnel URL changed | Tunnel restarted | Update worker `bootstrapBaseUrl` + restart |
 | `allowedExecutableNames: []` error | Config serialization bug | Rebuild with latest source |
 
-## 7. Lessons Learned (Operational Pitfalls)
+## 7. Common Pitfalls
 
-### Token must match everywhere
-Gateway and all workers must use the **same token**. Mismatched tokens cause `Connection closed while waiting for session_opened` — looks like a protocol bug but is just auth failure. Before debugging WebSocket issues, always verify:
-```bash
-# On gateway: check what token it's using
-cat /proc/$(pgrep -f landgod-gateway)/environ | tr '\0' '\n' | grep TOKEN
+### Token mismatch
+Gateway and workers must use the **exact same token**. Symptom: `Connection closed while waiting for session_opened`. Fix: verify token on both sides before debugging anything else.
 
-# On worker: check its token
-landgod config show | grep token
-```
+### Quick Tunnel URL changes on restart
+`cloudflared tunnel --url` generates a random URL each time. After restart:
+1. Get new URL from log
+2. Update all tunnel-connected workers: `landgod config set bootstrapBaseUrl wss://NEW_URL`
+3. Restart workers
 
-### Quick Tunnel URL changes on every restart
-Cloudflare Quick Tunnel (`cloudflared tunnel --url`) generates a **random URL** each time. When the tunnel restarts, ALL workers using it must be updated. This is the #1 cause of "worker was online but now disconnected."
+For stable URL, use a domain with Cloudflare named tunnel.
 
-**Mitigation:** Use a domain with named tunnel. Until then, after every tunnel restart:
-1. Note the new `trycloudflare.com` URL
-2. Update every worker: `landgod config set bootstrapBaseUrl wss://NEW_URL`
-3. Restart worker: `landgod daemon stop && landgod daemon start --headless`
+### Only run one gateway
+Never run Python and Node.js gateways simultaneously on the same machine — port conflicts and token confusion. Pick one, uninstall the other.
 
-### Don't mix Python and Node.js gateways
-Only ONE gateway should run at a time. If both Python and Node.js gateways exist on the machine, confusion arises (wrong code version, different token stores). Pick one and uninstall the other:
-```bash
-# Uninstall Node.js gateway
-npm uninstall -g landgod-gateway
-
-# Or uninstall Python gateway
-pip uninstall landgod-gateway-server
-```
-
-### Gateway code lives in TWO directories
-Node.js gateway code exists in both `gateway/server/` and `gateway/sdk-node/`. The Makefile builds from `sdk-node/`. **Always sync changes to both:**
-```bash
-cp gateway/server/index.js gateway/sdk-node/server/index.js
-```
-
-### Worker headless mode on Windows needs correct cwd
-Windows headless daemon must run from the landgod package directory:
+### Windows headless requires correct working directory
+`landgod daemon start --headless` on Windows may fail because the config file is read from `process.cwd()`. Always `cd` to the landgod package directory first:
 ```cmd
 cd /d C:\...\node_modules\landgod
 node .vite\build\headless-entry.js
 ```
-Using `landgod daemon start --headless` may fail because the child process inherits wrong cwd. Use `schtasks` with a `.bat` file that `cd`s first.
+Use a `.bat` file with `schtasks` for persistence.
 
 ### Worker keepalive is per-machine
-Each worker machine needs its own keepalive (cron on Linux, schtasks on Windows). The gateway keepalive doesn't help workers — they're separate processes on separate machines.
+Each machine running a worker needs its own keepalive:
+- **Linux:** cron job checking `pgrep -f headless-entry` every minute
+- **Windows:** `schtasks /SC ONSTART` with bat file
 
-### `git add -A` is dangerous
-Never use `git add -A` in the cli-server repo — it will commit `node_modules/`, `out/`, `.vite/`, and other build artifacts. Always use `git add <specific files>` or `git add -f downloads/`.
+### China networks can't reach GitHub
+`npm install` from GitHub URL will timeout. Ask the user to configure a proxy on the target machine or download the package manually. **Do not SCP packages between machines.**
+
+### After `make clean && make`, verify packages
+Always check that `downloads/` contains all expected packages. The Makefile may not build the Python Gateway Server — build it separately with `python3 -m build` in `gateway/python-gateway/`.
