@@ -7,6 +7,30 @@ description: "Install and deploy LandGod gateway + workers for remote device man
 
 Deploy LandGod gateway and workers for AI-driven remote device fleet management.
 
+## Prerequisites
+
+Before deploying a worker to a new machine, you need:
+
+1. **SSH access to the target machine** — You must be able to SSH in to install packages and configure the worker. Get credentials from 太白金星 or the device owner.
+2. **Node.js 22+** on the target — If not installed, install it first (`apt install nodejs` / `yum install nodejs` / download from nodejs.org for Windows).
+3. **Network path from worker → gateway** — The worker needs to reach the gateway's WebSocket port (8080). This can be:
+   - **Direct**: worker can reach `ws://GATEWAY_IP:8080` (same LAN or open port)
+   - **SSH reverse tunnel**: gateway SSHs to worker, maps port 8080 back
+   - **Cloudflare Tunnel**: gateway exposes 8080 via `wss://xxx.trycloudflare.com`
+   - ⚠️ The worker initiates the WebSocket connection **outbound** — the gateway does NOT need to reach the worker. Only the worker needs to reach the gateway.
+4. **Token** — A valid gateway token for the worker to authenticate. Use the default `hardcoded-token-1234` or create one via `POST /tokens`.
+
+### Network direction
+
+```
+Worker ──(outbound WebSocket)──→ Gateway:8080
+Agent  ──(outbound HTTP)──────→ Gateway:8081
+
+Gateway does NOT need to reach workers.
+Workers do NOT need to reach each other.
+SSH is only needed during initial deployment (install + config).
+```
+
 ## Packages (all from GitHub)
 
 ```bash
