@@ -19,6 +19,7 @@ def main():
     start_p.add_argument("--port", type=int, default=int(os.environ.get("LANDGOD_HTTP_PORT", "8081")), help="HTTP port")
     start_p.add_argument("--ws-port", type=int, default=int(os.environ.get("LANDGOD_WS_PORT", "8080")), help="WebSocket port")
     start_p.add_argument("--redis", type=str, default=None, help="Redis URL for cluster mode")
+    start_p.add_argument("--token", type=str, default=None, help="Auth token (replaces default hardcoded-token-1234)")
     start_p.add_argument("--daemon", action="store_true", help="Run as background daemon")
 
     sub.add_parser("stop", help="Stop the gateway")
@@ -67,6 +68,7 @@ def _start(args):
         ws_port=args.ws_port,
         http_port=args.port,
         redis_url=args.redis,
+        auth_token=args.token,
     )
 
     loop = asyncio.new_event_loop()

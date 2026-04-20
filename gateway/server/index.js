@@ -6,7 +6,10 @@ const { generateKeyPairSync, createHash, sign, randomUUID } = require('node:cryp
 // ========================
 // 配置
 // ========================
-const AUTH_TOKEN = process.env.LANDGOD_AUTH_TOKEN || "hardcoded-token-1234";
+// Parse --token CLI argument
+const tokenArg = process.argv.find(a => a.startsWith('--token='));
+const tokenArgValue = tokenArg ? tokenArg.split('=')[1] : (process.argv.indexOf('--token') >= 0 ? process.argv[process.argv.indexOf('--token') + 1] : null);
+const AUTH_TOKEN = tokenArgValue || process.env.LANDGOD_AUTH_TOKEN || "hardcoded-token-1234";
 const WS_PORT = parseInt(process.env.LANDGOD_WS_PORT || "8080");
 const HTTP_PORT = parseInt(process.env.LANDGOD_HTTP_PORT || "8081");
 const DATA_DIR = process.env.LANDGOD_DATA_DIR || require('path').join(require('os').homedir(), '.landgod-gateway');
