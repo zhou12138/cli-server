@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: landgod-gateway-server
+Version: 0.1.0
+Summary: Python implementation of LandGod Gateway (WebSocket + HTTP API)
+Requires-Python: >=3.10
+Requires-Dist: aiohttp>=3.9
+Requires-Dist: websockets>=12.0
+Requires-Dist: cryptography>=42.0
+Requires-Dist: redis[hiredis]>=5.0
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: aioresponses; extra == "dev"

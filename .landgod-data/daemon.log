@@ -1,0 +1,451 @@
+/home/azureuser/cli-server/node_modules/electron/dist/electron: error while loading shared libraries: libatk-1.0.so.0: cannot open shared object file: No such file or directory
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/X Claw Node',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/X Claw Node'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/X Claw Node',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/X Claw Node'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[111530:0416/051456.658148:ERROR:network_service_instance_impl.cc(613)] Network service crashed, restarting service.
+[111530:0416/051456.669850:ERROR:zygote_communication_linux.cc(297)] Failed to send GetTerminationStatus message to zygote
+[111530:0416/051456.675945:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[111530:0416/051456.676624:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[111530:0416/051456.677352:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[111530:0416/051456.678252:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[111530:0416/051456.678963:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[111530:0416/051456.679556:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[111530:0416/051456.679578:FATAL:gpu_data_manager_impl_private.cc(423)] GPU process isn't usable. Goodbye.
+[119162:0416/065031.222116:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119162:0416/065031.222217:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119162:0416/065031.222834:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119162:0416/065031.222868:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119162:0416/065031.222884:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[119162:0416/065033.823849:ERROR:zygote_communication_linux.cc(297)] Failed to send GetTerminationStatus message to zygote
+[119246:0416/065046.661689:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119246:0416/065046.661797:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119246:0416/065046.661834:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119246:0416/065046.661850:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119246:0416/065046.661862:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[119246:0416/065049.267040:ERROR:zygote_communication_linux.cc(297)] Failed to send GetTerminationStatus message to zygote
+[119356:0416/065102.205552:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119356:0416/065102.205644:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119356:0416/065102.205663:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119356:0416/065102.205676:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119356:0416/065102.207047:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[119356:0416/065104.802768:ERROR:zygote_communication_linux.cc(297)] Failed to send GetTerminationStatus message to zygote
+[119356:0416/065104.803436:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119356:0416/065104.803870:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119356:0416/065104.804211:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119356:0416/065104.804616:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119356:0416/065104.804988:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119356:0416/065104.805309:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119356:0416/065104.805329:FATAL:gpu_data_manager_impl_private.cc(423)] GPU process isn't usable. Goodbye.
+[119447:0416/065117.696293:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119447:0416/065117.696374:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119447:0416/065117.696392:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119447:0416/065117.696407:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119447:0416/065117.696420:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[119447:0416/065120.298890:ERROR:network_service_instance_impl.cc(613)] Network service crashed, restarting service.
+[119447:0416/065120.304056:ERROR:zygote_communication_linux.cc(297)] Failed to send GetTerminationStatus message to zygote
+[119447:0416/065120.307410:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119447:0416/065120.308043:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119447:0416/065120.308589:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119447:0416/065120.309238:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119447:0416/065120.309776:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119447:0416/065120.310287:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119447:0416/065120.310307:FATAL:gpu_data_manager_impl_private.cc(423)] GPU process isn't usable. Goodbye.
+[119541:0416/065133.163722:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119541:0416/065133.163824:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119541:0416/065133.163843:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119541:0416/065133.163858:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119541:0416/065133.163871:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[119541:0416/065135.765551:ERROR:network_service_instance_impl.cc(613)] Network service crashed, restarting service.
+[119541:0416/065135.776495:ERROR:zygote_communication_linux.cc(297)] Failed to send GetTerminationStatus message to zygote
+[119541:0416/065135.785941:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119541:0416/065135.788198:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119541:0416/065135.788931:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119541:0416/065135.789700:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119541:0416/065135.790339:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119541:0416/065135.790887:ERROR:gpu_process_host.cc(976)] GPU process launch failed: error_code=1002
+[119541:0416/065135.790910:FATAL:gpu_data_manager_impl_private.cc(423)] GPU process isn't usable. Goodbye.
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[119698:0416/065148.681475:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119698:0416/065148.681568:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119698:0416/065148.681587:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119698:0416/065148.681603:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119698:0416/065148.681616:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[119698:0416/065151.286159:ERROR:network_service_instance_impl.cc(613)] Network service crashed, restarting service.
+[119789:0416/065204.223567:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119789:0416/065204.223656:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119789:0416/065204.225110:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119789:0416/065204.225139:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119789:0416/065204.225154:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[119865:0416/065219.632033:ERROR:ozone_platform_x11.cc(245)] Missing X server or $DISPLAY
+[119865:0416/065219.632104:ERROR:env.cc(258)] The platform failed to initialize.  Exiting.
+[119918:0416/065235.184560:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119918:0416/065235.184667:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119918:0416/065235.184688:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119918:0416/065235.184707:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[119918:0416/065235.184720:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[119918:0416/065237.776334:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.
+[120033:0416/065251.069508:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120033:0416/065251.069602:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120033:0416/065251.069622:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120033:0416/065251.069636:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120033:0416/065251.069646:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[120033:0416/065253.321168:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.
+[1m[47m[31mError launching app
+[30mUnable to find Electron app at /home/azureuser/cli-server
+
+Cannot find module '/home/azureuser/cli-server/.vite/build/index.js'. Please verify that the package.json has a valid "main" entry[0m
+[120216:0416/065321.684140:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120216:0416/065321.685739:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120216:0416/065321.685789:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120216:0416/065321.685805:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120216:0416/065321.685818:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[120216:0416/065324.275903:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.
+[120320:0416/065337.178591:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120320:0416/065337.178679:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120320:0416/065337.178698:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120320:0416/065337.178713:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120320:0416/065337.178738:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[120429:0416/065352.681098:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120429:0416/065352.681179:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120429:0416/065352.681196:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120429:0416/065352.681210:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120429:0416/065352.681222:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[120429:0416/065355.277967:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.
+[120508:0416/065408.196893:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120508:0416/065408.196986:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120508:0416/065408.197006:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120508:0416/065408.197021:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120508:0416/065408.197035:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[headless] LandGod Headless Runtime starting...
+[headless] Data dir: /home/azureuser/cli-server/.landgod-data
+[headless] Root dir: /home/azureuser/cli-server/.vite
+[headless] Config: {
+  enabled: true,
+  mode: 'managed-client-mcp-ws',
+  baseUrl: 'ws://localhost:8080',
+  hasToken: true
+}
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/.vite/build/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/.vite/build/LandGod Worker'
+}
+/home/azureuser/cli-server/.vite/build/headless-entry.js:64418
+runtime.start().then(() => {
+               ^
+
+TypeError: Cannot read properties of undefined (reading 'then')
+    at Object.<anonymous> (/home/azureuser/cli-server/.vite/build/headless-entry.js:64418:16)
+    at Module._compile (node:internal/modules/cjs/loader:1705:14)
+    at Object..js (node:internal/modules/cjs/loader:1838:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.22.2
+[120615:0416/065423.686836:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120615:0416/065423.686930:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120615:0416/065423.686949:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120615:0416/065423.686963:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120615:0416/065423.686975:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[120692:0416/065439.175897:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120692:0416/065439.176001:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120692:0416/065439.176023:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120692:0416/065439.176038:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120692:0416/065439.178500:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[120692:0416/065441.764132:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.
+[120771:0416/065454.675168:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120771:0416/065454.675258:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120771:0416/065454.675278:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120771:0416/065454.675294:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120771:0416/065454.675320:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[120867:0416/065510.174029:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120867:0416/065510.174116:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120867:0416/065510.174134:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120867:0416/065510.174147:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120867:0416/065510.174161:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[120867:0416/065512.772845:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.
+[headless] LandGod Headless Runtime starting...
+[headless] Data dir: /home/azureuser/cli-server/.landgod-data
+[headless] Root dir: /home/azureuser/cli-server/.vite
+[headless] Config: {
+  enabled: true,
+  mode: 'managed-client-mcp-ws',
+  baseUrl: 'ws://localhost:8080',
+  hasToken: true
+}
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/.vite/build/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/.vite/build/LandGod Worker'
+}
+/home/azureuser/cli-server/.vite/build/headless-entry.js:64418
+runtime.start().then(() => {
+               ^
+
+TypeError: Cannot read properties of undefined (reading 'then')
+    at Object.<anonymous> (/home/azureuser/cli-server/.vite/build/headless-entry.js:64418:16)
+    at Module._compile (node:internal/modules/cjs/loader:1705:14)
+    at Object..js (node:internal/modules/cjs/loader:1838:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.22.2
+[120965:0416/065525.685097:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120965:0416/065525.685162:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120965:0416/065525.685177:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120965:0416/065525.685197:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[120965:0416/065525.685204:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[120965:0416/065528.287798:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.
+[121044:0416/065541.179301:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121044:0416/065541.179378:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121044:0416/065541.179398:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121044:0416/065541.179412:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121044:0416/065541.179424:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[121044:0416/065543.769570:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.
+[121120:0416/065556.709443:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121120:0416/065556.709677:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121120:0416/065556.709700:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121120:0416/065556.709717:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121120:0416/065556.709729:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[121120:0416/065559.281265:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.
+[121265:0416/065612.929158:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121265:0416/065612.929245:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121265:0416/065612.929278:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121265:0416/065612.929291:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121265:0416/065612.929304:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[121347:0416/065628.599842:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121347:0416/065628.599931:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121347:0416/065628.599950:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121347:0416/065628.599965:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121347:0416/065628.599979:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[121347:0416/065631.080865:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.
+[121421:0416/065644.179259:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121421:0416/065644.180508:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121421:0416/065644.180545:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121421:0416/065644.180562:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[121421:0416/065644.180575:ERROR:bus.cc(407)] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[managed-client-mcp-ws] Connecting to MCP Hub websocket {
+  baseUrl: 'ws://localhost:8080',
+  wsUrl: 'ws://localhost:8080/api/mcphub/ws',
+  hasAuthorizationHeader: true,
+  workspaceRoot: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker',
+  workspaceDirectory: '/home/azureuser/cli-server/node_modules/electron/dist/LandGod Worker'
+}
+Managed client runtime enabled (managed-client-mcp-ws)
+[121421:0416/065644.982329:FATAL:electron_browser_main_parts.cc(502)] Failed to shutdown.

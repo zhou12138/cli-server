@@ -120,24 +120,6 @@ function loadTokens() {
     tokenRegistry.clear();
     tokenRegistry.set(AUTH_TOKEN, { device_name: '*', created_at: 'startup', active: true });
     console.log('Auth token registered (single-token mode)');
-});
-    try {
-        const data = require('fs').readFileSync(TOKEN_FILE, 'utf-8');
-        const tokens = JSON.parse(data);
-        for (const [k, v] of Object.entries(tokens)) {
-            tokenRegistry.set(k, v);
-        }
-        console.log(`Loaded ${tokenRegistry.size} tokens from ${TOKEN_FILE}`);
-    } catch {
-        console.log('No token file found, using configured auth token');
-    }
-    // Always ensure current auth token is registered
-    tokenRegistry.set(AUTH_TOKEN, { device_name: '*', created_at: 'legacy', active: true });
-    // Clean up legacy hardcoded tokens
-    if (tokenRegistry.has("hardcoded-token-1234")) {
-        tokenRegistry.delete("hardcoded-token-1234");
-        console.log('Removed legacy hardcoded-token-1234 from token store');
-    }
 }
 
 function saveTokens() {

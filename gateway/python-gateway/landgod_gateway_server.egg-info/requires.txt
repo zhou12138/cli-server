@@ -1,0 +1,9 @@
+aiohttp>=3.9
+websockets>=12.0
+cryptography>=42.0
+redis[hiredis]>=5.0
+
+[dev]
+pytest
+pytest-asyncio
+aioresponses
