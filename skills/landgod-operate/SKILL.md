@@ -138,7 +138,45 @@ New servers created via `remote_configure_mcp_server` default to `experimental`.
 
 ## Batch Operations
 
-### Execute same command on all devices
+### POST /batch_tool_call (recommended)
+
+Execute the same or different commands on multiple workers in parallel:
+
+```bash
+curl -s -X POST http://localhost:8081/batch_tool_call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "calls": [
+      {"clientName":"Worker1","tool_name":"shell_execute","arguments":{"command":"hostname && uname -a"}},
+      {"clientName":"Worker2","tool_name":"shell_execute","arguments":{"command":"hostname && uname -a"}}
+    ],
+    "timeout": 30000
+  }'
+```
+
+Response:
+```json
+{
+  "results": [
+    {"index":0,"clientName":"Worker1","tool_name":"shell_execute","result":{"stdout":"..."}},
+    {"index":1,"clientName":"Worker2","tool_name":"shell_execute","result":{"stdout":"..."}}
+  ]
+}
+```
+
+Each call runs independently — one failure doesn't block others.
+
+### Centralized Audit Logs
+
+```bash
+# All workers
+curl -s http://localhost:8081/audit
+
+# Specific worker, last 20 entries
+curl -s "http://localhost:8081/audit?clientName=Worker1&limit=20"
+```
+
+### Loop-based fallback (for dynamic device list)
 ```bash
 for client in $(curl -s http://localhost:8081/clients | python3 -c "
 import sys,json
@@ -151,29 +189,6 @@ for c in json.load(sys.stdin).get('clients',[]):
     -d "{\"clientName\":\"$client\",\"tool_name\":\"shell_execute\",\"arguments\":{\"command\":\"hostname && uname -a\"}}"
   echo ""
 done
-```
-
-### Using Python SDK
-```python
-from landgod_gateway import LandGod
-import asyncio
-
-async def main():
-    link = LandGod('http://localhost:8081')
-    
-    # List devices
-    clients = await link.clients()
-    
-    # Execute on one device
-    result = await link.execute('hostname', target='MY_DEVICE')
-    print(result['stdout'])
-    
-    # Broadcast to all
-    results = await link.broadcast('uname -a')
-    for r in results:
-        print(f"{r['device']}: {r.get('stdout','error')}")
-
-asyncio.run(main())
 ```
 
 ## Common Operations
