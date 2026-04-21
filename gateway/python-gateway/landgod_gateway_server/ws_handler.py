@@ -168,7 +168,10 @@ class WSHandler:
             logger.info(f"[register] {binding['clientName']} session={session_id} conn={connection_id}")
 
         elif method == "update_tools":
-            tools = list((msg.get("params") or {}).get("tools", {}).keys())
+            tools_data = (msg.get("params") or {}).get("tools", {})
+            tools = list(tools_data.keys())
+            # Store tools in connection info
+            conn["tools"] = tools_data
             await ws.send(json.dumps({
                 "type": "res", "id": task_id, "ok": True,
                 "payload": {"accepted": True},

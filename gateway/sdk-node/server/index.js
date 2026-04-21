@@ -254,6 +254,9 @@ server.on("connection", (client, req) => {
                     payload: { accepted: true }
                 }));
                 const tools = message.params?.tools ? Object.keys(message.params.tools) : [];
+                // Store tools in connection info
+                const ci = connectedClients.get(connectionId);
+                if (ci) ci.tools = message.params?.tools || {};
                 console.log(`[update_tools] Tools updated: ${tools.join(', ')}`);
 
             } else if (message.type === "res") {
@@ -433,6 +436,25 @@ const httpServer = http.createServer(async (req, res) => {
         return;
     }
 
+    // GET /tools - 列出所有已注册的工具
+    if (req.method === 'GET' && req.url === '/tools') {
+        const result = [];
+        for (const [connId, info] of connectedClients) {
+            if (info.client.readyState === WebSocket.OPEN && info.binding) {
+                const toolNames = info.tools ? Object.keys(info.tools) : [];
+                result.push({
+                    clientName: info.binding.clientName,
+                    connectionId: connId,
+                    toolCount: toolNames.length,
+                    tools: toolNames,
+                });
+            }
+        }
+        res.writeHead(200);
+        res.end(JSON.stringify({ tools: result }));
+        return;
+    }
+
     // GET /health - 健康检查
     if (req.method === 'GET' && req.url === '/health') {
         res.writeHead(200);
@@ -524,6 +546,7 @@ httpServer.listen(HTTP_PORT, () => {
     console.log(`HTTP API server running at http://0.0.0.0:${HTTP_PORT}`);
     console.log('');
     console.log('=== API Endpoints ===');
+    console.log('GET  /tools      - 列出已注册的工具');
     console.log('GET  /health      - 健康检查');
     console.log('GET  /clients     - 列出已连接的客户端');
     console.log('POST /tool_call   - 发送工具调用');
