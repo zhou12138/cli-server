@@ -87,6 +87,9 @@ LandGod enables AI agents to remotely manage devices distributed across differen
 | Cross-border | ❌ | ⚠️ Unreliable | ✅ Cloudflare Tunnel |
 | Persistent connection | ❌ | ❌ | ✅ WebSocket |
 | Centralized control | ❌ | ⚠️ | ✅ Gateway API |
+| Capability routing | ❌ | ❌ | ✅ Labels |
+| Async / Task queue | ❌ | ❌ | ✅ |
+| Resource awareness | ❌ | ❌ | ✅ CPU/mem/load |
 | Security | ⚠️ Keys everywhere | ⚠️ SSH keys | ✅ Token + signing |
 | External tools (MCP) | ❌ | ❌ | ✅ |
 

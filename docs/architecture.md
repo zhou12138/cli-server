@@ -1,162 +1,192 @@
-# LandGod 架构分析：优劣势与场景推荐
+# LandGod Architecture — AI Agent Scheduling Platform
 
-## LandGod 是什么
+## What is LandGod
 
-LandGod 是一个 **AI Agent 远程设备管理系统**，采用 Orchestrator-Worker 架构：
+LandGod is an **AI Agent resource scheduling platform** using a Gateway-Worker architecture:
 
 ```
-AI Agent (指挥官)
+AI Agent (brain)
   │
-  ▼ HTTP API
-LandGod-Link Gateway (边车网关)
+  ▼ HTTP API (:8081)
+Gateway (scheduling plane)
+  │  ┌─ Label routing    ┌─ Async tasks
+  │  ├─ Resource aware   ├─ Task queue
+  │  ├─ Batch dispatch   └─ Centralized audit
   │
-  ▼ WebSocket + Ed25519 签名
-LandGod Worker × N (远程执行节点)
+  ▼ WebSocket (:8080) + Ed25519 signing
+Worker × N (tools on remote devices)
 ```
 
-**一句话定义**：让 AI Agent 用自然语言控制多台远程设备。
+**One sentence:** If Kubernetes schedules Pods, LandGod schedules Tools — the smallest schedulable unit in the AI era.
 
 ---
 
-## 架构模式对比
+## Architecture Comparison
 
-### LandGod 模式 vs Multi-Agent 模式
+### Three Approaches to Multi-Device AI
 
-| | LandGod (Orchestrator-Worker) | Multi-Agent (分布式 AI) |
-|---|---|---|
-| **Worker 智能** | ❌ 零智能，纯工具 | ✅ 每个节点有 AI 大脑 |
-| **成本** | ⭐⭐⭐⭐⭐ 极低 | ⭐⭐ 每个 Agent 消耗 tokens |
-| **并行能力** | ⭐⭐⭐ 可并行发送 | ⭐⭐⭐⭐⭐ 真正并行思考 |
-| **自主性** | ❌ 等指令 | ✅ 独立决策 |
-| **部署复杂度** | ⭐ 简单 | ⭐⭐⭐ 复杂 |
-| **安全可控** | ⭐⭐⭐⭐⭐ 集中控制 | ⭐⭐⭐ 分散风险 |
-| **适合** | 执行明确任务 | 需要独立思考的任务 |
+| | Agent per Device | Agent + SSH | LandGod |
+|---|---|---|---|
+| **LLM cost** | N × cost | 1 × cost | 1 × cost |
+| **Setup per device** | Heavy (agent + LLM) | Medium (SSH key) | Light (npm install) |
+| **Firewall** | ✅ | ❌ Need SSH port | ✅ Outbound WebSocket |
+| **Cross-border** | ❌ | ⚠️ Unreliable | ✅ Cloudflare Tunnel |
+| **Persistent connection** | ❌ | ❌ | ✅ WebSocket |
+| **Centralized control** | ❌ | ⚠️ | ✅ Gateway API |
+| **Capability routing** | ❌ | ❌ | ✅ Labels |
+| **Async/Queue** | ❌ | ❌ | ✅ |
+| **Resource awareness** | ❌ | ❌ | ✅ |
+| **External tools (MCP)** | ❌ | ❌ | ✅ |
+| **Security** | ⚠️ Keys everywhere | ⚠️ SSH keys | ✅ Token + Ed25519 |
 
-### LandGod 模式 vs 传统运维工具 (Ansible/Puppet)
+### LandGod vs Traditional Ops Tools
 
 | | LandGod | Ansible | Puppet |
 |---|---|---|---|
-| **输入方式** | 自然语言 | YAML playbook | DSL manifest |
-| **学习成本** | ⭐ 零 | ⭐⭐⭐ 中等 | ⭐⭐⭐⭐ 高 |
-| **灵活性** | ⭐⭐⭐⭐⭐ 临时任意任务 | ⭐⭐⭐ 预定义任务 | ⭐⭐ 声明式 |
-| **规模** | 3-30 台 | 10-10000 台 | 10-10000 台 |
-| **实时性** | ⭐⭐⭐⭐ WebSocket 秒级 | ⭐⭐ SSH 连接 | ⭐⭐ 拉取模式 |
-| **AI 集成** | ⭐⭐⭐⭐⭐ 原生 | ⭐ 需额外集成 | ⭐ 需额外集成 |
-| **MCP 扩展** | ✅ 原生支持 | ❌ | ❌ |
+| **Input** | Natural language / HTTP | YAML playbook | DSL manifest |
+| **Learning curve** | ⭐ Zero | ⭐⭐⭐ Medium | ⭐⭐⭐⭐ High |
+| **Flexibility** | ⭐⭐⭐⭐⭐ Any ad-hoc task | ⭐⭐⭐ Pre-defined | ⭐⭐ Declarative |
+| **Scale** | 3-30 devices | 10-10000 | 10-10000 |
+| **Latency** | ⭐⭐⭐⭐ WebSocket instant | ⭐⭐ SSH | ⭐⭐ Pull-based |
+| **AI native** | ⭐⭐⭐⭐⭐ | ⭐ Needs wrapper | ⭐ Needs wrapper |
+| **Scheduling** | Labels + resources + queue | Inventory groups | Node classification |
+| **MCP support** | ✅ Native | ❌ | ❌ |
+
+### LandGod vs Multi-Agent
+
+| | LandGod (Orchestrator-Worker) | Multi-Agent (distributed AI) |
+|---|---|---|
+| **Worker intelligence** | ❌ Pure tools | ✅ Each has AI brain |
+| **Cost** | ⭐⭐⭐⭐⭐ Minimal | ⭐⭐ N × tokens |
+| **Parallel** | ✅ batch_tool_call | ✅ True parallel thinking |
+| **Autonomy** | ❌ Waits for commands | ✅ Independent decisions |
+| **Scheduling** | ✅ Labels + resources + queue | ⚠️ Manual coordination |
+| **Best for** | Executing clear tasks at scale | Tasks needing independent thought |
 
 ---
 
-## LandGod 的优势
+## Scheduling Capabilities (v0.1.1)
 
-### 1. 零学习成本
-```
-传统: 写 100 行 Ansible playbook → 调试 → 执行
-LandGod: "帮我检查所有机器的磁盘使用率" → 秒出结果
-```
+### 1. Label-Based Routing
 
-### 2. AI 原生
-- 任何 AI Agent（OpenClaw / ChatGPT / Claude / LangChain）都能用
-- Agent 只需 HTTP 能力，不需要 SDK
-- Sidecar 模式，完全解耦
-
-### 3. MCP 扩展生态
-- 通过 `remote_configure_mcp_server` 动态安装 MCP 插件
-- Playwright（浏览器）、GitHub、SQLite... 远程可用
-- 工具自动暴露给 Gateway
-
-### 4. 安全设计
-- Ed25519 签名验证每条指令
-- 命令白名单 + 目录限制
-- 设备专属 Token + 可吊销
-- 完整审计日志
-
-### 5. 跨平台
-- Linux / macOS / Windows
-- Electron 模式（UI）或 Headless 模式（纯 Node.js）
-- Azure / AWS / 阿里云 / 本地
-
----
-
-## LandGod 的劣势
-
-### 1. 单点瓶颈
-- AI Agent 一次只能关注一件事
-- 多台设备的复杂编排需要 Agent 自己规划
-
-### 2. 依赖网络
-- Worker 必须能连到 Gateway
-- 跨境网络不稳定（需要 Cloudflare Tunnel）
-
-### 3. 不适合大规模
-- 超过 30 台设备建议用 Ansible/K8s
-- WebSocket 长连接有上限
-
-### 4. Worker 无智能
-- 发现异常只能上报，不能自主处理
-- 复杂问题需要 AI Agent 逐步指导
-
----
-
-## 精准用户人群
-
-| 用户 | 痛点 | LandGod 价值 | 推荐度 |
-|------|------|-------------|--------|
-| **独立开发者** | 一人管 3-10 台服务器 | 一句话代替重复 SSH | ⭐⭐⭐⭐⭐ |
-| **小团队 (2-5人)** | 没有专职运维 | AI 当运维用 | ⭐⭐⭐⭐⭐ |
-| **AI 应用开发者** | 需要 Agent + Tool 架构 | 天然 MCP 集成 | ⭐⭐⭐⭐⭐ |
-| **自由职业者** | 多客户多环境 | 统一管理交付 | ⭐⭐⭐⭐ |
-| **HomeLab 玩家** | 家里设备多且杂 | 一个入口管所有 | ⭐⭐⭐⭐ |
-| **培训讲师** | 批量准备学生环境 | 并行部署 | ⭐⭐⭐⭐ |
-| **大企业运维** | 已有 Ansible/K8s | 不太需要 | ⭐⭐ |
-
----
-
-## 精准应用场景
-
-### ⭐⭐⭐⭐⭐ 最适合
-
-| 场景 | 示例 |
-|------|------|
-| **个人运维** | "检查所有机器磁盘"、"所有机器装 Node 22" |
-| **安全巡检** | "扫描所有机器有没有可疑进程" |
-| **环境搭建** | "给 5 台新机器装好开发环境" |
-| **临时数据分析** | "两台机器分别分析苏州和三亚天气" |
-| **跨平台测试** | "在 Linux 和 Windows 上分别跑测试" |
-
-### ⭐⭐⭐⭐ 适合
-
-| 场景 | 示例 |
-|------|------|
-| **分布式压测** | "5 台机器并行压测 API" |
-| **文件分发** | "把配置文件同步到所有机器" |
-| **日志收集** | "收集所有机器最近 1 小时错误日志" |
-| **远程浏览器** | "用 Playwright 打开网站截图" |
-
-### ⭐⭐ 不太适合
-
-| 场景 | 原因 | 更好方案 |
-|------|------|---------|
-| 100+ 台设备管理 | 规模太大 | Ansible / K8s |
-| 实时流式数据处理 | 不是设计目标 | Kafka / Flink |
-| 需要独立思考的任务 | Worker 无智能 | Multi-Agent |
-| 生产环境 CI/CD | 需要确定性 | Jenkins / GitHub Actions |
-
----
-
-## 混合架构推荐
+Workers declare capabilities. Agent requests by capability, not hardcoded name:
 
 ```
-你 (人类)
+Agent: "Run ML training on a GPU machine"
+  → Gateway checks labels: {"gpu": true}
+  → Routes to Worker-GPU automatically
+```
+
+### 2. Resource Awareness
+
+Workers report CPU/memory/load every 60 seconds:
+
+```
+GET /clients → {
+  "Worker-A": { cpuCount: 8, freeMemoryMB: 16384, loadAvg1m: 0.5 },
+  "Worker-B": { cpuCount: 2, freeMemoryMB: 4096, loadAvg1m: 2.1 }
+}
+→ Agent picks Worker-A (lower load, more memory)
+```
+
+### 3. Parallel Batch Dispatch
+
+Execute on multiple workers simultaneously:
+
+```
+POST /batch_tool_call → [Worker-US, Worker-JP, Worker-CN]
+  All run curl in parallel → results in ~3s, not ~9s
+```
+
+### 4. Async Tasks
+
+Long-running tasks return immediately:
+
+```
+POST /tool_call?async=true → {"taskId": "task-xxx", "status": "pending"}
+  ... 2 hours later ...
+GET /tasks/task-xxx → {"status": "completed", "result": {...}}
+```
+
+### 5. Task Queue
+
+Offline workers receive tasks when they reconnect:
+
+```
+POST /tool_call?queue=true (Worker offline)
+  → {"taskId": "task-xxx", "status": "queued"}
+Worker comes online → auto-executes → result in /tasks/task-xxx
+```
+
+### 6. Centralized Audit
+
+View audit logs from all workers in one place:
+
+```
+GET /audit → aggregated logs from all connected workers
+```
+
+---
+
+## Six Dimensions of Extension
+
+| Dimension | Example | How |
+|-----------|---------|-----|
+| 🧠 **Compute** | GPU worker runs ML training | Label routing: `{"gpu":true}` |
+| 🌐 **Geography** | Test latency from US/JP/CN | batch_tool_call to 3 regions |
+| 🖥️ **Platform** | Build .NET on Windows, iOS on Mac | Label: `{"platform":"windows"}` |
+| 🔒 **Network** | Access internal DB behind firewall | Worker connects outbound |
+| 🔀 **Parallelism** | Scan 50 sites across 10 workers | batch_tool_call with split |
+| 🧰 **Capabilities** | Playwright browser, PostgreSQL MCP | MCP servers per worker |
+
+---
+
+## Strengths
+
+- **Zero learning curve** — Any AI agent with HTTP can use it
+- **AI native** — Sidecar gateway, fully decoupled
+- **MCP ecosystem** — Remote Playwright, databases, any MCP server
+- **Security** — Ed25519 signing + token auth + command allowlist + audit
+- **Cross-platform** — Linux, macOS, Windows, any cloud
+- **Smart scheduling** — Labels, resources, async, queue, batch
+
+## Limitations
+
+- **Single-brain bottleneck** — One agent orchestrates all (mitigated by batch)
+- **Network dependency** — Workers must reach Gateway (mitigated by Cloudflare Tunnel)
+- **Not for 100+ devices** — Use Ansible/K8s for large scale
+- **Workers have no intelligence** — Can't make decisions independently
+
+---
+
+## Target Users
+
+| User | Pain Point | LandGod Value | Fit |
+|------|-----------|---------------|-----|
+| Solo dev (3-10 servers) | Repetitive SSH | One command manages all | ⭐⭐⭐⭐⭐ |
+| Small team (no dedicated ops) | No ops engineer | AI is the ops | ⭐⭐⭐⭐⭐ |
+| AI app developer | Need Agent + Tool | Native MCP integration | ⭐⭐⭐⭐⭐ |
+| HomeLab enthusiast | Mixed devices | Single gateway | ⭐⭐⭐⭐ |
+| Enterprise ops (100+ devices) | Already have Ansible | Overkill | ⭐⭐ |
+
+---
+
+## Recommended Hybrid Architecture
+
+```
+Human
  │
- ├→ 悟空 (主 Agent) ——— 决策中枢、复杂任务
+ ├→ Main Agent (brain) ——— decisions, complex tasks
  │   │
- │   ├→ LandGod Worker × N (简单执行: 跑命令、装软件、监控)
- │   │   便宜、快、听话
+ │   ├→ LandGod Gateway ──→ Worker × N
+ │   │   Cheap, fast, obedient: run commands, install, monitor
+ │   │   Labels + resources → smart routing
+ │   │   Async + queue → long/offline tasks
  │   │
- │   └→ 夜游神 (子 Agent) (专职巡查: 安全扫描、告警)
- │       专注、7×24、独立判断
+ │   └→ Sub-Agents (specialized)
+ │       24/7 patrol, security scanning, independent judgment
  │
- └→ 其他 Agent (按需) ——— 代码审查、测试、调研
+ └→ Other Agents (on demand) ——— code review, research
 ```
 
-**原则：能用 LandGod Worker 解决的，不用 Agent。需要动脑的，派 Agent。**
+**Principle:** Use LandGod Workers for execution. Use Agents for thinking.
