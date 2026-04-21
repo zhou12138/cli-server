@@ -1,7 +1,0 @@
-{
-  "pid": 121421,
-  "startedAt": "2026-04-16T06:56:43.628Z",
-  "mode": "managed-client-mcp-ws",
-  "logPath": "/home/azureuser/cli-server/.landgod-data/daemon.log",
-  "dataDir": "/home/azureuser/cli-server/.landgod-data"
-}

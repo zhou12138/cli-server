@@ -1,28 +1,51 @@
+# ============================================
+# LandGod .gitignore
+# ============================================
+
+# Dependencies
 node_modules/
+**/node_modules/
+
+# Build artifacts
 out/
 dist/
+dist-headless/
 .vite/
-*.log
-test-spawn.js
+
+# Python build artifacts
+**/__pycache__/
+*.pyc
+*.pyo
+**/*.egg-info/
+**/dist/*.whl
+**/dist/*.tar.gz
+**/.pytest_cache/
+
+# Runtime data
+.landgod-data/
+.xclaw-node-data/
 managed-client.config.json
 managed-client.mcp-servers.json
 managed-client-workspace/
+
+# Application specific
 .playwright-mcp/
 .superpowers/
-.landgod-data/
-bin/
-# Runtime data (不提交)
-.landgod-data/
-managed-client.config.json
-managed-client.mcp-servers.json
+bin/clawnode.js
+bin/clawnode.js.bak
 
-# Build artifacts
-dist/
-dist-headless/
-*.tgz
-*.whl
-*.tar.gz
+# Logs
+*.log
+
+# Test files
+test-spawn.js
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# IDE
+.idea/
+
+# npm pack output (downloads/ is tracked intentionally)
+/*.tgz

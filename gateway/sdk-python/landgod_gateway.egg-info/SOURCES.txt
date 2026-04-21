@@ -1,9 +1,0 @@
-README.md
-pyproject.toml
-landgod_gateway/__init__.py
-landgod_gateway/store.py
-landgod_gateway.egg-info/PKG-INFO
-landgod_gateway.egg-info/SOURCES.txt
-landgod_gateway.egg-info/dependency_links.txt
-landgod_gateway.egg-info/requires.txt
-landgod_gateway.egg-info/top_level.txt
