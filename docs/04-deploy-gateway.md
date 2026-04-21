@@ -9,7 +9,7 @@
 
 ```bash
 # 从 GitHub 安装
-npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-gateway-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.0.tgz
 
 # 或从本地文件
 npm install -g ./downloads/landgod-gateway-0.1.0.tgz
@@ -19,10 +19,10 @@ npm install -g ./downloads/landgod-gateway-0.1.0.tgz
 
 ```bash
 # 后台启动（推荐）
-landgod-gateway start --daemon
+landgod-gateway start --daemon --token YOUR_SECRET_TOKEN
 
 # 前台启动（调试）
-landgod-gateway start
+landgod-gateway start --token YOUR_SECRET_TOKEN
 
 # 自定义端口
 landgod-gateway start --daemon --port 9081 --ws-port 9080
@@ -58,7 +58,7 @@ landgod-gateway stop       # 停止
 ~/.landgod-gateway/
 ├── gateway.pid      进程 PID
 ├── gateway.log      运行日志
-└── tokens.json      Token 注册表
+# tokens.json removed (single-token mode)
 ```
 
 ## 告诉 Agent
@@ -83,7 +83,7 @@ After=network.target
 [Service]
 Type=simple
 User=YOUR_USER
-ExecStart=/usr/bin/env landgod-gateway start
+ExecStart=/usr/bin/env landgod-gateway start --token YOUR_SECRET_TOKEN
 Restart=always
 RestartSec=5
 
