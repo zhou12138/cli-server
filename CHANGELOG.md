@@ -13,6 +13,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   - `landgod-gateway-py start [--token TOKEN] [--redis URL]`
 - **`POST /batch_tool_call`** — Parallel execution on multiple workers simultaneously
 - **`GET /audit`** — Centralized audit log viewer across all workers
+- **Async tasks** (`POST /tool_call?async=true`) — Returns `taskId` immediately, executes in background
+- **Task queue** (`POST /tool_call?queue=true`) — Queues tasks for offline workers, auto-drains on reconnect
+- **`GET /tasks`** / **`GET /tasks/:id`** — List and query async/queued task status
+- **Worker labels** — Workers declare capabilities via `labels` config, sent during registration
+- **Label-based routing** — Route tool_call by labels (`{"labels":{"gpu":true}}`) instead of hardcoded clientName
+- **Resource awareness** — Workers report CPU/memory/load every 60s, visible in `GET /clients`
+- **`landgod-dispatch` skill** — AI agent task scheduling skill (labels, async, queue, batch, resources)
 - **`GET /tools`** — List registered tools per worker
 - **`landgod mcp show`** — Display MCP server configuration
 - **`landgod daemon start --headless`** — Pure Node.js headless mode, no Electron needed

@@ -154,7 +154,52 @@ curl http://localhost:8081/tools
 | GET | `/tools` | List registered tools per worker |
 | POST | `/batch_tool_call` | Parallel execution on multiple workers |
 | GET | `/audit` | Centralized audit logs from workers |
+| GET | `/tasks` | List async tasks and queued tasks |
+| GET | `/tasks/:id` | Get task status and result |
 | POST | `/tool_call` | Execute command on worker |
+
+
+## Advanced Features
+
+### Label-Based Routing
+
+Workers declare capabilities via labels. Route tasks by capability instead of hardcoded names:
+
+```bash
+# Configure worker labels
+landgod config set labels '{"gpu":true,"region":"us","role":"ml"}'
+
+# Route to any GPU worker
+curl -X POST http://localhost:8081/tool_call \
+  -d '{"labels":{"gpu":true},"tool_name":"shell_execute","arguments":{"command":"nvidia-smi"}}'
+```
+
+### Resource Awareness
+
+Workers report CPU, memory, and load every 60 seconds. `GET /clients` returns real-time resource data for scheduling decisions.
+
+### Async Tasks
+
+Long-running tasks return immediately with a `taskId`:
+
+```bash
+curl -X POST "http://localhost:8081/tool_call?async=true" \
+  -d '{"clientName":"GPU","tool_name":"shell_execute","arguments":{"command":"python train.py"}}'
+# → {"taskId":"task-xxx","status":"pending"}
+
+curl http://localhost:8081/tasks/task-xxx
+# → {"status":"completed","result":{...}}
+```
+
+### Task Queue
+
+Tasks for offline workers are queued and auto-executed when the worker reconnects:
+
+```bash
+curl -X POST "http://localhost:8081/tool_call?queue=true" \
+  -d '{"clientName":"OfflineWorker","tool_name":"shell_execute","arguments":{"command":"hostname"}}'
+# → {"taskId":"task-xxx","status":"queued"}
+```
 
 ## Worker Tools
 
@@ -221,6 +266,7 @@ make clean && make    # Build all packages → downloads/
 - [`examples/`](examples/) — Deployment guide with real-world example
 - [`skills/landgod-deploy/`](skills/landgod-deploy/) — Skill for deploying LandGod
 - [`skills/landgod-operate/`](skills/landgod-operate/) — Skill for operating devices
+- [`skills/landgod-dispatch/`](skills/landgod-dispatch/) — Skill for intelligent task dispatch and scheduling
 
 ## License
 
