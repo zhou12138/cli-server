@@ -94,10 +94,10 @@ LandGod enables AI agents to remotely manage devices distributed across differen
 
 | Package | Language | Type | Install |
 |---------|----------|------|---------|
-| `landgod` | Node.js | Worker (runs on managed devices) | `npm install -g landgod-0.1.0.tgz` |
-| `landgod-gateway` | Node.js | Gateway server | `npm install -g landgod-gateway-0.1.0.tgz` |
-| `landgod-gateway-server` | Python | Gateway server (supports Redis cluster) | `pip install landgod_gateway_server-0.1.0.whl` |
-| `landgod_gateway` | Python | Client SDK | `pip install landgod_gateway-0.1.0.whl` |
+| `landgod` | Node.js | Worker (runs on managed devices) | `npm install -g landgod-0.1.1.tgz` |
+| `landgod-gateway` | Node.js | Gateway server | `npm install -g landgod-gateway-0.1.1.tgz` |
+| `landgod-gateway-server` | Python | Gateway server (supports Redis cluster) | `pip install landgod_gateway_server-0.1.1.whl` |
+| `landgod_gateway` | Python | Client SDK | `pip install landgod_gateway-0.1.1.whl` |
 
 All packages: [`downloads/`](downloads/)
 
@@ -107,18 +107,18 @@ All packages: [`downloads/`](downloads/)
 
 ```bash
 # Node.js
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.1.tgz
 landgod-gateway start --daemon --token YOUR_SECRET_TOKEN
 
 # Or Python
-pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.0-py3-none-any.whl
+pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.1-py3-none-any.whl
 landgod-gateway-py start --token YOUR_SECRET_TOKEN
 ```
 
 ### 2. Install & Configure Worker
 
 ```bash
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.1.tgz
 
 landgod config set enabled true
 landgod config set mode managed-client-mcp-ws

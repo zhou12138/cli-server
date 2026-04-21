@@ -5,12 +5,12 @@
 ## Install
 
 ```bash
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.1.tgz
 ```
 
 Or Python version:
 ```bash
-pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.0-py3-none-any.whl
+pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.1-py3-none-any.whl
 ```
 
 ## Start

@@ -4,15 +4,45 @@ All notable changes to LandGod will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.1.0-rc2] — 2026-04-21
+## [0.1.1] — 2026-04-21
 
 ### Added
-- **Python Gateway Server** (`landgod-gateway-server`) — Full Python Gateway
-  - Single-node (memory) and distributed (Redis) deployment
-  - WebSocket + HTTP API, protocol-compatible with Node.js Gateway
-  - `landgod-gateway-py start [--token TOKEN] [--redis URL]`
-- **`POST /batch_tool_call`** — Parallel execution on multiple workers simultaneously
+- **Worker labels** — Workers declare capabilities via `labels` config (`{"gpu":true,"region":"us"}`)
+- **Label-based routing** — `POST /tool_call` with `{"labels":{"gpu":true}}` auto-finds matching worker
+- **Resource awareness** — Workers report CPU/memory/load every 60s, visible in `GET /clients`
+- **Resource heartbeat** — `resource_heartbeat` WebSocket method updates stored resource data
+- **Async tasks** — `POST /tool_call?async=true` returns `taskId` immediately, executes in background
+- **Task queue** — `POST /tool_call?queue=true` queues tasks for offline workers, auto-drains on reconnect
+- **`GET /tasks`** — List all async and queued tasks with status filter
+- **`GET /tasks/:id`** — Get individual task status and result
+- **`POST /batch_tool_call`** — Parallel batch execution on multiple workers (Node.js + Python)
 - **`GET /audit`** — Centralized audit log viewer across all workers
+- **`landgod mcp show`** — Display MCP server configuration
+- **`landgod-dispatch` skill** — AI agent task scheduling (labels, async, queue, batch, resources)
+- **Worker exponential backoff** — Reconnect with jitter (3s→60s cap), resets on success
+
+### Changed
+- Single-token authentication mode, removed `tokens.json`
+- Token must be set via `--token` or `LANDGOD_AUTH_TOKEN`
+- Gateway without token fails to start (no silent defaults)
+- Directory restructure: `sdk-node` → `node-gateway`, `sdk-python` → `python-sdk`
+- Documentation reorganized with index, consistent numbering, English CHANGELOG
+- `.gitignore` updated, removed 131 tracked build artifacts
+- Makefile includes headless-entry.js + Python Gateway Server build targets
+- README rewritten with architecture comparison (Agent-per-Device vs SSH vs LandGod)
+- Python Gateway fully synced: labels, resources, batch, async, queue, audit
+
+### Fixed
+- Gateway `clientName` routing returns 404 when worker not found
+- Worker `permissionProfile` lost during config serialization
+- `headless-entry.ts` ROOT_DIR path (Windows compatibility)
+- `headless-entry.ts` `runtime.start()` Promise handling crash
+- `toolCallApprovalMode` defaulting to `manual` caused auto-reject in headless
+- Node.js Gateway daemon `--token` not passed to child process
+- websockets 16 API compatibility (Python Gateway)
+- Makefile `cd` fallback bug in Python build commands
+
+## [0.1.0] — 2026-04-16
 - **Async tasks** (`POST /tool_call?async=true`) — Returns `taskId` immediately, executes in background
 - **Task queue** (`POST /tool_call?queue=true`) — Queues tasks for offline workers, auto-drains on reconnect
 - **`GET /tasks`** / **`GET /tasks/:id`** — List and query async/queued task status

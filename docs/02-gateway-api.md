@@ -270,7 +270,7 @@ Worker 连接 `ws://GATEWAY:8080/api/mcphub/ws`，使用 Bearer Token 认证。
 
 ### 安装
 ```bash
-npm install -g landgod-gateway-0.1.0.tgz
+npm install -g landgod-gateway-0.1.1.tgz
 ```
 
 ### CLI
@@ -293,7 +293,7 @@ landgod-gateway status
 
 ### 安装
 ```bash
-pip install landgod_gateway-0.1.0-py3-none-any.whl
+pip install landgod_gateway-0.1.1-py3-none-any.whl
 pip install landgod-gateway[redis]  # 可选 Redis 支持
 ```
 
