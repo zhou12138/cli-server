@@ -91,12 +91,17 @@ function startGateway(args) {
 
     ensureDir(dataDir);
 
+    // Parse --token argument
+    const tokenIdx = args.indexOf('--token');
+    const tokenArg = tokenIdx >= 0 && args[tokenIdx + 1] ? args[tokenIdx + 1] : null;
+    
     const env = {
         ...process.env,
         LANDGOD_HTTP_PORT: port,
         LANDGOD_WS_PORT: wsPort,
         LANDGOD_DATA_DIR: dataDir,
     };
+    if (tokenArg) env.LANDGOD_AUTH_TOKEN = tokenArg;
 
     if (daemon) {
         const logFd = fs.openSync(LOG_FILE, 'a');
