@@ -267,14 +267,25 @@ curl http://localhost:8081/health
 # List online workers
 curl http://localhost:8081/clients
 
+# List registered tools per worker
+curl http://localhost:8081/tools
+
 # Execute command on worker
 curl -X POST http://localhost:8081/tool_call \
   -H "Content-Type: application/json" \
   -d '{"clientName":"<NAME>","tool_name":"shell_execute","arguments":{"command":"hostname"}}'
 
-# Create token
-curl -X POST http://localhost:8081/tokens \
-  -d '{"device_name":"new-device"}'
+# Parallel batch execution on multiple workers
+curl -X POST http://localhost:8081/batch_tool_call \
+  -H "Content-Type: application/json" \
+  -d '{"calls":[
+    {"clientName":"Worker1","tool_name":"shell_execute","arguments":{"command":"hostname"}},
+    {"clientName":"Worker2","tool_name":"shell_execute","arguments":{"command":"hostname"}}
+  ]}'
+
+# Centralized audit logs (all workers or specific)
+curl http://localhost:8081/audit
+curl "http://localhost:8081/audit?clientName=<NAME>&limit=20"
 ```
 
 ## 6. Troubleshooting
@@ -306,16 +317,19 @@ Correct names: `browser_close`, `browser_resize`, `browser_console_messages`, `b
 ### Wildcard blocked
 `"tools": ["*"]` is explicitly blocked by `shouldPublishExternalServerRemotely`. Empty `tools: []` is also blocked. You must list every tool by exact name.
 
-## 8. Worker Reconnect Bug (Known Issue)
+## 8. Worker Reconnect Behavior
 
-Workers may disconnect and reconnect shortly after starting. On reconnect, external MCP server tools can be lost:
+Workers use **exponential backoff** for reconnection:
+- Start at 3 seconds, double each failure (3s → 6s → 12s → 24s → 48s → 60s cap)
+- Random jitter (0-1s) added to prevent thundering herd
+- Resets to 3s on successful connection
+
+On reconnect, external MCP server tools can be temporarily lost:
 - **First connection**: sends all tools (e.g. 28 = 7 built-in + 21 playwright)
-- **Disconnects** within seconds
-- **Reconnects**: sends only 7 built-in tools (external MCP tools missing)
+- **Reconnects**: may send only 7 built-in tools initially
+- **After stabilization**: external MCP tools re-register
 
-This is visible in `audit.jsonl` — look for two `update_tools` entries, first with full count, second with only 7.
-
-**Workaround**: The issue is intermittent. Retrying tool calls after a few seconds often works as the worker stabilizes. If persistent, restart the worker.
+This is visible in `audit.jsonl` — look for `update_tools` entries. If persistent, restart the worker.
 
 ## 9. Common Pitfalls
 
