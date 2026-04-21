@@ -1,163 +1,158 @@
-# 🏮 LandGod — AI 驱动的远程设备管理
+# 🏮 LandGod — Remote Device Management for AI Agents
 
-> Agent → HTTP → Gateway → WebSocket → Worker（土地公）
+LandGod enables AI agents to remotely manage devices distributed across different networks. Agents send HTTP requests to a Gateway, which forwards commands via WebSocket to Workers running on target machines.
 
-LandGod 让 AI Agent 通过自然语言远程管理分布在不同网络中的设备。Agent 发 HTTP 请求给 Gateway，Gateway 通过 WebSocket 转发给各台机器上的 Worker（土地公），Worker 在本地执行命令并返回结果。
-
-## 架构
+## Architecture
 
 ```
-┌─────────┐    HTTP     ┌─────────────┐    WebSocket    ┌──────────────┐
-│  Agent   │ ─────────→ │   Gateway   │ ──────────────→ │  Worker (1号) │
-│ (AI Agent)│  :8081     │ (landgod-   │  :8080         │  ZhouTest1   │
-└─────────┘             │  gateway)   │                 └──────────────┘
-                        │             │ ──────────────→ ┌──────────────┐
-                        └─────────────┘                 │  Worker (4号) │
-                                                        │  ZhouTest4   │
-                                                        └──────────────┘
+                        ┌──────────────────┐
+                        │    AI Agent       │
+                        │  (any LLM agent)  │
+                        └────────┬─────────┘
+                                 │ HTTP :8081
+                        ┌────────▼─────────┐
+                        │    Gateway        │
+                        │  (Node.js or Py)  │
+                        └────────┬─────────┘
+                                 │ WebSocket :8080
+               ┌─────────────────┼─────────────────┐
+               ▼                 ▼                  ▼
+        ┌──────────┐      ┌──────────┐       ┌──────────┐
+        │ Worker A │      │ Worker B │       │ Worker C │
+        │ (Linux)  │      │ (Windows)│       │ (Cloud)  │
+        └──────────┘      └──────────┘       └──────────┘
 ```
 
-## 核心组件
+## Components
 
-| 组件 | 包名 | 说明 |
-|------|------|------|
-| **Worker** | `landgod` | 部署在被管理设备上，执行命令、读文件、管理 MCP Server |
-| **Gateway (Node.js)** | `landgod-gateway` | Agent 边车网关，HTTP↔WebSocket 协议转换 |
-| **Gateway (Python)** | `landgod-gateway-server` | Python 版 Gateway 服务端（支持 Redis 集群） |
-| **Python SDK** | `landgod_gateway` | Python 客户端 SDK |
+| Package | Language | Type | Install |
+|---------|----------|------|---------|
+| `landgod` | Node.js | Worker (runs on managed devices) | `npm install -g landgod-0.1.0.tgz` |
+| `landgod-gateway` | Node.js | Gateway server | `npm install -g landgod-gateway-0.1.0.tgz` |
+| `landgod-gateway-server` | Python | Gateway server (supports Redis cluster) | `pip install landgod_gateway_server-0.1.0.whl` |
+| `landgod_gateway` | Python | Client SDK | `pip install landgod_gateway-0.1.0.whl` |
 
-## 快速开始
+All packages: [`downloads/`](downloads/)
 
-### 1. 安装 Gateway（在 Agent 所在机器）
+## Quick Start
+
+### 1. Install & Start Gateway
 
 ```bash
-npm install -g landgod-gateway
-landgod-gateway start --daemon
-landgod-gateway --version
+# Node.js
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.0.tgz
+landgod-gateway start --daemon --token YOUR_SECRET_TOKEN
+
+# Or Python
+pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.0-py3-none-any.whl
+landgod-gateway-py start --token YOUR_SECRET_TOKEN
 ```
 
-### 2. 安装 Worker（在被管理的设备上）
+### 2. Install & Configure Worker
 
 ```bash
-npm install -g landgod
-landgod onboard          # 交互式配置向导
-landgod start            # 启动
-landgod --version
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.0.tgz
+
+landgod config set enabled true
+landgod config set mode managed-client-mcp-ws
+landgod config set bootstrapBaseUrl "ws://GATEWAY_HOST:8080"
+landgod config set token "YOUR_SECRET_TOKEN"
+landgod config set toolCallApprovalMode auto
+landgod config set builtInTools.permissionProfile full-local-admin
+
+landgod daemon start --headless
 ```
 
-### 3. Agent 调用
+### 3. Execute Commands
 
 ```bash
-# 查看连接的设备
+# Check online devices
 curl http://localhost:8081/clients
 
-# 在远程设备上执行命令
+# Run command on a device
 curl -X POST http://localhost:8081/tool_call \
   -H "Content-Type: application/json" \
-  -d '{"tool_name":"shell_execute","arguments":{"command":"hostname"}}'
+  -d '{"clientName":"MY_DEVICE","tool_name":"shell_execute","arguments":{"command":"hostname"}}'
+
+# List registered tools
+curl http://localhost:8081/tools
 ```
 
-## Worker 运行模式
+## Gateway API
 
-| 模式 | 需要 Electron | 适合场景 |
-|------|:------------:|---------|
-| **Headless** | ❌ | 服务器、CI/CD、无 GUI 环境 |
-| **GUI** | ✅ | 需要桌面 UI 的场景 |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/clients` | List connected workers |
+| GET | `/tools` | List registered tools per worker |
+| POST | `/tool_call` | Execute command on worker |
 
-```bash
-# Headless 模式（推荐，无需 Electron）
-landgod config set mode managed-client-mcp-ws
-landgod start
+## Worker Tools
 
-# GUI 模式（需要先安装 Electron）
-cd $(node -e "console.log(require.resolve('landgod/package.json').replace('/package.json',''))")
-npm install
-landgod start --gui
-```
+| Tool | Description |
+|------|-------------|
+| `shell_execute` | Run shell commands |
+| `file_read` | Read files |
+| `remote_configure_mcp_server` | Install external MCP servers |
+| `session_create/stdin/read_output/wait` | Interactive sessions |
 
-## 权限级别
+Workers can also expose external MCP server tools (e.g., Playwright browser automation).
 
-| Profile | 命令数 | 适合场景 |
-|---------|:-----:|---------|
-| `command-only` | 19 | 只读监控（echo, ls, cat, ps...） |
-| `interactive-trusted` | 32 | 开发运维（+ npm, git, python, curl...） |
-| `full-local-admin` | 47 | 完全管理（+ rm, systemctl, apt...） |
+## Permission Profiles
 
-```bash
-landgod config set builtInTools.permissionProfile full-local-admin
-```
+| Profile | Use Case | Shell Commands |
+|---------|----------|---------------|
+| `command-only` | Read-only monitoring | echo, ls, cat, hostname, ps, df |
+| `interactive-trusted` | Development | + git, node, npm, curl, find |
+| `full-local-admin` | Full management | Everything |
 
-## 内置工具
+## Network Connectivity
 
-| 工具 | 说明 |
-|------|------|
-| `shell_execute` | 执行 shell 命令（受白名单约束） |
-| `file_read` | 读取文件内容 |
-| `session_create` | 创建交互式终端会话 |
-| `session_stdin` | 向会话发送输入 |
-| `session_read` | 读取会话输出 |
-| `session_wait` | 等待会话结束 |
-| `remote_configure_mcp_server` | 远程配置 MCP Server |
+| Scenario | Worker Config | Method |
+|----------|--------------|--------|
+| Same machine | `ws://localhost:8080` | Direct |
+| Same network | `ws://GATEWAY_IP:8080` | Open port |
+| Cross-network | `ws://localhost:8080` | SSH reverse tunnel |
+| Cross-border | `wss://xxx.trycloudflare.com` | Cloudflare Tunnel |
 
-## 安全机制
+## Security
 
-- **Ed25519 签名验证** — Gateway 签发的每条指令都有签名，Worker 验证后才执行
-- **命令白名单** — 只允许执行配置中列出的命令
-- **工作目录限制** — 只能在指定目录下操作
-- **审计日志** — 所有操作记录到 `audit.jsonl`
-- **Token 认证** — Worker 连接 Gateway 需要有效 Token
-- **单实例保护** — 启动时自动杀掉旧进程，防止多实例冲突
+- **Token authentication** — Required on every WebSocket connection
+- **Ed25519 signing** — Every tool_call is cryptographically signed
+- **Command allowlist** — Per-profile shell command restrictions
+- **Working directory restrictions** — Limit where commands can execute
+- **Approval mode** — Optional manual approval for each command
 
-```bash
-landgod audit          # 查看审计日志
-landgod audit clear    # 清空审计日志
-```
-
-## 项目结构
+## Project Structure
 
 ```
-landgod/
-├── bin/landgod.js              # Worker CLI 入口
-├── src/main/                   # Worker 核心源码 (TypeScript)
-│   ├── managed-client/         # WebSocket 客户端 + 配置
-│   ├── builtin-tools/          # 内置工具实现
-│   └── headless-bootstrap.js   # Headless 模式 Electron mock
+├── bin/                    CLI entry point (landgod.js)
+├── src/                    Worker source code (TypeScript)
 ├── gateway/
-│   ├── sdk-node/               # Gateway Node.js 版
-│   │   ├── bin/landgod-gateway.js
-│   │   └── server/index.js
-│   └── sdk-python/             # Gateway Python 版
-├── docs/                       # 知识库文档
-├── downloads/                  # 构建产物 + 快速入门
-├── scripts/                    # 部署脚本
-├── examples/                   # 配置模板 + Docker
-└── CHANGELOG.md                # 版本更新记录
+│   ├── node-gateway/       Node.js Gateway server
+│   ├── python-gateway/     Python Gateway server
+│   └── python-sdk/         Python client SDK
+├── downloads/              Release packages
+├── docs/                   Documentation
+├── examples/               Deployment examples
+├── skills/                 Agent Skills (landgod-deploy, landgod-operate)
+├── scripts/                Deployment scripts
+└── Makefile                Build all packages
 ```
 
-## 构建
+## Build
 
 ```bash
-make clean && make
+make clean && make    # Build all packages → downloads/
 ```
 
-产物在 `downloads/` 目录：
-- `landgod-0.1.0.tgz` — Worker npm 包
-- `landgod-gateway-0.1.0.tgz` — Gateway Node.js npm 包
-- `landgod_gateway-0.1.0-py3-none-any.whl` — Gateway Python 包
+## Documentation
 
-## 文档
-
-| 文档 | 内容 |
-|------|------|
-| [网络前置条件](docs/00-network-prerequisites.md) | 不同网络环境的连接方案 |
-| [Gateway API](docs/01-landgod-link-api.md) | HTTP API 参考 |
-| [MCP-WS 协议](docs/02-mcp-ws-protocol.md) | WebSocket 通信协议 |
-| [部署 Gateway](docs/03-deploy-gateway.md) | Gateway 安装配置 |
-| [安装 Worker](docs/04-connect-install-worker.md) | Worker 部署指南 |
-| [Onboard 向导](docs/05-onboard-landgod.md) | 交互式配置说明 |
-| [架构对比](docs/07-architecture-comparison.md) | 架构选型参考 |
-| [GUI vs Headless](docs/08-gui-vs-headless.md) | 运行模式对比 |
+- [`docs/`](docs/) — Technical documentation
+- [`examples/`](examples/) — Deployment guide with real-world example
+- [`skills/landgod-deploy/`](skills/landgod-deploy/) — Skill for deploying LandGod
+- [`skills/landgod-operate/`](skills/landgod-operate/) — Skill for operating devices
 
 ## License
 
-Private — All rights reserved.
+MIT
