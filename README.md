@@ -23,6 +23,73 @@ LandGod enables AI agents to remotely manage devices distributed across differen
         └──────────┘      └──────────┘       └──────────┘
 ```
 
+## Why LandGod? Architecture Comparison
+
+### Approach 1: Agent per Device (Install AI agent on every machine)
+
+```
+┌─────────┐  ┌─────────┐  ┌─────────┐
+│ Agent A │  │ Agent B │  │ Agent C │
+│ + LLM   │  │ + LLM   │  │ + LLM   │
+│ Device A│  │ Device B│  │ Device C│
+└─────────┘  └─────────┘  └─────────┘
+```
+
+❌ **Expensive** — LLM API costs multiply with every device  
+❌ **Hard to coordinate** — agents work independently, no centralized view  
+❌ **Heavy footprint** — each device needs full agent runtime + config  
+❌ **Secret sprawl** — API keys on every machine  
+
+### Approach 2: Agent + SSH (One agent SSHs into devices)
+
+```
+┌─────────┐
+│  Agent  │──SSH──→ Device A
+│ + LLM   │──SSH──→ Device B
+│         │──SSH──→ Device C
+└─────────┘
+```
+
+⚠️ **SSH key management** — keys on agent machine, rotate across devices  
+⚠️ **Firewall dependency** — needs SSH port open, blocked by some networks  
+⚠️ **No persistent connection** — each command opens new SSH session  
+⚠️ **Cross-border issues** — SSH tunnels through GFW are unreliable  
+⚠️ **No tool abstraction** — agent must know each OS's shell syntax  
+
+### Approach 3: LandGod (Gateway + Worker architecture) ✅
+
+```
+┌─────────┐         ┌─────────┐         ┌──────────┐
+│  Agent  │──HTTP──→│ Gateway │──WS────→│ Worker A │
+│ + LLM   │  :8081  │(1 inst) │  :8080  │ Device A │
+└─────────┘         │         │────────→│ Worker B │
+                    └─────────┘────────→│ Worker C │
+                                        └──────────┘
+```
+
+✅ **One agent, many devices** — single LLM, single API key  
+✅ **Workers are lightweight** — just Node.js, no LLM needed  
+✅ **Workers connect outbound** — no inbound ports required, works behind NAT/firewall  
+✅ **Cross-border ready** — WebSocket over Cloudflare Tunnel bypasses GFW  
+✅ **Persistent connection** — always-on WebSocket, instant command execution  
+✅ **Tool abstraction** — `shell_execute`, `file_read`, `session_create` work on any OS  
+✅ **Security layers** — token auth + Ed25519 signing + command allowlist + approval mode  
+✅ **Scalable** — add workers without touching the agent  
+✅ **External MCP support** — workers can host MCP servers (e.g., Playwright browser)  
+
+### Summary
+
+| | Agent per Device | Agent + SSH | LandGod |
+|---|---|---|---|
+| LLM cost | N × cost | 1 × cost | 1 × cost |
+| Setup per device | Heavy (agent + LLM) | Medium (SSH key) | Light (npm install) |
+| Firewall friendly | ✅ | ❌ Need SSH port | ✅ Outbound only |
+| Cross-border | ❌ | ⚠️ Unreliable | ✅ Cloudflare Tunnel |
+| Persistent connection | ❌ | ❌ | ✅ WebSocket |
+| Centralized control | ❌ | ⚠️ | ✅ Gateway API |
+| Security | ⚠️ Keys everywhere | ⚠️ SSH keys | ✅ Token + signing |
+| External tools (MCP) | ❌ | ❌ | ✅ |
+
 ## Components
 
 | Package | Language | Type | Install |
