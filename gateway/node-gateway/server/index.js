@@ -214,6 +214,8 @@ server.on("connection", (client, req) => {
                     userId,
                     clientId: message.params.client_id,
                     clientName: message.params.client_name,
+                    labels: message.params.labels || {},
+                    resources: message.params.resources || {},
                     connectionId,
                     sessionId,
                     serverKeyId,
@@ -258,6 +260,17 @@ server.on("connection", (client, req) => {
                 const ci = connectedClients.get(connectionId);
                 if (ci) ci.tools = message.params?.tools || {};
                 console.log(`[update_tools] Tools updated: ${tools.join(', ')}`);
+
+            } else if (message.method === "resource_heartbeat") {
+                // Update stored resources
+                const ci2 = connectedClients.get(connectionId);
+                if (ci2 && ci2.binding) {
+                    ci2.binding.resources = message.params?.resources || {};
+                }
+                client.send(JSON.stringify({
+                    type: "res", id: taskId, ok: true,
+                    payload: { accepted: true }
+                }));
 
             } else if (message.type === "res") {
                 // 处理来自客户端的 tool_call 响应
@@ -366,6 +379,8 @@ const httpServer = http.createServer(async (req, res) => {
                 connectionId: connId,
                 clientId: info.binding.clientId,
                 clientName: info.binding.clientName,
+                labels: info.binding.labels || {},
+                resources: info.binding.resources || {},
                 sessionId: info.binding.sessionId,
                 connected: true,
             });
@@ -385,7 +400,7 @@ const httpServer = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const parsed = JSON.parse(body);
-                const { connection_id, tool_name, arguments: args, timeout } = parsed;
+                const { connection_id, tool_name, arguments: args, timeout, labels } = parsed;
                 const clientName = parsed.clientName || parsed.client_name || (parsed.target && parsed.target.clientName);
 
                 if (!tool_name) {
@@ -405,6 +420,23 @@ const httpServer = http.createServer(async (req, res) => {
                     if (!targetConnId) {
                         res.writeHead(404);
                         res.end(JSON.stringify({ error: "No connected client named: " + clientName }));
+                        return;
+                    }
+                }
+                // Label-based routing: find a worker matching all requested labels
+                if (!targetConnId && labels && typeof labels === 'object') {
+                    for (const [connId, info] of connectedClients) {
+                        if (info.client.readyState !== WebSocket.OPEN || !info.binding) continue;
+                        const workerLabels = info.binding.labels || {};
+                        const match = Object.entries(labels).every(([k, v]) => workerLabels[k] === v);
+                        if (match) {
+                            targetConnId = connId;
+                            break;
+                        }
+                    }
+                    if (!targetConnId) {
+                        res.writeHead(404);
+                        res.end(JSON.stringify({ error: "No connected client matching labels: " + JSON.stringify(labels) }));
                         return;
                     }
                 }
@@ -475,7 +507,22 @@ const httpServer = http.createServer(async (req, res) => {
                         }
 
                         if (!targetConnId) {
-                            return { index, clientName, error: "No target specified (provide clientName or connection_id)" };
+                            // Label-based routing in batch
+                            const batchLabels = call.labels;
+                            if (batchLabels && typeof batchLabels === 'object') {
+                                for (const [connId, info] of connectedClients) {
+                                    if (info.client.readyState !== WebSocket.OPEN || !info.binding) continue;
+                                    const wl = info.binding.labels || {};
+                                    if (Object.entries(batchLabels).every(([k, v]) => wl[k] === v)) {
+                                        targetConnId = connId;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!targetConnId) {
+                            return { index, clientName, error: "No target specified (provide clientName, labels, or connection_id)" };
                         }
 
                         const result = await sendToolCall(targetConnId, tool_name, args || {}, timeout || globalTimeout || 30000);

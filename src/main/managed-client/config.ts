@@ -26,6 +26,7 @@ interface ManagedClientFileConfig {
   token?: string;
   clientId?: string;
   clientName?: string;
+  labels?: Record<string, string | boolean | number>;
   pollWaitSeconds?: number;
   retryDelayMs?: number;
   enabled?: boolean;
@@ -503,6 +504,7 @@ export function getManagedClientRuntimeConfig(version: string, args = process.ar
     token,
     clientId,
     clientName,
+    labels: fileConfig.labels || {},
     pollWaitSeconds,
     retryDelayMs,
     version,
