@@ -61,7 +61,7 @@ LandGod 使用示例和模板。
 
 ```bash
 # Python 版 Gateway（支持单机和分布式集群）
-pip install https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod_gateway_server-0.1.0-py3-none-any.whl
+pip install https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod_gateway_server-0.1.1-py3-none-any.whl
 
 # 启动（单机模式）
 landgod-gateway-py start
@@ -74,7 +74,7 @@ landgod-gateway-py start --redis redis://redis-host:6379
 
 ```bash
 # 安装
-npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-0.1.1.tgz
 
 # 配置
 landgod config set enabled true

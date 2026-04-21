@@ -39,16 +39,16 @@ If GitHub is unreachable (e.g. China networks), configure a proxy on the target 
 
 ```bash
 # Node.js Gateway
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.1.tgz
 
 # Node.js Worker
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.1.tgz
 
 # Python Gateway (single-node + Redis cluster)
-pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.0-py3-none-any.whl
+pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.1-py3-none-any.whl
 
 # Python SDK (for calling gateway from Python)
-pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway-0.1.0-py3-none-any.whl
+pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway-0.1.1-py3-none-any.whl
 ```
 
 ⚠️ If GitHub is unreachable (China networks), configure a proxy or ask the user to download and transfer the package manually. Do NOT use SCP between machines.

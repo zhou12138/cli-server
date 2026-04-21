@@ -1,6 +1,6 @@
 {
   "name": "landgod-gateway",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "LandGod Link — Agent Sidecar Gateway for remote device management",
   "bin": {
     "landgod-gateway": "bin/landgod-gateway.js"

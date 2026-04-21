@@ -411,7 +411,7 @@
     "about": "About",
     "aboutDescription": "CLI Server provides a local WebSocket + HTTP gateway for web-based AI agents to execute CLI commands on your machine. It runs a persistent background service on the configured port and logs all command executions for audit purposes.",
     "aboutDescriptionMcpWs": "LandGod Worker is a managed desktop MCP client that connects to a remote MCP Hub via WebSocket. It exposes local tools — shell execution, file access, and external MCP servers — to the remote side under configurable permission profiles, approval gates, and defense layers. All tool calls are audited locally.",
-    "version": "Version 0.1.0 (MVP)",
+    "version": "Version 0.1.1 (MVP)",
     "language": "Language",
     "languageDescription": "Interface language (requires restart for tray menu)",
     "toolCallApprovalTitle": "Tool Call Approval",

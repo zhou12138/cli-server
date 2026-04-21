@@ -9,10 +9,10 @@
 
 ```bash
 # 从 GitHub 安装
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.1.tgz
 
 # 或从本地文件
-npm install -g ./downloads/landgod-gateway-0.1.0.tgz
+npm install -g ./downloads/landgod-gateway-0.1.1.tgz
 ```
 
 ## 启动
