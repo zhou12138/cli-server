@@ -9,10 +9,11 @@
 
 ```bash
 # 从 GitHub 安装
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.1.tgz
+# Find latest: curl -sL https://api.github.com/repos/zhou12138/cli-server/contents/downloads | python3 -c "import sys,json;[print(f[\x27name\x27]) for f in json.load(sys.stdin) if f[\x27name\x27].endswith(\x27.tgz\x27)]"
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-<VERSION>.tgz
 
 # 或从本地文件
-npm install -g ./downloads/landgod-gateway-0.1.1.tgz
+npm install -g ./downloads/landgod-gateway-<VERSION>.tgz
 ```
 
 ## 启动
