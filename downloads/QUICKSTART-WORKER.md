@@ -4,8 +4,19 @@
 
 ## Install
 
+Find the latest package version:
 ```bash
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.1.tgz
+curl -sL https://api.github.com/repos/zhou12138/cli-server/contents/downloads | python3 -c "
+import sys,json
+for f in json.load(sys.stdin):
+    if 'landgod-' in f['name'] and f['name'].endswith('.tgz') and 'gateway' not in f['name']: print(f['name'])
+"
+```
+
+Then install:
+```bash
+BASE=https://github.com/zhou12138/cli-server/raw/master/downloads
+npm install -g $BASE/landgod-<VERSION>.tgz
 ```
 
 ## Configure

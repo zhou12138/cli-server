@@ -97,10 +97,10 @@ LandGod enables AI agents to remotely manage devices distributed across differen
 
 | Package | Language | Type | Install |
 |---------|----------|------|---------|
-| `landgod` | Node.js | Worker (runs on managed devices) | `npm install -g landgod-0.1.1.tgz` |
-| `landgod-gateway` | Node.js | Gateway server | `npm install -g landgod-gateway-0.1.1.tgz` |
-| `landgod-gateway-server` | Python | Gateway server (supports Redis cluster) | `pip install landgod_gateway_server-0.1.1.whl` |
-| `landgod_gateway` | Python | Client SDK | `pip install landgod_gateway-0.1.1.whl` |
+| `landgod` | Node.js | Worker (runs on managed devices) | `npm install -g landgod-<VER>.tgz` |
+| `landgod-gateway` | Node.js | Gateway server | `npm install -g landgod-gateway-<VER>.tgz` |
+| `landgod-gateway-server` | Python | Gateway server (supports Redis cluster) | `pip install landgod_gateway_server-<VER>.whl` |
+| `landgod_gateway` | Python | Client SDK | `pip install landgod_gateway-<VER>.whl` |
 
 All packages: [`downloads/`](downloads/)
 
@@ -108,20 +108,32 @@ All packages: [`downloads/`](downloads/)
 
 ### 1. Install & Start Gateway
 
+Find latest packages:
 ```bash
-# Node.js
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.1.tgz
+curl -sL https://api.github.com/repos/zhou12138/cli-server/contents/downloads | python3 -c "
+import sys,json
+for f in json.load(sys.stdin):
+    if f['name'].endswith(('.tgz','.whl')): print(f['name'])
+"
+```
+
+Install:
+```bash
+BASE=https://github.com/zhou12138/cli-server/raw/master/downloads
+
+# Node.js Gateway
+npm install -g $BASE/landgod-gateway-<VERSION>.tgz
 landgod-gateway start --daemon --token YOUR_SECRET_TOKEN
 
-# Or Python
-pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.1-py3-none-any.whl
+# Or Python Gateway
+pip install $BASE/landgod_gateway_server-<VERSION>-py3-none-any.whl
 landgod-gateway-py start --token YOUR_SECRET_TOKEN
 ```
 
 ### 2. Install & Configure Worker
 
 ```bash
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.1.tgz
+npm install -g $BASE/landgod-<VERSION>.tgz  # Use BASE from step above
 
 landgod config set enabled true
 landgod config set mode managed-client-mcp-ws
