@@ -37,9 +37,9 @@
 
 ### 🔲 待开发
 - [ ] **P1** `POST /batch_tool_call` 并行批量接口（MapReduce 支持）
-- [ ] **P1** Gateway 连接 Cloudflare Tunnel 一键支持
+- [x] **P1** Gateway 连接 Cloudflare Tunnel 一键支持
 - [ ] **P2** Worker 掉线自动通知 Agent
-- [ ] **P2** Worker systemd 服务模板
+- [x] **P2** Worker systemd 服务模板
 - [ ] **P2** Gateway 签名密钥持久化到文件（重启不丢会话）
 - [ ] **P3** Worker 配置自动备份（重装不丢配置）
 
@@ -53,8 +53,8 @@
 - [x] LandGod Skill 蒸馏（skills/landgod/）
 
 ### 🔲 待开发
-- [ ] **P1** 太白金星 Agent（通道管理员，SSH 凭据 + 隧道重建）
-- [ ] **P2** Agent 间消息传递（夜游神 → 悟空 告警）
+- [x] **P1** 太白金星 Agent（通道管理员，SSH 凭据 + 隧道重建）
+- [x] **P2** Agent 间消息传递（夜游神 → 悟空 告警）
 - [ ] **P3** Agent 任务委派框架
 
 ## 代码质量
@@ -97,6 +97,6 @@
 ## 已知问题
 
 - ⚠️ 跨境 SSH 隧道不稳定（Azure↔阿里云），需要 Cloudflare Tunnel
-- ⚠️ Windows Server Electron headless 模式不稳定，需用 headless-bootstrap.js
-- ⚠️ Gateway 之前无 systemd 守护导致进程被杀（已修复）
+- ✅ Windows Server 已支持 headless-entry.js 纯 Node.js 模式
+- ✅ Gateway 已有 systemd 守护（已修复）
 - ⚠️ npm install -g 后配置文件被覆盖（重装需重新配置）
