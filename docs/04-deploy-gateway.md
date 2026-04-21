@@ -1,4 +1,4 @@
-# Agent 部署 LandGod-Link Gateway (Node.js)
+# Deploy Gateway
 
 ## 前置要求
 

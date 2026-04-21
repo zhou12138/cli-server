@@ -1,0 +1,33 @@
+# 📖 LandGod Documentation
+
+Read in order — each document builds on the previous one.
+
+## Getting Started
+
+| # | Document | Description | Prerequisites |
+|---|----------|-------------|---------------|
+| 01 | [Network Prerequisites](01-network-prerequisites.md) | Network setup before deployment | None |
+| 02 | [Gateway API](02-gateway-api.md) | HTTP & WebSocket API reference | — |
+| 03 | [MCP-WS Protocol](03-mcp-ws-protocol.md) | WebSocket protocol specification | — |
+
+## Deployment
+
+| # | Document | Description | Prerequisites |
+|---|----------|-------------|---------------|
+| 04 | [Deploy Gateway](04-deploy-gateway.md) | Install and start the Gateway | 01 |
+| 05 | [Deploy Worker](05-deploy-worker.md) | Install Worker on target machines | 01, 04 |
+| 06 | [Worker Configuration](06-worker-config.md) | Configure Worker settings and permissions | 05 |
+
+## Reference
+
+| # | Document | Description | Prerequisites |
+|---|----------|-------------|---------------|
+| 07 | [Architecture](07-architecture.md) | Architecture analysis and comparison | — |
+| 08 | [GUI vs Headless](08-gui-vs-headless.md) | Worker run mode comparison | 06 |
+
+## Additional Resources
+
+- [`examples/`](../examples/) — Real-world deployment example
+- [`skills/landgod-deploy/`](../skills/landgod-deploy/) — Agent skill for deployment
+- [`skills/landgod-operate/`](../skills/landgod-operate/) — Agent skill for operations
+- [`downloads/`](../downloads/) — Release packages

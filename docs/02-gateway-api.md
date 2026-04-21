@@ -1,4 +1,4 @@
-# LandGod-Link API 参考
+# Gateway API Reference
 
 ## 定位
 

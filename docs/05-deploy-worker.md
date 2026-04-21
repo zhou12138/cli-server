@@ -1,4 +1,4 @@
-# Agent 连接目标机器并安装 LandGod Worker
+# Deploy Worker
 
 ## 两种部署方式
 

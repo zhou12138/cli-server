@@ -1,4 +1,4 @@
-# Onboard LandGod Worker — 模板化配置
+# Worker Configuration
 
 ## 快速配置模板
 
@@ -59,7 +59,7 @@ landgod config set builtInTools.shellExecute.allowedWorkingDirectories '["/home/
 | 占位符 | 替换为 | 示例 |
 |--------|--------|------|
 | `<GATEWAY>` | Gateway 机器地址 | `localhost`、`192.168.1.100`、`20.205.20.239` |
-| `<TOKEN>` | 设备 Token | `hardcoded-token-1234` 或 `tok_xxx` |
+| `<TOKEN>` | 设备 Token | `YOUR_SECRET_TOKEN` 或 `tok_xxx` |
 | `<USER>` | 当前用户名 | `azureuser`、`root` |
 
 ---
