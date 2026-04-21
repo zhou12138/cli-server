@@ -878,24 +878,35 @@ export class ManagedClientMcpWsRuntime {
       headless: this.config.headless,
     });
 
+    // Exponential backoff: start at retryDelayMs, double each failure, cap at 60s, reset on success
+    const baseDelay = this.config.retryDelayMs;
+    const maxDelay = 60000;
+    let consecutiveFailures = 0;
+
     while (!signal.aborted) {
       try {
         await this.connectOnce(wsUrl, token, signal, workspace);
+        // Connection closed normally (server disconnect, etc.) — reset backoff
+        consecutiveFailures = 0;
         if (!signal.aborted) {
           this.emptyPollCount += 1;
-          await sleep(this.config.retryDelayMs);
+          await sleep(baseDelay);
         }
       } catch (error) {
         if (signal.aborted) {
           break;
         }
 
+        consecutiveFailures += 1;
+        const delay = Math.min(baseDelay * Math.pow(2, consecutiveFailures - 1), maxDelay);
+        const jitter = Math.floor(Math.random() * 1000);
+
         const message = toErrorMessage(error);
         this.pullStatus = 'task-failed';
-        this.appendAuditEntry('[managed-client-mcp-ws] error', '', 1, message);
-        emitServerEvent('managed-client-mcp-ws:error', { message });
+        this.appendAuditEntry('[managed-client-mcp-ws] error', '', 1, `${message} (retry in ${Math.round(delay / 1000)}s, attempt #${consecutiveFailures})`);
+        emitServerEvent('managed-client-mcp-ws:error', { message, retryIn: delay, attempt: consecutiveFailures });
         this.emptyPollCount += 1;
-        await sleep(this.config.retryDelayMs);
+        await sleep(delay + jitter);
       }
     }
 

@@ -15,14 +15,17 @@ DOWNLOADS_DIR = downloads
 WORKER_SRC = .
 GATEWAY_NODE_SRC = gateway/node-gateway
 GATEWAY_PY_SRC = gateway/python-sdk
+GATEWAY_PY_SERVER_SRC = gateway/python-gateway
 
 # 产物文件名
 WORKER_PKG = $(DOWNLOADS_DIR)/landgod-0.1.0.tgz
 GATEWAY_NODE_PKG = $(DOWNLOADS_DIR)/landgod-gateway-0.1.0.tgz
 GATEWAY_PY_WHL = $(DOWNLOADS_DIR)/landgod_gateway-0.1.0-py3-none-any.whl
 GATEWAY_PY_SDIST = $(DOWNLOADS_DIR)/landgod_gateway-0.1.0.tar.gz
+GATEWAY_PY_SERVER_WHL = $(DOWNLOADS_DIR)/landgod_gateway_server-0.1.0-py3-none-any.whl
+GATEWAY_PY_SERVER_SDIST = $(DOWNLOADS_DIR)/landgod_gateway_server-0.1.0.tar.gz
 
-.PHONY: all worker gateway gateway-node gateway-python clean
+.PHONY: all worker gateway gateway-node gateway-python gateway-python-server clean
 
 # ============================================
 # 默认目标：编译 + 构建所有包
@@ -59,7 +62,7 @@ $(WORKER_PKG):
 # ============================================
 # Gateway 包 (Node.js + Python)
 # ============================================
-gateway: gateway-node gateway-python
+gateway: gateway-node gateway-python gateway-python-server
 
 # Node.js Gateway
 gateway-node: $(GATEWAY_NODE_PKG)
@@ -77,10 +80,21 @@ gateway-python: $(GATEWAY_PY_WHL) $(GATEWAY_PY_SDIST)
 $(GATEWAY_PY_WHL) $(GATEWAY_PY_SDIST):
 	@echo "📦 构建 LandGod-Link Gateway (Python)..."
 	@mkdir -p $(DOWNLOADS_DIR)
-	cd $(GATEWAY_PY_SRC) && python3 -m build --quiet 2>/dev/null || python3 -m build
+	cd $(GATEWAY_PY_SRC) && (python3 -m build --quiet 2>/dev/null || python3 -m build)
 	cp $(GATEWAY_PY_SRC)/dist/landgod_gateway-*.whl $(GATEWAY_PY_WHL)
 	cp $(GATEWAY_PY_SRC)/dist/landgod_gateway-*.tar.gz $(GATEWAY_PY_SDIST)
 	@echo "✅ Gateway Python 包: $(GATEWAY_PY_WHL) $(GATEWAY_PY_SDIST)"
+
+# Python Gateway Server
+gateway-python-server: $(GATEWAY_PY_SERVER_WHL)
+
+$(GATEWAY_PY_SERVER_WHL) $(GATEWAY_PY_SERVER_SDIST):
+	@echo "📦 构建 LandGod Gateway Server (Python)..."
+	@mkdir -p $(DOWNLOADS_DIR)
+	cd $(GATEWAY_PY_SERVER_SRC) && (python3 -m build --quiet 2>/dev/null || python3 -m build)
+	cp $(GATEWAY_PY_SERVER_SRC)/dist/landgod_gateway_server-*.whl $(GATEWAY_PY_SERVER_WHL)
+	cp $(GATEWAY_PY_SERVER_SRC)/dist/landgod_gateway_server-*.tar.gz $(GATEWAY_PY_SERVER_SDIST)
+	@echo "✅ Gateway Server Python 包: $(GATEWAY_PY_SERVER_WHL) $(GATEWAY_PY_SERVER_SDIST)"
 
 # ============================================
 # 清理
@@ -89,4 +103,5 @@ clean:
 	@echo "🧹 清理构建产物..."
 	rm -f $(DOWNLOADS_DIR)/*.tgz $(DOWNLOADS_DIR)/*.whl $(DOWNLOADS_DIR)/*.tar.gz
 	rm -rf $(GATEWAY_PY_SRC)/dist $(GATEWAY_PY_SRC)/build $(GATEWAY_PY_SRC)/*.egg-info
+	rm -rf $(GATEWAY_PY_SERVER_SRC)/dist $(GATEWAY_PY_SERVER_SRC)/build $(GATEWAY_PY_SERVER_SRC)/*.egg-info
 	@echo "✅ 清理完成"
