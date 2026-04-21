@@ -43,6 +43,7 @@ export interface ManagedClientRuntimeConfig {
   token: string | null;
   clientId: string;
   clientName: string;
+  labels: Record<string, string | boolean | number>;
   pollWaitSeconds: number;
   retryDelayMs: number;
   version: string;

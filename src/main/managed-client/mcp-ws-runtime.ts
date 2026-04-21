@@ -956,6 +956,7 @@ export class ManagedClientMcpWsRuntime {
 
     try {
       await this.performHandshake(socket, signal);
+      this.startResourceHeartbeat(socket, signal);
       await this.readLoop(socket, signal);
     } finally {
       this.resetConnectionSecurityContext();
@@ -1072,6 +1073,8 @@ export class ManagedClientMcpWsRuntime {
     const registerResponse = await this.sendRequest(socket, signal, 'register', {
       client_id: this.config.clientId,
       client_name: this.config.clientName,
+      labels: this.config.labels,
+      resources: await this.collectResources(),
     });
     this.appendAuditEntry('[managed-client-mcp-ws] register response', {
       connectionId: this.connectionId,
@@ -1596,6 +1599,50 @@ export class ManagedClientMcpWsRuntime {
       socket.on('message', onMessage);
       socket.once('close', onClose);
     });
+  }
+
+  private async collectResources(): Promise<Record<string, unknown>> {
+    const os = await import('os');
+    const cpus = os.cpus();
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const loadAvg = os.loadavg();
+    return {
+      platform: os.platform(),
+      arch: os.arch(),
+      cpuCount: cpus.length,
+      cpuModel: cpus[0]?.model || 'unknown',
+      totalMemoryMB: Math.round(totalMem / 1024 / 1024),
+      freeMemoryMB: Math.round(freeMem / 1024 / 1024),
+      usedMemoryPercent: Math.round((1 - freeMem / totalMem) * 100),
+      loadAvg1m: loadAvg[0],
+      loadAvg5m: loadAvg[1],
+      loadAvg15m: loadAvg[2],
+      uptime: Math.round(os.uptime()),
+      hostname: os.hostname(),
+    };
+  }
+
+  private startResourceHeartbeat(socket: WebSocket, signal: AbortSignal): void {
+    const RESOURCE_INTERVAL = 60000; // 60 seconds
+    const interval = setInterval(async () => {
+      if (signal.aborted || socket.readyState !== 1 /* WebSocket.OPEN */) {
+        clearInterval(interval);
+        return;
+      }
+      try {
+        const resources = await this.collectResources();
+        socket.send(JSON.stringify({
+          type: 'req',
+          id: `heartbeat-${randomUUID()}`,
+          method: 'resource_heartbeat',
+          params: { resources },
+        }));
+      } catch {
+        // ignore heartbeat errors
+      }
+    }, RESOURCE_INTERVAL);
+    signal.addEventListener('abort', () => clearInterval(interval), { once: true });
   }
 
   private async sendRequest(socket: WebSocket, signal: AbortSignal, method: string, params: Record<string, unknown>): Promise<DesktopWsMessage> {
