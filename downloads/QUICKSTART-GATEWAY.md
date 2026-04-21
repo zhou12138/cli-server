@@ -50,6 +50,8 @@ Expected:
 | POST | `/tool_call` | Execute command on a worker |
 | POST | `/batch_tool_call` | Parallel execution on multiple workers |
 | GET | `/audit` | Centralized audit logs |
+| GET | `/tasks` | List async/queued tasks |
+| GET | `/tasks/:id` | Get task status and result |
 
 ## Ports
 

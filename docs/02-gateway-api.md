@@ -186,6 +186,60 @@ AI Agent ──HTTP:8081──► LandGod-Link ◄──WS:8080── LandGod Wo
 }
 ```
 
+### POST /tool_call — Async & Queue Modes
+
+除了同步调用外，支持两种扩展模式：
+
+**异步模式** (`?async=true`)：立即返回 taskId，后台执行。
+
+```bash
+POST /tool_call?async=true
+{"clientName": "Worker1", "tool_name": "shell_execute", "arguments": {"command": "python train.py"}}
+```
+```json
+{"taskId": "task-xxx", "status": "pending"}
+```
+
+**队列模式** (`?queue=true`)：Worker 不在线时入队，上线后自动执行。
+
+```bash
+POST /tool_call?queue=true
+{"clientName": "OfflineWorker", "tool_name": "shell_execute", "arguments": {"command": "hostname"}}
+```
+```json
+{"taskId": "task-xxx", "status": "queued"}
+```
+
+**标签路由**：按 Worker 能力标签匹配，而非硬编码名称。
+
+```bash
+POST /tool_call
+{"labels": {"gpu": true}, "tool_name": "shell_execute", "arguments": {"command": "nvidia-smi"}}
+```
+
+### GET /tasks
+
+列出所有异步/队列任务。
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `status` | all | Filter: pending, completed, failed |
+| `limit` | 50 | Max results |
+
+### GET /tasks/:id
+
+查看单个任务状态和结果。
+
+```json
+{
+  "taskId": "task-xxx",
+  "status": "completed",
+  "result": {"stdout": "..."},
+  "createdAt": "2026-04-21T05:00:00Z",
+  "completedAt": "2026-04-21T05:01:00Z"
+}
+```
+
 ---
 
 ## Worker 端接口 (WebSocket :8080)
@@ -197,7 +251,7 @@ Worker 连接 `ws://GATEWAY:8080/api/mcphub/ws`，使用 Bearer Token 认证。
 ```
 1. Worker → Gateway: WebSocket 连接 + Authorization: Bearer <token>
 2. Gateway → Worker: { type: "event", event: "session_opened", payload: { connection_id } }
-3. Worker → Gateway: { type: "req", method: "register", params: { client_id, client_name } }
+3. Worker → Gateway: { type: "req", method: "register", params: { client_id, client_name, labels, resources } }
 4. Gateway → Worker: { type: "res", ok: true, payload: { user_id, session_id, server_public_key, ... } }
 5. Worker → Gateway: { type: "req", method: "update_tools", params: { tools: {...} } }
 6. Gateway → Worker: { type: "res", ok: true, payload: { accepted: true } }

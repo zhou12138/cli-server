@@ -30,4 +30,5 @@ Read in order — each document builds on the previous one.
 - [`examples/`](../examples/) — Real-world deployment example
 - [`skills/landgod-deploy/`](../skills/landgod-deploy/) — Agent skill for deployment
 - [`skills/landgod-operate/`](../skills/landgod-operate/) — Agent skill for operations
+- [`skills/landgod-dispatch/`](../skills/landgod-dispatch/) — Agent skill for task dispatch and scheduling
 - [`downloads/`](../downloads/) — Release packages
