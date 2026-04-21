@@ -1,87 +1,82 @@
-# 🚀 快速开始：安装 Gateway
+# 🚀 Quick Start: Install Gateway
 
-> Gateway（landgod-gateway）是 Agent 的边车服务，部署在 Agent 同一台机器上。
+> Gateway is an agent sidecar service. Deploy it on the same machine as your AI agent.
 
-> **前置条件**：确保目标 Worker 能通过网络访问本机 8080 端口。不同网络环境的配置见 [docs/00-network-prerequisites.md](../docs/00-network-prerequisites.md)。
-
-## 一键安装
+## Install
 
 ```bash
-npm install -g https://github.com/zhou12138/cli-server/raw/fix/cors-handlers/downloads/landgod-gateway-0.1.0.tgz
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.0.tgz
 ```
 
-或从本地：
+Or Python version:
 ```bash
-npm install -g ./landgod-gateway-0.1.0.tgz
+pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.0-py3-none-any.whl
 ```
 
-## 启动
+## Start
 
 ```bash
-landgod-gateway start --daemon
+# Node.js (background)
+landgod-gateway start --daemon --token YOUR_SECRET_TOKEN
+
+# Node.js (foreground, for debugging)
+landgod-gateway start --token YOUR_SECRET_TOKEN
+
+# Python
+landgod-gateway-py start --token YOUR_SECRET_TOKEN
 ```
 
-## 验证
+> ⚠️ `--token` is **required**. Gateway will not start without it.
+
+## Verify
 
 ```bash
-landgod-gateway --version   # 确认版本号
-landgod-gateway status      # 查看运行状态
+landgod-gateway status
 curl -s http://localhost:8081/health
 ```
 
-预期：
+Expected:
 ```json
 {"status":"ok","connectedClients":0}
 ```
 
-## 告诉你的 Agent
+## API Endpoints
 
-Gateway 启动后，Agent 只需知道：
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/clients` | List connected workers |
+| GET | `/tools` | List tools per worker |
+| POST | `/tool_call` | Execute command on a worker |
 
-```
-API: http://localhost:8081
+## Ports
 
-接口：
-  GET  /health       健康检查
-  GET  /clients      在线设备
-  POST /tool_call    执行指令
-  POST /tokens       创建 Token
-```
+| Port | Protocol | Used By |
+|------|----------|---------|
+| 8081 | HTTP | Agent requests |
+| 8080 | WebSocket | Worker connections |
 
-## 端口说明
-
-| 端口 | 协议 | 服务对象 |
-|------|------|---------|
-| 8081 | HTTP | Agent 调用 |
-| 8080 | WebSocket | Worker 连接 |
-
-## 开机自启（可选）
+## Auto-start (optional)
 
 ```bash
 # Linux systemd
 sudo tee /etc/systemd/system/landgod-gateway.service > /dev/null << 'EOF'
 [Unit]
-Description=LandGod-Link Gateway
+Description=LandGod Gateway
 After=network.target
 [Service]
 Type=simple
-User=$USER
+User=YOUR_USER
+Environment=LANDGOD_AUTH_TOKEN=YOUR_SECRET_TOKEN
 ExecStart=landgod-gateway start
 Restart=always
 RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
-sudo systemctl daemon-reload && sudo systemctl enable landgod-gateway
+sudo systemctl daemon-reload && sudo systemctl enable --now landgod-gateway
 ```
 
-## Python 版本（可选）
+## Next
 
-```bash
-pip install ./landgod_gateway-0.1.0-py3-none-any.whl
-pip install landgod-gateway[redis]  # 分布式支持
-```
-
-## 下一步
-
-→ [安装 Worker](./QUICKSTART-WORKER.md)
+→ [Install Worker](./QUICKSTART-WORKER.md)

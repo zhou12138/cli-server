@@ -1,19 +1,35 @@
 # 📦 LandGod Downloads
 
-## 安装包
+## Packages
 
-| 包 | 用途 | 安装对象 |
-|---|------|---------|
-| `landgod-0.1.0.tgz` | LandGod Worker（土地公） | 远程设备 |
-| `landgod-gateway-0.1.0.tgz` | Gateway 网关 (Node.js) | Agent 同机 |
-| `landgod_gateway-0.1.0-py3-none-any.whl` | Gateway 网关 (Python) | Agent 同机 |
-| `landgod_gateway-0.1.0.tar.gz` | Gateway 网关 (Python 源码) | Agent 同机 |
+| Package | Type | Install On |
+|---------|------|-----------|
+| `landgod-0.1.0.tgz` | Worker (Node.js) | Managed devices |
+| `landgod-gateway-0.1.0.tgz` | Gateway (Node.js) | Agent machine |
+| `landgod_gateway_server-0.1.0-py3-none-any.whl` | Gateway (Python) | Agent machine |
+| `landgod_gateway-0.1.0-py3-none-any.whl` | Client SDK (Python) | Agent machine |
 
-## 快速开始
+## Install from GitHub
 
-1. [安装 Gateway](./QUICKSTART-GATEWAY.md) — 在 Agent 机器上安装网关
-2. [安装 Worker](./QUICKSTART-WORKER.md) — 在远程设备上安装土地公
+```bash
+# Gateway (Node.js)
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.0.tgz
 
-## 详细文档
+# Gateway (Python)
+pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.0-py3-none-any.whl
 
-见 [docs/](../docs/) 目录。
+# Worker
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.0.tgz
+
+# Python SDK
+pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway-0.1.0-py3-none-any.whl
+```
+
+## Quick Start
+
+1. [Install Gateway](./QUICKSTART-GATEWAY.md)
+2. [Install Worker](./QUICKSTART-WORKER.md)
+
+## Documentation
+
+See [docs/](../docs/)
