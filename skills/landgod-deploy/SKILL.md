@@ -113,28 +113,71 @@ npm install -g <tgz from above>
 
 ### Step 2: Configure
 
+Ask the user to choose their setup. Use `landgod config set <key> <value>` for each setting.
+
+#### Required settings
 ```bash
 landgod config set enabled true
 landgod config set mode managed-client-mcp-ws
 landgod config set bootstrapBaseUrl "<GATEWAY_WS_URL>"  # see network section
-landgod config set token "<TOKEN>"
+landgod config set token "<TOKEN>"                       # must match gateway token
+```
+
+#### Run mode — ask user which environment
+| Mode | When to use | Start command |
+|------|------------|---------------|
+| **Headless** (recommended) | Linux/Windows servers, no GUI needed | `landgod daemon start --headless` |
+| **GUI (Electron)** | Desktop with display, want visual dashboard | `landgod daemon start` |
+
+#### Approval mode — ask user preference
+```bash
+# Auto: commands execute immediately (recommended for servers)
 landgod config set toolCallApprovalMode auto
-landgod config set builtInTools.permissionProfile full-local-admin
+
+# Manual: each command requires UI approval (safer but needs GUI)
+landgod config set toolCallApprovalMode manual
+```
+
+#### Permission profile — ask user to choose security level
+| Profile | Commands | File read | MCP admin | Best for |
+|---------|----------|-----------|-----------|----------|
+| `command-only` | Basic (echo, ls, cat, hostname, ps, df) | No | No | Read-only monitoring |
+| `interactive-trusted` | + git, node, npm, curl, find, sort | No | No | Dev environment |
+| `full-local-admin` | Everything + rm, chmod, systemctl | Yes | Yes | Full management |
+
+```bash
+landgod config set builtInTools.permissionProfile <PROFILE>
+```
+
+⚠️ `full-local-admin` gives complete control. Only use when you fully trust the remote agent.
+
+#### Custom shell allowlist (optional)
+```bash
+# Override default command list
+landgod config set builtInTools.shellExecute.allowedExecutableNames '["echo","ls","cat","hostname","node","npm","git","curl","ps","df","tasklist"]'
+
+# Set allowed working directories
+landgod config set builtInTools.shellExecute.allowedWorkingDirectories '["/home/USER","/tmp"]'
+```
+
+#### View current config
+```bash
+landgod config show
 ```
 
 ### Step 3: Start
 
 ```bash
-# Linux server (recommended)
+# Headless mode — Linux/Windows servers (recommended)
 landgod daemon start --headless
 
-# Windows server
-# Must cd to landgod package dir first!
-cd <npm_global>/node_modules/landgod
-node .vite\build\headless-entry.js
-
-# Desktop with GUI
+# GUI mode — Desktop with display
 landgod daemon start
+
+# Windows headless — must cd to package dir first
+cd C:\...\node_modules\landgod
+node .vite\build\headless-entry.js
+```
 ```
 
 ### Step 4: Verify
