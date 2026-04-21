@@ -37,18 +37,34 @@ SSH is only needed during initial deployment (install + config).
 
 If GitHub is unreachable (e.g. China networks), configure a proxy on the target machine first, or ask the user to manually download and transfer the package.
 
+The base URL is `https://github.com/zhou12138/cli-server/raw/master/downloads/`. Package filenames include version numbers that change with each release. To find the latest version:
+
 ```bash
-# Node.js Gateway
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-0.1.1.tgz
+# List available packages (get latest filenames)
+curl -sL https://api.github.com/repos/zhou12138/cli-server/contents/downloads | python3 -c "
+import sys,json
+for f in json.load(sys.stdin):
+    if f['name'].endswith(('.tgz','.whl')):
+        print(f['name'])
+"
+```
 
-# Node.js Worker
-npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.1.tgz
+Then install with the discovered filenames:
 
-# Python Gateway (single-node + Redis cluster)
-pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway_server-0.1.1-py3-none-any.whl
+```bash
+BASE=https://github.com/zhou12138/cli-server/raw/master/downloads
 
-# Python SDK (for calling gateway from Python)
-pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_gateway-0.1.1-py3-none-any.whl
+# Node.js Gateway (find latest: landgod-gateway-*.tgz)
+npm install -g $BASE/landgod-gateway-<VERSION>.tgz
+
+# Node.js Worker (find latest: landgod-*.tgz, NOT landgod-gateway)
+npm install -g $BASE/landgod-<VERSION>.tgz
+
+# Python Gateway Server (find latest: landgod_gateway_server-*-py3-none-any.whl)
+pip install $BASE/landgod_gateway_server-<VERSION>-py3-none-any.whl
+
+# Python SDK (find latest: landgod_gateway-*-py3-none-any.whl, NOT _server)
+pip install $BASE/landgod_gateway-<VERSION>-py3-none-any.whl
 ```
 
 ⚠️ If GitHub is unreachable (China networks), configure a proxy or ask the user to download and transfer the package manually. Do NOT use SCP between machines.
