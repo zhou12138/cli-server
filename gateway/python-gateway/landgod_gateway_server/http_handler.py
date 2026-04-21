@@ -17,6 +17,7 @@ def create_http_app(gateway) -> web.Application:
 
     app.router.add_get("/health", health)
     app.router.add_get("/clients", clients)
+    app.router.add_get("/tools", tools)
     app.router.add_post("/tool_call", tool_call)
     app.router.add_post("/tokens", create_token)
     app.router.add_get("/tokens", list_tokens)
@@ -60,6 +61,23 @@ async def clients(request: web.Request) -> web.Response:
         if c.get("connectionId") not in seen:
             result.append(c)
     return web.json_response({"clients": result})
+
+
+
+async def tools(request: web.Request) -> web.Response:
+    """GET /tools - list all registered tools per worker."""
+    handler: "WSHandler" = request.app["ws_handler"]
+    result = []
+    for conn_id, info in handler.connections.items():
+        if info["binding"]:
+            tool_names = list((info.get("tools") or {}).keys())
+            result.append({
+                "clientName": info["binding"]["clientName"],
+                "connectionId": conn_id,
+                "toolCount": len(tool_names),
+                "tools": tool_names,
+            })
+    return web.json_response({"tools": result})
 
 
 async def tool_call(request: web.Request) -> web.Response:

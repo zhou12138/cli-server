@@ -98,6 +98,7 @@ class Gateway:
         logger.info(f"HTTP API server running at http://0.0.0.0:{self.http_port}")
         logger.info("")
         logger.info("=== API Endpoints ===")
+        logger.info("GET  /tools      - 列出已注册的工具")
         logger.info("GET  /health      - 健康检查")
         logger.info("GET  /clients     - 列出已连接的客户端")
         logger.info("POST /tool_call   - 发送工具调用")
