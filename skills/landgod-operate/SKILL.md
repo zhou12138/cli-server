@@ -250,3 +250,64 @@ If a command is blocked: `"error":"Executable is outside the allowlist: xxx"`
 | `Executable is outside the allowlist` | Change worker's `permissionProfile` to `full-local-admin` |
 | `{success: true}` only, no stdout | Worker profile is `command-only` — change to `full-local-admin` |
 | `user_rejected` | `toolCallApprovalMode` is `manual` — set to `auto` |
+
+## External MCP Server (remote_configure_mcp_server)
+
+### Why external MCP tools may not appear in `/tools`
+
+External MCP servers (like Playwright) configured via `managed-client.mcp-servers.json` must meet ALL conditions:
+
+1. **`permissionProfile` = `full-local-admin`** — required for external MCP
+2. **`managedMcpServerAdmin` enabled** in config:
+   ```bash
+   landgod config set builtInTools.managedMcpServerAdmin.enabled true
+   landgod config set builtInTools.managedMcpServerAdmin.allowStdioServers true
+   landgod config set builtInTools.managedMcpServerAdmin.allowHttpServers true
+   ```
+3. **`trustLevel` = `trusted`** — servers at `experimental` level are NOT published remotely
+4. **`publishedRemotely` = true** — must be explicitly set
+5. **The MCP server command must work** — e.g. `npx @playwright/mcp` must be installed and runnable on the machine
+6. **Worker must be restarted** after config changes
+
+### Check `/tools` endpoint
+```bash
+curl http://localhost:8081/tools
+```
+Returns per-worker tool list including external MCP tools if loaded successfully.
+
+### MCP server startup timing
+External MCP servers (like Playwright) are stdio processes that take a few seconds to start. After worker connects to Gateway:
+1. First `update_tools` sends only built-in tools (7)
+2. External MCP server process starts in background
+3. Second `update_tools` sends all tools (built-in + external)
+4. `/tools` may show only 7 tools for the first ~10 seconds, then updates to full count
+
+If external MCP tools never appear, check:
+```bash
+# Worker audit log - look for "external mcp server connected"
+cat <landgod_dir>/.landgod-data/audit.jsonl | grep "external mcp"
+
+# Worker config - managedMcpServerAdmin must be enabled
+landgod config show | grep managedMcpServerAdmin
+
+# MCP servers config file
+cat <landgod_dir>/managed-client.mcp-servers.json
+```
+
+### Configure external MCP server via config file
+Create `managed-client.mcp-servers.json` next to `managed-client.config.json`:
+```json
+{
+  "playwright": {
+    "enabled": true,
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["@playwright/mcp"],
+    "tools": ["browser_navigate", "browser_take_screenshot", "browser_snapshot"],
+    "trustLevel": "trusted",
+    "publishedRemotely": true,
+    "requiredPermissionProfile": "full-local-admin"
+  }
+}
+```
+Then restart worker. Tools will appear with prefix: `playwright.browser_navigate`.
