@@ -152,6 +152,8 @@ curl http://localhost:8081/tools
 | GET | `/health` | Health check |
 | GET | `/clients` | List connected workers |
 | GET | `/tools` | List registered tools per worker |
+| POST | `/batch_tool_call` | Parallel execution on multiple workers |
+| GET | `/audit` | Centralized audit logs from workers |
 | POST | `/tool_call` | Execute command on worker |
 
 ## Worker Tools
