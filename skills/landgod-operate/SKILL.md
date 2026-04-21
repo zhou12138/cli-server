@@ -274,3 +274,40 @@ External MCP servers (like Playwright) configured via `managed-client.mcp-server
 curl http://localhost:8081/tools
 ```
 Returns per-worker tool list including external MCP tools if loaded successfully.
+
+### MCP server startup timing
+External MCP servers (like Playwright) are stdio processes that take a few seconds to start. After worker connects to Gateway:
+1. First `update_tools` sends only built-in tools (7)
+2. External MCP server process starts in background
+3. Second `update_tools` sends all tools (built-in + external)
+4. `/tools` may show only 7 tools for the first ~10 seconds, then updates to full count
+
+If external MCP tools never appear, check:
+```bash
+# Worker audit log - look for "external mcp server connected"
+cat <landgod_dir>/.landgod-data/audit.jsonl | grep "external mcp"
+
+# Worker config - managedMcpServerAdmin must be enabled
+landgod config show | grep managedMcpServerAdmin
+
+# MCP servers config file
+cat <landgod_dir>/managed-client.mcp-servers.json
+```
+
+### Configure external MCP server via config file
+Create `managed-client.mcp-servers.json` next to `managed-client.config.json`:
+```json
+{
+  "playwright": {
+    "enabled": true,
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["@playwright/mcp"],
+    "tools": ["browser_navigate", "browser_take_screenshot", "browser_snapshot"],
+    "trustLevel": "trusted",
+    "publishedRemotely": true,
+    "requiredPermissionProfile": "full-local-admin"
+  }
+}
+```
+Then restart worker. Tools will appear with prefix: `playwright.browser_navigate`.
