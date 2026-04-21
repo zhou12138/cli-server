@@ -436,6 +436,107 @@ const httpServer = http.createServer(async (req, res) => {
         return;
     }
 
+    // POST /batch_tool_call - 并行批量工具调用
+    if (req.method === 'POST' && req.url === '/batch_tool_call') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const parsed = JSON.parse(body);
+                const { calls, timeout: globalTimeout } = parsed;
+
+                if (!Array.isArray(calls) || calls.length === 0) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: "Missing or empty 'calls' array" }));
+                    return;
+                }
+
+                // Resolve targets and execute in parallel
+                const promises = calls.map(async (call, index) => {
+                    try {
+                        const { tool_name, arguments: args, timeout } = call;
+                        const clientName = call.clientName || call.client_name;
+                        let targetConnId = call.connection_id;
+
+                        if (!tool_name) {
+                            return { index, clientName, error: "Missing tool_name" };
+                        }
+
+                        if (!targetConnId && clientName) {
+                            for (const [connId, info] of connectedClients) {
+                                if (info.binding && info.binding.clientName === clientName && info.client.readyState === WebSocket.OPEN) {
+                                    targetConnId = connId;
+                                    break;
+                                }
+                            }
+                            if (!targetConnId) {
+                                return { index, clientName, error: "No connected client named: " + clientName };
+                            }
+                        }
+
+                        if (!targetConnId) {
+                            return { index, clientName, error: "No target specified (provide clientName or connection_id)" };
+                        }
+
+                        const result = await sendToolCall(targetConnId, tool_name, args || {}, timeout || globalTimeout || 30000);
+                        return { index, clientName, tool_name, result };
+                    } catch (err) {
+                        return { index, clientName: call.clientName || call.client_name, error: err.message };
+                    }
+                });
+
+                const results = await Promise.all(promises);
+                res.writeHead(200);
+                res.end(JSON.stringify({ results }));
+            } catch (err) {
+                console.error(`[HTTP] batch_tool_call error: ${err.message}`);
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: err.message }));
+            }
+        });
+        return;
+    }
+
+    // GET /audit - 获取所有 Worker 的审计日志（集中查看）
+    if (req.method === 'GET' && req.url.startsWith('/audit')) {
+        const urlObj = new URL(req.url, `http://${req.headers.host}`);
+        const clientName = urlObj.searchParams.get('clientName');
+        const limit = parseInt(urlObj.searchParams.get('limit') || '50', 10);
+        const timeout = parseInt(urlObj.searchParams.get('timeout') || '15000', 10);
+
+        // Collect audit logs from targeted or all workers
+        const targets = [];
+        for (const [connId, info] of connectedClients) {
+            if (info.client.readyState !== WebSocket.OPEN) continue;
+            if (clientName && (!info.binding || info.binding.clientName !== clientName)) continue;
+            targets.push({ connId, clientName: info.binding?.clientName || connId });
+        }
+
+        if (targets.length === 0) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: clientName ? "No connected client named: " + clientName : "No connected clients" }));
+            return;
+        }
+
+        const auditPromises = targets.map(async (t) => {
+            try {
+                const result = await sendToolCall(t.connId, 'shell_execute', {
+                    command: `tail -n ${limit} $(dirname $(node -e "console.log(require.resolve('landgod/package.json'))" 2>/dev/null || echo "/tmp"))/.landgod-data/audit.jsonl 2>/dev/null || echo '[]'`
+                }, timeout);
+                const lines = (result.stdout || result.output || '').trim().split('\n').filter(l => l.startsWith('{'));
+                const entries = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+                return { clientName: t.clientName, entries, error: null };
+            } catch (err) {
+                return { clientName: t.clientName, entries: [], error: err.message };
+            }
+        });
+
+        const auditResults = await Promise.all(auditPromises);
+        res.writeHead(200);
+        res.end(JSON.stringify({ audit: auditResults }));
+        return;
+    }
+
     // GET /tools - 列出所有已注册的工具
     if (req.method === 'GET' && req.url === '/tools') {
         const result = [];
@@ -550,6 +651,8 @@ httpServer.listen(HTTP_PORT, () => {
     console.log('GET  /health      - 健康检查');
     console.log('GET  /clients     - 列出已连接的客户端');
     console.log('POST /tool_call   - 发送工具调用');
+    console.log('POST /batch_tool_call - 并行批量工具调用');
+    console.log('GET  /audit       - 集中查看审计日志');
     console.log('  Body: { "tool_name": "shell_execute", "arguments": { "command": "ls" } }');
     console.log('');
 });
