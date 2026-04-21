@@ -13,8 +13,8 @@
 
 DOWNLOADS_DIR = downloads
 WORKER_SRC = .
-GATEWAY_NODE_SRC = gateway/sdk-node
-GATEWAY_PY_SRC = gateway/sdk-python
+GATEWAY_NODE_SRC = gateway/node-gateway
+GATEWAY_PY_SRC = gateway/python-sdk
 
 # 产物文件名
 WORKER_PKG = $(DOWNLOADS_DIR)/landgod-0.1.0.tgz
