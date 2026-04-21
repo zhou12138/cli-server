@@ -22,8 +22,8 @@ Read in order — each document builds on the previous one.
 
 | # | Document | Description | Prerequisites |
 |---|----------|-------------|---------------|
-| 07 | [Architecture](07-architecture.md) | Architecture analysis and comparison | — |
-| 08 | [GUI vs Headless](08-gui-vs-headless.md) | Worker run mode comparison | 06 |
+| — | [Architecture](architecture.md) | Architecture analysis and comparison | — |
+| — | [GUI vs Headless](gui-vs-headless.md) | Worker run mode comparison | 06 |
 
 ## Additional Resources
 
