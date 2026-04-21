@@ -141,6 +141,85 @@ loadTokens();
 // ========================
 const connectedClients = new Map(); // connectionId -> { client, binding }
 
+// Async task store + task queue
+const tasks = new Map(); // taskId -> { status, result, error, createdAt, completedAt, request }
+const taskQueue = []; // { taskId, clientName, labels, tool_name, arguments, timeout, createdAt }
+const TASK_TTL = 3600000; // 1 hour, auto-cleanup
+
+function createTask(request) {
+    const taskId = `task-${uuid.v4()}`;
+    tasks.set(taskId, {
+        taskId,
+        status: 'pending',
+        result: null,
+        error: null,
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+        request,
+    });
+    return taskId;
+}
+
+function completeTask(taskId, result) {
+    const task = tasks.get(taskId);
+    if (task) {
+        task.status = 'completed';
+        task.result = result;
+        task.completedAt = new Date().toISOString();
+    }
+}
+
+function failTask(taskId, error) {
+    const task = tasks.get(taskId);
+    if (task) {
+        task.status = 'failed';
+        task.error = error;
+        task.completedAt = new Date().toISOString();
+    }
+}
+
+// Drain queued tasks for a newly-registered worker
+async function drainQueue(connectionId, clientName, workerLabels) {
+    const toRemove = [];
+    for (let i = 0; i < taskQueue.length; i++) {
+        const queued = taskQueue[i];
+        let match = false;
+        if (queued.clientName && queued.clientName === clientName) {
+            match = true;
+        } else if (queued.labels && typeof queued.labels === 'object') {
+            match = Object.entries(queued.labels).every(([k, v]) => (workerLabels || {})[k] === v);
+        }
+        if (match) {
+            toRemove.push(i);
+            // Execute in background
+            (async () => {
+                try {
+                    const result = await sendToolCall(connectionId, queued.tool_name, queued.arguments || {}, queued.timeout || 30000);
+                    completeTask(queued.taskId, result);
+                    console.log(`[queue] Drained task ${queued.taskId} → ${clientName}`);
+                } catch (err) {
+                    failTask(queued.taskId, err.message);
+                    console.error(`[queue] Task ${queued.taskId} failed: ${err.message}`);
+                }
+            })();
+        }
+    }
+    // Remove processed items (reverse order)
+    for (let i = toRemove.length - 1; i >= 0; i--) {
+        taskQueue.splice(toRemove[i], 1);
+    }
+}
+
+// Periodic cleanup of old tasks (every 10 min)
+setInterval(() => {
+    const now = Date.now();
+    for (const [taskId, task] of tasks) {
+        if (now - new Date(task.createdAt).getTime() > TASK_TTL) {
+            tasks.delete(taskId);
+        }
+    }
+}, 600000);
+
 // ========================
 // WebSocket 服务
 // ========================
@@ -249,6 +328,9 @@ server.on("connection", (client, req) => {
                 };
                 client.send(JSON.stringify(response));
                 console.log(`[register] Client registered: ${message.params.client_name}. session_id: ${sessionId}, connectionId: ${connectionId}`);
+
+                // Drain queued tasks for this worker
+                drainQueue(connectionId, message.params.client_name, message.params.labels || {});
 
             } else if (message.method === "update_tools") {
                 client.send(JSON.stringify({
@@ -394,7 +476,10 @@ const httpServer = http.createServer(async (req, res) => {
     }
 
     // POST /tool_call - 向客户端发送工具调用
-    if (req.method === 'POST' && req.url === '/tool_call') {
+    if (req.method === 'POST' && req.url.startsWith('/tool_call')) {
+        const toolCallUrl = new URL(req.url, `http://${req.headers.host}`);
+        const isAsync = toolCallUrl.searchParams.get('async') === 'true';
+        const isQueue = toolCallUrl.searchParams.get('queue') === 'true';
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
@@ -418,6 +503,14 @@ const httpServer = http.createServer(async (req, res) => {
                         }
                     }
                     if (!targetConnId) {
+                        if (isQueue) {
+                            const taskId = createTask({ clientName, labels, tool_name, arguments: args, timeout });
+                            taskQueue.push({ taskId, clientName, labels, tool_name, arguments: args, timeout: timeout || 30000, createdAt: new Date().toISOString() });
+                            console.log(`[queue] Task ${taskId} queued for ${clientName}`);
+                            res.writeHead(202);
+                            res.end(JSON.stringify({ taskId, status: 'queued' }));
+                            return;
+                        }
                         res.writeHead(404);
                         res.end(JSON.stringify({ error: "No connected client named: " + clientName }));
                         return;
@@ -435,6 +528,14 @@ const httpServer = http.createServer(async (req, res) => {
                         }
                     }
                     if (!targetConnId) {
+                        if (isQueue) {
+                            const taskId = createTask({ clientName, labels, tool_name, arguments: args, timeout });
+                            taskQueue.push({ taskId, clientName, labels, tool_name, arguments: args, timeout: timeout || 30000, createdAt: new Date().toISOString() });
+                            console.log(`[queue] Task ${taskId} queued for labels ${JSON.stringify(labels)}`);
+                            res.writeHead(202);
+                            res.end(JSON.stringify({ taskId, status: 'queued' }));
+                            return;
+                        }
                         res.writeHead(404);
                         res.end(JSON.stringify({ error: "No connected client matching labels: " + JSON.stringify(labels) }));
                         return;
@@ -449,11 +550,32 @@ const httpServer = http.createServer(async (req, res) => {
                         }
                     }
                     if (!firstEntry) {
+                        // Queue mode: store task for later execution
+                        if (isQueue) {
+                            const taskId = createTask({ clientName, labels, tool_name, arguments: args, timeout });
+                            taskQueue.push({ taskId, clientName, labels, tool_name, arguments: args, timeout: timeout || 30000, createdAt: new Date().toISOString() });
+                            console.log(`[queue] Task ${taskId} queued (no clients online)`);
+                            res.writeHead(202);
+                            res.end(JSON.stringify({ taskId, status: 'queued' }));
+                            return;
+                        }
                         res.writeHead(404);
                         res.end(JSON.stringify({ error: "No connected clients" }));
                         return;
                     }
                     targetConnId = firstEntry[0];
+                }
+
+                // Async mode: return task_id immediately, execute in background
+                if (isAsync) {
+                    const taskId = createTask({ clientName, labels, tool_name, arguments: args, timeout });
+                    res.writeHead(202);
+                    res.end(JSON.stringify({ taskId, status: 'pending' }));
+                    // Execute in background
+                    sendToolCall(targetConnId, tool_name, args || {}, timeout || 30000)
+                        .then(result => completeTask(taskId, result))
+                        .catch(err => failTask(taskId, err.message));
+                    return;
                 }
 
                 const result = await sendToolCall(targetConnId, tool_name, args || {}, timeout || 30000);
@@ -603,6 +725,42 @@ const httpServer = http.createServer(async (req, res) => {
         return;
     }
 
+    // GET /tasks/:id - 查看单个任务状态
+    if (req.method === 'GET' && req.url.startsWith('/tasks/')) {
+        const taskId = req.url.split('/tasks/')[1].split('?')[0];
+        const task = tasks.get(taskId);
+        if (!task) {
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: "Task not found: " + taskId }));
+            return;
+        }
+        res.writeHead(200);
+        res.end(JSON.stringify(task));
+        return;
+    }
+
+    // GET /tasks - 列出所有任务
+    if (req.method === 'GET' && req.url.startsWith('/tasks')) {
+        const urlObj = new URL(req.url, `http://${req.headers.host}`);
+        const status = urlObj.searchParams.get('status');
+        const limit = parseInt(urlObj.searchParams.get('limit') || '50', 10);
+        let result = Array.from(tasks.values());
+        if (status) {
+            result = result.filter(t => t.status === status);
+        }
+        result = result.slice(-limit);
+        const queueInfo = taskQueue.map(q => ({
+            taskId: q.taskId,
+            clientName: q.clientName,
+            labels: q.labels,
+            tool_name: q.tool_name,
+            createdAt: q.createdAt,
+        }));
+        res.writeHead(200);
+        res.end(JSON.stringify({ tasks: result, queued: queueInfo }));
+        return;
+    }
+
     // GET /health - 健康检查
     if (req.method === 'GET' && req.url === '/health') {
         res.writeHead(200);
@@ -697,8 +855,10 @@ httpServer.listen(HTTP_PORT, () => {
     console.log('GET  /tools      - 列出已注册的工具');
     console.log('GET  /health      - 健康检查');
     console.log('GET  /clients     - 列出已连接的客户端');
-    console.log('POST /tool_call   - 发送工具调用');
+    console.log('POST /tool_call   - 发送工具调用 (?async=true|?queue=true)');
     console.log('POST /batch_tool_call - 并行批量工具调用');
+    console.log('GET  /tasks       - 列出异步任务');
+    console.log('GET  /tasks/:id   - 查看任务状态');
     console.log('GET  /audit       - 集中查看审计日志');
     console.log('  Body: { "tool_name": "shell_execute", "arguments": { "command": "ls" } }');
     console.log('');

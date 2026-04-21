@@ -88,6 +88,8 @@ class WSHandler:
                             "connectionId": connection_id,
                             "clientId": info["binding"]["clientId"],
                             "clientName": info["binding"]["clientName"],
+                            "labels": info["binding"].get("labels", {}),
+                            "resources": info["binding"].get("resources", {}),
                             "sessionId": info["binding"]["sessionId"],
                             "node_id": getattr(self.gw, "node_id", "local"),
                             "connected": True,
@@ -121,6 +123,8 @@ class WSHandler:
                 "userId": user_id,
                 "clientId": params.get("client_id", ""),
                 "clientName": params.get("client_name", ""),
+                "labels": params.get("labels", {}),
+                "resources": params.get("resources", {}),
                 "connectionId": connection_id,
                 "sessionId": session_id,
                 "serverKeyId": server_key_id,
@@ -148,6 +152,8 @@ class WSHandler:
                 "connectionId": connection_id,
                 "clientId": binding["clientId"],
                 "clientName": binding["clientName"],
+                "labels": binding.get("labels", {}),
+                "resources": binding.get("resources", {}),
                 "sessionId": session_id,
                 "node_id": getattr(self.gw, "node_id", "local"),
                 "connected": True,
@@ -167,6 +173,10 @@ class WSHandler:
             }))
             logger.info(f"[register] {binding['clientName']} session={session_id} conn={connection_id}")
 
+            # Drain queued tasks for this worker
+            if hasattr(self.gw, '_drain_queue'):
+                asyncio.create_task(self.gw._drain_queue(self.gw, connection_id, binding["clientName"], binding.get("labels", {})))
+
         elif method == "update_tools":
             tools_data = (msg.get("params") or {}).get("tools", {})
             tools = list(tools_data.keys())
@@ -177,6 +187,15 @@ class WSHandler:
                 "payload": {"accepted": True},
             }))
             logger.info(f"[update_tools] {', '.join(tools)}")
+
+        elif method == "resource_heartbeat":
+            resources = (msg.get("params") or {}).get("resources", {})
+            if conn["binding"]:
+                conn["binding"]["resources"] = resources
+            await ws.send(json.dumps({
+                "type": "res", "id": task_id, "ok": True,
+                "payload": {"accepted": True},
+            }))
 
         elif msg.get("type") == "res":
             # tool_call response from worker
@@ -239,6 +258,16 @@ class WSHandler:
         """Find local connection_id by clientName."""
         for cid, info in self.connections.items():
             if info["binding"] and info["binding"]["clientName"] == client_name and info["ws"].protocol.state.name != "CLOSED":
+                return cid
+        return None
+
+    def find_connection_by_labels(self, labels: dict) -> str | None:
+        """Find local connection_id matching all labels."""
+        for cid, info in self.connections.items():
+            if not info["binding"] or info["ws"].protocol.state.name == "CLOSED":
+                continue
+            worker_labels = info["binding"].get("labels", {})
+            if all(worker_labels.get(k) == v for k, v in labels.items()):
                 return cid
         return None
 
