@@ -295,7 +295,9 @@ cat <landgod_dir>/managed-client.mcp-servers.json
 ```
 
 ### Configure external MCP server via config file
-Create `managed-client.mcp-servers.json` next to `managed-client.config.json`:
+Create `managed-client.mcp-servers.json` next to `managed-client.config.json`.
+
+Full playwright config with all 21 tools (current `@playwright/mcp` naming):
 ```json
 {
   "playwright": {
@@ -303,7 +305,15 @@ Create `managed-client.mcp-servers.json` next to `managed-client.config.json`:
     "transport": "stdio",
     "command": "npx",
     "args": ["@playwright/mcp"],
-    "tools": ["browser_navigate", "browser_take_screenshot", "browser_snapshot"],
+    "tools": [
+      "browser_close", "browser_resize", "browser_console_messages",
+      "browser_handle_dialog", "browser_evaluate", "browser_file_upload",
+      "browser_fill_form", "browser_press_key", "browser_type",
+      "browser_navigate", "browser_navigate_back", "browser_network_requests",
+      "browser_run_code", "browser_take_screenshot", "browser_snapshot",
+      "browser_click", "browser_drag", "browser_hover",
+      "browser_select_option", "browser_tabs", "browser_wait_for"
+    ],
     "trustLevel": "trusted",
     "publishedRemotely": true,
     "requiredPermissionProfile": "full-local-admin"
@@ -311,3 +321,15 @@ Create `managed-client.mcp-servers.json` next to `managed-client.config.json`:
 }
 ```
 Then restart worker. Tools will appear with prefix: `playwright.browser_navigate`.
+
+### Tool name matching is strict whitelist
+The `tools` array must list exact names returned by the MCP server `tools/list`. Mismatched names are silently filtered — no error, tools just don't appear in `/tools`.
+
+Always verify actual tool names before configuring by running the MCP server with JSON-RPC `tools/list` call. Old names like `init-browser`, `get-full-dom` are wrong — current `@playwright/mcp` uses `browser_*` naming. Wildcard `["*"]` and empty `[]` are both blocked.
+
+### remote_configure_mcp_server default trustLevel
+Servers created via the remote API default to `trustLevel=experimental`, blocking remote publication. Must manually edit the JSON config to `"trustLevel": "trusted"` and restart.
+
+### Worker reconnect may lose external MCP tools
+Workers sometimes disconnect and reconnect shortly after starting. On reconnect, external MCP tools can be lost (first `update_tools` has full count, second has only 7 built-in). Check `audit.jsonl` for two `update_tools` entries. Workaround: retry after a few seconds, or restart worker.
+

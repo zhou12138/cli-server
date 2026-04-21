@@ -289,7 +289,35 @@ curl -X POST http://localhost:8081/tokens \
 | Quick Tunnel URL changed | Tunnel restarted | Update worker `bootstrapBaseUrl` + restart |
 | `allowedExecutableNames: []` error | Config serialization bug | Rebuild with latest source |
 
-## 7. Common Pitfalls
+## 7. MCP Server Tool Name Matching (Critical)
+
+The `tools` array in `managed-client.mcp-servers.json` is a **strict whitelist**. Only tools whose names exactly match will be published to the gateway. Mismatched names are silently filtered — no error, tools just don't appear.
+
+⚠️ **Always verify actual tool names before configuring.** Run the MCP server locally to get real names:
+```bash
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' | timeout 5 npx @playwright/mcp 2>/dev/null
+```
+
+### @playwright/mcp actual tool names (as of 2026)
+The current version uses `browser_*` naming. **NOT** the old `init-browser`/`get-full-dom` style.
+
+Correct names: `browser_close`, `browser_resize`, `browser_console_messages`, `browser_handle_dialog`, `browser_evaluate`, `browser_file_upload`, `browser_fill_form`, `browser_press_key`, `browser_type`, `browser_navigate`, `browser_navigate_back`, `browser_network_requests`, `browser_run_code`, `browser_take_screenshot`, `browser_snapshot`, `browser_click`, `browser_drag`, `browser_hover`, `browser_select_option`, `browser_tabs`, `browser_wait_for`
+
+### Wildcard blocked
+`"tools": ["*"]` is explicitly blocked by `shouldPublishExternalServerRemotely`. Empty `tools: []` is also blocked. You must list every tool by exact name.
+
+## 8. Worker Reconnect Bug (Known Issue)
+
+Workers may disconnect and reconnect shortly after starting. On reconnect, external MCP server tools can be lost:
+- **First connection**: sends all tools (e.g. 28 = 7 built-in + 21 playwright)
+- **Disconnects** within seconds
+- **Reconnects**: sends only 7 built-in tools (external MCP tools missing)
+
+This is visible in `audit.jsonl` — look for two `update_tools` entries, first with full count, second with only 7.
+
+**Workaround**: The issue is intermittent. Retrying tool calls after a few seconds often works as the worker stabilizes. If persistent, restart the worker.
+
+## 9. Common Pitfalls
 
 ### Token mismatch
 Gateway and workers must use the **exact same token**. Symptom: `Connection closed while waiting for session_opened`. Fix: verify token on both sides before debugging anything else.
@@ -320,6 +348,9 @@ Each machine running a worker needs its own keepalive:
 
 ### China networks can't reach GitHub
 `npm install` from GitHub URL will timeout. Ask the user to configure a proxy on the target machine or download the package manually. **Do not SCP packages between machines.**
+
+### `remote_configure_mcp_server` creates servers with trustLevel=experimental
+Servers created via the remote API default to `trustLevel=experimental`, which blocks remote publication. You must manually edit `managed-client.mcp-servers.json` on the worker to set `"trustLevel": "trusted"`, then restart the worker.
 
 ### After `make clean && make`, verify packages
 Always check that `downloads/` contains all expected packages. The Makefile may not build the Python Gateway Server — build it separately with `python3 -m build` in `gateway/python-gateway/`.
