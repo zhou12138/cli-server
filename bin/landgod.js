@@ -35,6 +35,7 @@ function printUsage() {
   console.log('  config                    Edit config interactively');
   console.log('  config show               Print current config');
   console.log('  config set <key> <value>  Set config value');
+  console.log('  mcp show                  Show MCP server configuration');
   console.log('  --version, -v             Show version');
 }
 
@@ -977,6 +978,20 @@ async function main() {
     }
     // 'landgod audit' 直接等同于 'landgod audit log'
     printAuditLog(args.slice(1));
+    return;
+  }
+
+  if (command === 'mcp') {
+    const MCP_SERVERS_PATH = path.join(ROOT_DIR, 'managed-client.mcp-servers.json');
+    if (args[1] === 'show' || args[1] === 'config' && args[2] === 'show') {
+      if (!fileExists(MCP_SERVERS_PATH)) {
+        console.log('No MCP servers configured. File not found: managed-client.mcp-servers.json');
+        return;
+      }
+      console.log(fs.readFileSync(MCP_SERVERS_PATH, 'utf-8'));
+      return;
+    }
+    console.log('Usage: landgod mcp show       Show MCP server configuration');
     return;
   }
 
