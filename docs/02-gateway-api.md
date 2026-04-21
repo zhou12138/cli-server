@@ -129,6 +129,63 @@ AI Agent ──HTTP:8081──► LandGod-Link ◄──WS:8080── LandGod Wo
 
 吊销 Token。吊销后使用该 Token 的 Worker 会被立即断开。
 
+### GET /tools
+
+列出每个 Worker 注册的工具列表。
+
+```json
+{
+  "tools": {
+    "WorkerA": ["shell_execute", "file_read", "session_create", ...],
+    "WorkerB": ["shell_execute", "file_read", "browser_navigate", ...]
+  }
+}
+```
+
+### POST /batch_tool_call
+
+并行批量工具调用。同时向多个 Worker 发送命令，互不阻塞。
+
+**Request body:**
+```json
+{
+  "calls": [
+    {"clientName": "WorkerA", "tool_name": "shell_execute", "arguments": {"command": "hostname"}},
+    {"clientName": "WorkerB", "tool_name": "shell_execute", "arguments": {"command": "hostname"}}
+  ],
+  "timeout": 30000
+}
+```
+
+**Response:**
+```json
+{
+  "results": [
+    {"index": 0, "clientName": "WorkerA", "tool_name": "shell_execute", "result": {"stdout": "..."}},
+    {"index": 1, "clientName": "WorkerB", "tool_name": "shell_execute", "result": {"stdout": "..."}}
+  ]
+}
+```
+
+### GET /audit
+
+集中查看 Worker 审计日志。
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `clientName` | all | Filter by worker name |
+| `limit` | 50 | Number of recent audit entries |
+| `timeout` | 15000 | Timeout per worker (ms) |
+
+```json
+{
+  "audit": [
+    {"clientName": "WorkerA", "entries": [...], "error": null},
+    {"clientName": "WorkerB", "entries": [...], "error": null}
+  ]
+}
+```
+
 ---
 
 ## Worker 端接口 (WebSocket :8080)

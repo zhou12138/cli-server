@@ -48,6 +48,8 @@ Expected:
 | GET | `/clients` | List connected workers |
 | GET | `/tools` | List tools per worker |
 | POST | `/tool_call` | Execute command on a worker |
+| POST | `/batch_tool_call` | Parallel execution on multiple workers |
+| GET | `/audit` | Centralized audit logs |
 
 ## Ports
 

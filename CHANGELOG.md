@@ -11,6 +11,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   - Single-node (memory) and distributed (Redis) deployment
   - WebSocket + HTTP API, protocol-compatible with Node.js Gateway
   - `landgod-gateway-py start [--token TOKEN] [--redis URL]`
+- **`POST /batch_tool_call`** — Parallel execution on multiple workers simultaneously
+- **`GET /audit`** — Centralized audit log viewer across all workers
 - **`GET /tools`** — List registered tools per worker
 - **`landgod mcp show`** — Display MCP server configuration
 - **`landgod daemon start --headless`** — Pure Node.js headless mode, no Electron needed
@@ -21,6 +23,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Single-token authentication mode, removed `tokens.json`
 - Token must be set via `--token` or `LANDGOD_AUTH_TOKEN` environment variable
 - Gateway without token now fails to start (no silent defaults)
+- Worker reconnect uses exponential backoff with jitter (3s→60s cap), resets on success
 - Directory restructure: `sdk-node` → `node-gateway`, `sdk-python` → `python-sdk`
 - Removed duplicate `gateway/server/` directory
 - Documentation reorganized: renumbered, renamed, added index
