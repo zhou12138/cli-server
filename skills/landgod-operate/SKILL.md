@@ -46,7 +46,7 @@ The response is a JSON envelope. Extract stdout:
 # One-liner parse
 curl -s -m 30 -X POST http://localhost:8081/tool_call \
   -H "Content-Type: application/json" \
-  -d '{"clientName":"ZhouTest1","tool_name":"shell_execute","arguments":{"command":"hostname"}}' \
+  -d '{"clientName":"MY_DEVICE","tool_name":"shell_execute","arguments":{"command":"hostname"}}' \
   | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(json.loads(d['payload']['data']['text']).get('stdout','').strip())"
 ```
 
@@ -71,7 +71,7 @@ Response structure:
 
 ## Routing Rules
 
-- `{"clientName":"ZhouTest1"}` — route by device name (recommended)
+- `{"clientName":"MY_DEVICE"}` — route by device name (recommended)
 - `{"connection_id":"conn-xxx"}` — route by connection ID (from /clients)
 - Neither specified — routes to first connected device (avoid this)
 - ⚠️ If `clientName` not found, returns 404 (never silently routes elsewhere)
@@ -99,7 +99,7 @@ Install or update external MCP servers on workers remotely via `remote_configure
 curl -s -m 30 -X POST http://localhost:8081/tool_call \
   -H "Content-Type: application/json" \
   -d '{
-    "clientName":"ZhouTest1",
+    "clientName":"MY_DEVICE",
     "tool_name":"remote_configure_mcp_server",
     "arguments":{
       "name":"my-mcp-service",
@@ -116,7 +116,7 @@ curl -s -m 30 -X POST http://localhost:8081/tool_call \
 curl -s -m 30 -X POST http://localhost:8081/tool_call \
   -H "Content-Type: application/json" \
   -d '{
-    "clientName":"ZhouTest1",
+    "clientName":"MY_DEVICE",
     "tool_name":"remote_configure_mcp_server",
     "arguments":{
       "name":"playwright",
@@ -165,7 +165,7 @@ async def main():
     clients = await link.clients()
     
     # Execute on one device
-    result = await link.execute('hostname', target='ZhouTest1')
+    result = await link.execute('hostname', target='MY_DEVICE')
     print(result['stdout'])
     
     # Broadcast to all
