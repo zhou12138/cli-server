@@ -2,6 +2,10 @@
 
 Read in order — each document builds on the previous one.
 
+## Overview
+
+| — | [Why LandGod?](why-landgod.md) | Core advantages and positioning | — |
+
 ## Getting Started
 
 | # | Document | Description | Prerequisites |
