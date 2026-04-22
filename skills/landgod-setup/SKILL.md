@@ -124,7 +124,11 @@ sudo apt-get install -y libgtk-3-0 libnss3 libasound2t64 libcups2 xvfb
 
 ## Step 2: Configure
 
+⚠️ **Always use `landgod config set` command. Do NOT manually write/edit the JSON config file.** The command handles nested key paths correctly (e.g. `builtInTools.permissionProfile` → `{"builtInTools":{"permissionProfile":"..."}}`). Manual JSON editing often produces flat keys that are silently ignored.
+
 Apply answers from the questions:
+
+
 
 ```bash
 landgod config set enabled true
@@ -228,3 +232,6 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion
 - **`remote_configure_mcp_server` creates servers with `trustLevel=experimental`** — manually edit `managed-client.mcp-servers.json` to set `"trustLevel": "trusted"`.
 - **npm start works but tgz fails** — see WebSocket Path Rules and Troubleshooting above.
 - **Worker keepalive is per-machine** — each machine needs its own cron/schtasks.
+
+### Do NOT manually edit managed-client.config.json
+Always use `landgod config set <dotted.key> <value>`. The CLI correctly creates nested JSON objects from dot-separated keys. Manually writing `{"builtInTools.permissionProfile": "full-local-admin"}` creates a flat key that is **silently ignored** — the worker falls back to `command-only` profile with no error message.
