@@ -331,15 +331,26 @@ def handle_message(msg: dict) -> dict | None:
 
 
 def main():
-    """Run the MCP server over stdio (Windows-compatible, synchronous stdin)."""
-    logger.info("LandGod Computer Use MCP Server starting (stdio)...")
+    """Run the MCP server over stdio (Windows-compatible)."""
+    import sys
+    import os
 
-    import threading
+    # Windows: force stdin to binary mode and disable buffering issues
+    if os.name == 'nt':
+        import msvcrt
+        msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
+        msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
 
-    # Use synchronous stdin reading in a thread (Windows ProactorEventLoop
-    # does not support connect_read_pipe on stdin)
-    for line_bytes in sys.stdin.buffer:
-        line_str = line_bytes.decode("utf-8").strip()
+    while True:
+        try:
+            line = sys.stdin.readline()
+        except (OSError, IOError):
+            break
+
+        if not line:
+            break
+
+        line_str = line.strip()
         if not line_str:
             continue
 
@@ -350,7 +361,8 @@ def main():
 
         response = handle_message(msg)
         if response is not None:
-            sys.stdout.write(json.dumps(response) + "\n")
+            out = json.dumps(response) + "\n"
+            sys.stdout.write(out)
             sys.stdout.flush()
 
 
