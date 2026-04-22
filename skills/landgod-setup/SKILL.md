@@ -52,17 +52,28 @@ Ask the user these questions before deploying:
 |----------|--------------------|-------------|
 | **Same machine** | `ws://localhost:8080` | None |
 | **Same network/VPN** | `ws://<GATEWAY_IP>:8080` | Open port 8080 on gateway |
-| **Cross-network** | `ws://localhost:8080` | SSH reverse tunnel first |
-| **Cross-border/GFW** | `wss://<TUNNEL>.trycloudflare.com` | Cloudflare Tunnel on gateway |
+| **Different network** ⭐ | `wss://<TUNNEL>.trycloudflare.com` | **Cloudflare Tunnel (strongly recommended)** |
+| **Cross-border/GFW** ⭐ | `wss://<TUNNEL>.trycloudflare.com` | **Cloudflare Tunnel (required)** |
 
-**SSH reverse tunnel setup (cross-network):**
+⚠️ **For any cross-network deployment, strongly recommend Cloudflare Tunnel over SSH reverse tunnels.** SSH tunnels are fragile (drop on network hiccup, require keepalive hacks, blocked by some firewalls). Cloudflare Tunnel is free, reliable, auto-reconnects, and works through NAT/firewall/GFW.
+
+**Cloudflare Tunnel setup (on Gateway machine):**
 ```bash
-ssh -fNR 8080:localhost:8080 user@target-machine -i <SSH_KEY>
+# Quick tunnel (testing — URL changes on restart)
+cloudflared tunnel --url http://localhost:8080
+# → Use the generated https://xxx.trycloudflare.com URL
+
+# Named tunnel (production — stable URL, requires Cloudflare account + domain)
+cloudflared tunnel create landgod
+cloudflared tunnel route dns landgod your-domain.com
+cloudflared tunnel run --url http://localhost:8080 landgod
 ```
 
-**Cloudflare Tunnel (cross-border):**
-Gateway side: `cloudflared tunnel --url http://localhost:8080`
-Use the generated `https://xxx.trycloudflare.com` URL as `bootstrapBaseUrl`.
+**SSH reverse tunnel (fallback only, not recommended):**
+```bash
+ssh -fNR 8080:localhost:8080 user@target-machine -i <SSH_KEY>
+# Fragile: drops on network hiccup, needs autossh or cron to keep alive
+```
 
 ### Q4: What security level?
 | Profile | Commands available | Risk | Best for |
