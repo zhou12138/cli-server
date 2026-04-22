@@ -384,3 +384,43 @@ Servers created via the remote API default to `trustLevel=experimental`, which b
 
 ### After `make clean && make`, verify packages
 Always check that `downloads/` contains all expected packages. The Makefile may not build the Python Gateway Server — build it separately with `python3 -m build` in `gateway/python-gateway/`.
+
+### WebSocket path rules (bootstrapBaseUrl)
+
+The `bootstrapBaseUrl` determines the WebSocket URL the worker connects to:
+
+| bootstrapBaseUrl | Generated WS URL | Notes |
+|---|---|---|
+| `ws://localhost:8080` | `ws://localhost:8080/` | No path appended |
+| `wss://tunnel.trycloudflare.com` | `wss://tunnel.trycloudflare.com/` | No path appended |
+| `https://example.com/api` | `wss://example.com/api/mcphub/ws` | Auto-appends `/mcphub/ws` |
+| `https://example.com/api/mcphub/ws` | `wss://example.com/api/mcphub/ws` | Already has it, no change |
+
+**Rule:** `/api/mcphub/ws` is only appended when the path starts with `/api`.
+
+**LandGod Gateway** accepts any path (no path checking), so this only matters when connecting to external WebSocket servers that require a specific path.
+
+### "Unexpected server response: 200" error
+
+This means the WebSocket upgrade request hit an HTTP endpoint instead of a WS endpoint. Common causes:
+- **Wrong port**: connecting to HTTP port (8081) instead of WS port (8080)
+- **Tunnel misconfigured**: Cloudflare Tunnel pointing to wrong backend port
+- **Path mismatch**: remote server expects `/api/mcphub/ws` but client sends `/`
+- **Proxy interference**: reverse proxy returning HTML instead of upgrading WebSocket
+
+Fix: verify `bootstrapBaseUrl` points to the correct WS port and path.
+
+### npm start works but tgz package fails (403 or connection error)
+
+The WebSocket logic is identical in both, but the runtime environment differs:
+
+| | `npm start` (dev) | tgz package (prod) |
+|---|---|---|
+| Entry | vite dev server, hot reload | Pre-compiled `.vite/build/index.js` |
+| ws module | Loaded from `node_modules/` | Bundled by rollup into index.js |
+| Electron | Dev mode | Production mode with `--no-sandbox` |
+| Headers | Standard Node.js `ws` headers | May have Electron-injected Origin |
+
+**If 403**: Electron packaged mode may inject a different `Origin` header. The fix (v0.1.2+) explicitly sets Origin to match the WS URL.
+
+**If 200**: The connection is hitting an HTTP endpoint, not a WebSocket endpoint. Check port and path.
