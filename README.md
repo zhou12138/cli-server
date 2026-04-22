@@ -279,7 +279,7 @@ make clean && make    # Build all packages → downloads/
 
 - [`docs/`](docs/) — Technical documentation
 - [`examples/`](examples/) — Deployment guide with real-world example
-- [`skills/landgod-deploy/`](skills/landgod-deploy/) — Skill for deploying LandGod
+- [`skills/landgod-gateway-setup/ + skills/landgod-setup/`](skills/landgod-gateway-setup/ + skills/landgod-setup/) — Skill for deploying LandGod
 - [`skills/landgod-operate/`](skills/landgod-operate/) — Skill for operating devices
 - [`skills/landgod-dispatch/`](skills/landgod-dispatch/) — Skill for intelligent task dispatch and scheduling
 
