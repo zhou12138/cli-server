@@ -411,7 +411,7 @@
     "about": "关于",
     "aboutDescription": "Agent 安全卫士为基于 Web 的 AI Agent 提供本地 WebSocket + HTTP 网关，用于在您的计算机上执行 CLI 命令。它在配置的端口上运行持久后台服务，并记录所有命令执行以供审计。",
     "aboutDescriptionMcpWs": "LandGod Worker 是一个托管桌面 MCP 客户端，通过 WebSocket 连接到远程 MCP Hub。它在可配置的权限配置文件、审批门控和防御层下，将本地工具——Shell 执行、文件访问和外部 MCP 服务器——暴露给远程端。所有工具调用均在本地审计记录。",
-    "version": "版本 0.1.1 (MVP)",
+    "version": "版本 0.1.2 (MVP)",
     "language": "语言",
     "languageDescription": "界面语言（托盘菜单需重启生效）",
     "toolCallApprovalTitle": "工具调用审批",

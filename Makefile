@@ -18,12 +18,12 @@ GATEWAY_PY_SRC = gateway/python-sdk
 GATEWAY_PY_SERVER_SRC = gateway/python-gateway
 
 # 产物文件名
-WORKER_PKG = $(DOWNLOADS_DIR)/landgod-0.1.1.tgz
-GATEWAY_NODE_PKG = $(DOWNLOADS_DIR)/landgod-gateway-0.1.1.tgz
-GATEWAY_PY_WHL = $(DOWNLOADS_DIR)/landgod_gateway-0.1.1-py3-none-any.whl
-GATEWAY_PY_SDIST = $(DOWNLOADS_DIR)/landgod_gateway-0.1.1.tar.gz
-GATEWAY_PY_SERVER_WHL = $(DOWNLOADS_DIR)/landgod_gateway_server-0.1.1-py3-none-any.whl
-GATEWAY_PY_SERVER_SDIST = $(DOWNLOADS_DIR)/landgod_gateway_server-0.1.1.tar.gz
+WORKER_PKG = $(DOWNLOADS_DIR)/landgod-0.1.2.tgz
+GATEWAY_NODE_PKG = $(DOWNLOADS_DIR)/landgod-gateway-0.1.2.tgz
+GATEWAY_PY_WHL = $(DOWNLOADS_DIR)/landgod_gateway-0.1.2-py3-none-any.whl
+GATEWAY_PY_SDIST = $(DOWNLOADS_DIR)/landgod_gateway-0.1.2.tar.gz
+GATEWAY_PY_SERVER_WHL = $(DOWNLOADS_DIR)/landgod_gateway_server-0.1.2-py3-none-any.whl
+GATEWAY_PY_SERVER_SDIST = $(DOWNLOADS_DIR)/landgod_gateway_server-0.1.2.tar.gz
 
 .PHONY: all worker gateway gateway-node gateway-python gateway-python-server clean
 
