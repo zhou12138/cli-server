@@ -71,136 +71,184 @@ pip install $BASE/landgod_gateway-<VERSION>-py3-none-any.whl
 
 ## 1. Gateway Setup
 
-### Python Gateway (recommended)
+Before installing, ask the user these questions:
 
+### Q1: Which language runtime?
+| Option | When to choose |
+|--------|---------------|
+| **Python** (recommended) | Easier setup, supports Redis cluster mode |
+| **Node.js** | Already have Node.js, prefer npm ecosystem |
+
+### Q2: Generate auth token
+Generate a secure random token for the user:
 ```bash
-pip install <whl from above>
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+⚠️ **Save this token** — all workers must use the same token to connect.
 
-# Start with custom token (recommended — avoid using default hardcoded token)
-landgod-gateway-py start --token YOUR_SECRET_TOKEN
+### Q3: Single node or cluster?
+| Option | When to choose |
+|--------|---------------|
+| **Single node** (default) | One gateway, simple setup |
+| **Redis cluster** | Multiple gateway instances, high availability |
 
-# Or via environment variable
-LANDGOD_AUTH_TOKEN=YOUR_SECRET_TOKEN landgod-gateway-py start
+### Q4: Auto-start on boot?
+Ask if they want systemd service for auto-restart.
 
-# Cluster mode with Redis
-landgod-gateway-py start --token YOUR_SECRET_TOKEN --redis redis://host:6379
+### Install & Start
+
+**Python Gateway:**
+```bash
+pip install <whl from packages section>
+landgod-gateway-py start --token <TOKEN_FROM_Q2>
+# Cluster: landgod-gateway-py start --token <TOKEN> --redis redis://host:6379
 ```
 
-⚠️ **Always set a custom token.** The default `YOUR_SECRET_TOKEN` is public and insecure. Generate a random token: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`
-
-### Node.js Gateway
-
+**Node.js Gateway:**
 ```bash
-npm install -g <tgz from above>
-
-# Start with custom token
-landgod-gateway start --daemon --token YOUR_SECRET_TOKEN
-
-# Or via environment variable
-LANDGOD_AUTH_TOKEN=YOUR_SECRET_TOKEN landgod-gateway start --daemon
+npm install -g <tgz from packages section>
+LANDGOD_AUTH_TOKEN=<TOKEN_FROM_Q2> landgod-gateway start --daemon
 ```
 
-### systemd keepalive
+### systemd keepalive (if Q4 = yes)
 
-```ini
-# /etc/systemd/system/landgod-python-gateway.service
+```bash
+sudo tee /etc/systemd/system/landgod-gateway.service > /dev/null << EOF
 [Unit]
-Description=LandGod Python Gateway
+Description=LandGod Gateway
 After=network.target
 [Service]
 Type=simple
-User=<USER>
-ExecStart=<PATH_TO>/landgod-gateway-py start
+User=<CURRENT_USER>
+Environment=LANDGOD_AUTH_TOKEN=<TOKEN_FROM_Q2>
+ExecStart=<FULL_PATH_TO_BINARY> start
 Restart=always
 RestartSec=5
 [Install]
 WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload && sudo systemctl enable --now landgod-gateway
+```
+
+### Verify
+```bash
+curl -s http://localhost:8081/health
+# Expected: {"status":"ok","connectedClients":0}
 ```
 
 Ports: **8080** (WebSocket, workers connect here), **8081** (HTTP API, agents call here).
 
 ## 2. Worker Deployment
 
-### Step 1: Install
+Before deploying a worker, ask the user these questions:
 
+### Q1: How will you access the target machine?
+| Option | Method | Prerequisites |
+|--------|--------|--------------|
+| **SSH access** | You SSH in and run commands | SSH credentials |
+| **Direct access** | You're on the target machine | Terminal access |
+| **No access** | User runs commands themselves | Give them instructions |
+
+### Q2: What OS is the target machine?
+| OS | Package manager | Notes |
+|----|----------------|-------|
+| **Linux** | npm (Node.js) | Most common, headless recommended |
+| **Windows** | npm (Node.js) | Must cd to package dir for headless |
+| **macOS** | npm (Node.js) | Same as Linux |
+
+### Q3: Network connectivity — How can the worker reach the Gateway?
+| Scenario | `bootstrapBaseUrl` | Setup needed |
+|----------|--------------------|-------------|
+| **Same machine** | `ws://localhost:8080` | None |
+| **Same network/VPN** | `ws://<GATEWAY_IP>:8080` | Open port 8080 on gateway |
+| **Cross-network** | `ws://localhost:8080` | SSH reverse tunnel first |
+| **Cross-border/GFW** | `wss://<TUNNEL>.trycloudflare.com` | Cloudflare Tunnel on gateway |
+
+If cross-network: set up SSH reverse tunnel first:
 ```bash
-npm install -g <tgz from above>
+ssh -R 8080:localhost:8080 user@target-machine
+```
+
+If cross-border: set up Cloudflare Tunnel on gateway:
+```bash
+cloudflared tunnel --url http://localhost:8080
+# Note the generated URL for bootstrapBaseUrl
+```
+
+### Q4: What security level?
+| Profile | Use case | Risk |
+|---------|----------|------|
+| **command-only** | Read-only monitoring (echo, ls, cat, ps, df) | Low |
+| **interactive-trusted** | Development (+ git, node, npm, curl, python) | Medium |
+| **full-local-admin** | Full management (+ rm, chmod, systemctl, everything) | High |
+
+⚠️ `full-local-admin` gives complete control. Only use when you fully trust the remote agent.
+
+### Q5: Run mode
+| Mode | When to choose |
+|------|---------------|
+| **Headless** (recommended) | Servers, no GUI needed, lighter |
+| **GUI (Electron)** | Desktop, want visual dashboard, need manual approval |
+
+### Q6: Worker labels (optional)
+Ask if they want to tag this worker with capabilities:
+```bash
+# Examples:
+landgod config set labels '{"role":"ml","gpu":true}'
+landgod config set labels '{"region":"cn","role":"monitor"}'
+landgod config set labels '{"platform":"windows","role":"build"}'
+```
+
+### Step 1: Install
+```bash
+npm install -g <tgz from packages section>
+```
+
+For GUI mode, also install Electron dependencies:
+```bash
+cd $(node -e "console.log(require.resolve('landgod/package.json').replace('/package.json',''))")
+npm install
+# Linux GUI also needs: sudo apt-get install -y libgtk-3-0 libnss3 libasound2t64 libcups2 xvfb
 ```
 
 ### Step 2: Configure
 
-Ask the user to choose their setup. Use `landgod config set <key> <value>` for each setting.
+Apply answers from the questions above:
 
-#### Required settings
 ```bash
 landgod config set enabled true
 landgod config set mode managed-client-mcp-ws
-landgod config set bootstrapBaseUrl "<GATEWAY_WS_URL>"  # see network section
-landgod config set token "<TOKEN>"                       # must match gateway token
+landgod config set bootstrapBaseUrl "<ANSWER_FROM_Q3>"
+landgod config set token "<GATEWAY_TOKEN>"
+landgod config set toolCallApprovalMode auto        # or manual for Q5=GUI
+landgod config set builtInTools.permissionProfile <ANSWER_FROM_Q4>
 ```
 
-#### Run mode — ask user which environment
-| Mode | When to use | Start command |
-|------|------------|---------------|
-| **Headless** (recommended) | Linux/Windows servers, no GUI needed | `landgod daemon start --headless` |
-| **GUI (Electron)** | Desktop with display, want visual dashboard | `landgod daemon start` |
-
-#### Approval mode — ask user preference
+If Q6 was answered:
 ```bash
-# Auto: commands execute immediately (recommended for servers)
-landgod config set toolCallApprovalMode auto
-
-# Manual: each command requires UI approval (safer but needs GUI)
-landgod config set toolCallApprovalMode manual
-```
-
-#### Permission profile — ask user to choose security level
-| Profile | Commands | File read | MCP admin | Best for |
-|---------|----------|-----------|-----------|----------|
-| `command-only` | Basic (echo, ls, cat, hostname, ps, df) | No | No | Read-only monitoring |
-| `interactive-trusted` | + git, node, npm, curl, find, sort | No | No | Dev environment |
-| `full-local-admin` | Everything + rm, chmod, systemctl | Yes | Yes | Full management |
-
-```bash
-landgod config set builtInTools.permissionProfile <PROFILE>
-```
-
-⚠️ `full-local-admin` gives complete control. Only use when you fully trust the remote agent.
-
-#### Custom shell allowlist (optional)
-```bash
-# Override default command list
-landgod config set builtInTools.shellExecute.allowedExecutableNames '["echo","ls","cat","hostname","node","npm","git","curl","ps","df","tasklist"]'
-
-# Set allowed working directories
-landgod config set builtInTools.shellExecute.allowedWorkingDirectories '["/home/USER","/tmp"]'
-```
-
-#### View current config
-```bash
-landgod config show
+landgod config set labels '<JSON_FROM_Q6>'
 ```
 
 ### Step 3: Start
 
 ```bash
-# Headless mode — Linux/Windows servers (recommended)
+# Headless (Q5 = headless)
 landgod daemon start --headless
 
-# GUI mode — Desktop with display
+# GUI (Q5 = GUI)
 landgod daemon start
 
 # Windows headless — must cd to package dir first
 cd C:\...\node_modules\landgod
 node .vite\build\headless-entry.js
 ```
-```
 
 ### Step 4: Verify
 
+From the Gateway machine:
 ```bash
-landgod health          # check daemon status
-curl localhost:8081/clients  # check from gateway side
+curl -s http://localhost:8081/clients
+# The new worker should appear in the list
 ```
 
 ## 3. Network Connectivity
