@@ -304,3 +304,85 @@ Issue detected (夜游神 patrol)
 | Gateway restart needed | 悟空 restarts → all workers auto-reconnect → 夜游神 confirms |
 | Quick Tunnel URL changed | 悟空 restarts tunnel → 太白金星 updates remote worker configs |
 | Security incident | 夜游神 alerts → 悟空 investigates → escalate to zww if real threat |
+
+## 🔄 Version Upgrade Flow
+
+### Step-by-step upgrade process
+
+```bash
+# 1. Build new packages on dev machine
+cd /path/to/cli-server
+make clean && make
+
+# 2. Push to GitHub
+git add -f downloads/
+git commit -m "release: v0.x.x"
+git push origin master
+
+# 3. Upgrade Gateway
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-gateway-<VERSION>.tgz
+# Restart gateway (token preserved via environment variable)
+LANDGOD_AUTH_TOKEN=<TOKEN> landgod-gateway start --daemon
+
+# 4. Upgrade each Worker (config will be WIPED by npm install)
+# Save config first!
+cp managed-client.config.json /tmp/config-backup.json
+npm install -g https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-<VERSION>.tgz
+cp /tmp/config-backup.json <new-install-path>/managed-client.config.json
+# Restart worker
+```
+
+⚠️ **`npm install -g` wipes the config file.** Always backup before upgrading.
+
+### China workers: use npm proxy
+
+```bash
+npm config set registry https://registry.npmmirror.com
+npm install -g <package-url>
+```
+
+## 🛡️ fail2ban for SSH Protection
+
+### Install and configure
+
+```bash
+sudo apt install -y fail2ban
+
+sudo tee /etc/fail2ban/jail.local > /dev/null << EOF
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 5
+bantime = 3600
+findtime = 600
+ignoreip = 127.0.0.1/8 <GATEWAY_IP>
+EOF
+
+sudo systemctl enable --now fail2ban
+```
+
+### Check status
+```bash
+sudo fail2ban-client status sshd
+# Shows: Currently banned + Total banned count
+```
+
+### Whitelist trusted IPs
+Add Gateway IP and known management IPs to `ignoreip` to prevent self-lockout.
+
+## 📋 Known Services (Do Not Alert)
+
+These are known, expected services. Patrol agents should NOT flag them:
+
+| Port | Service | Machine | Notes |
+|------|---------|---------|-------|
+| 1080 | Squid proxy | ZhouTest1 | HTTP proxy, listening on `*:1080` |
+| 8080 | LandGod Gateway WS | ZhouTest1 | Worker connections |
+| 8081 | LandGod Gateway HTTP | ZhouTest1 | Agent API |
+| 18789 | OpenClaw | ZhouTest1 | Agent runtime |
+| 20241-20244 | Cloudflared metrics | ZhouTest1 | Tunnel health |
+| 5353 | mDNS/Avahi | ZhouTest1 | Service discovery |
+
+Add new known services to this list to avoid repeated false alarms.
