@@ -32,7 +32,7 @@ Read in order — each document builds on the previous one.
 ## Additional Resources
 
 - [`examples/`](../examples/) — Real-world deployment example
-- [`skills/landgod-deploy/`](../skills/landgod-deploy/) — Agent skill for deployment
+- [`skills/landgod-gateway-setup/ + skills/landgod-setup/`](../skills/landgod-gateway-setup/ + skills/landgod-setup/) — Agent skill for deployment
 - [`skills/landgod-operate/`](../skills/landgod-operate/) — Agent skill for operations
 - [`skills/landgod-dispatch/`](../skills/landgod-dispatch/) — Agent skill for task dispatch and scheduling
 - [`downloads/`](../downloads/) — Release packages
