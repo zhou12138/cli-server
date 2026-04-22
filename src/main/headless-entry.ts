@@ -27,6 +27,10 @@ const ROOT_DIR = path.resolve(__dirname, '..', '..');
 const DATA_DIR = process.env.LANDGOD_DATA_DIR || path.join(ROOT_DIR, '.landgod-data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
+// Ensure process.cwd() is the package root so config files are found correctly
+// (managed-client.config.json and managed-client.mcp-servers.json use process.cwd())
+process.chdir(ROOT_DIR);
+
 // 设置全局数据目录供 logger 使用
 process.env.LANDGOD_DATA_DIR = DATA_DIR;
 
