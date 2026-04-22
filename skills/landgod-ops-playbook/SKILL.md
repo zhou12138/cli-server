@@ -386,3 +386,68 @@ These are known, expected services. Patrol agents should NOT flag them:
 | 5353 | mDNS/Avahi | ZhouTest1 | Service discovery |
 
 Add new known services to this list to avoid repeated false alarms.
+
+## 📦 Package Download & Dependency Issues
+
+### China/slow network machines can't download packages
+
+Common problem: Windows or China servers downloading from GitHub/python.org at ~7KB/s or timing out.
+
+**Solution: Download on a fast machine first, then SCP/transfer to the target.**
+
+```bash
+# 1. Download on your fast machine (e.g. Azure VM with good network)
+curl -LO https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe
+curl -LO https://github.com/zhou12138/cli-server/raw/master/downloads/landgod-0.1.2.tgz
+
+# 2. SCP to target machine
+scp python-3.12.0-amd64.exe Administrator@target:/tmp/
+scp landgod-0.1.2.tgz Administrator@target:/tmp/
+
+# 3. Install on target
+ssh Administrator@target "C:\tmp\python-3.12.0-amd64.exe /quiet InstallAllUsers=1 PrependPath=1"
+ssh Administrator@target "npm install -g C:\tmp\landgod-0.1.2.tgz"
+```
+
+⚠️ **SCP is allowed for dependency binaries (Python, Node.js installers).** The "no SCP" rule only applies to LandGod packages between production machines — to ensure version consistency via GitHub URL. But for bootstrapping dependencies on fresh machines with bad network, SCP is the practical choice.
+
+### Windows: Python not installed
+
+Typical dependency chain on fresh Windows:
+```
+1. No Python → need to install Python first
+2. No winget → can't use winget to install Python
+3. Direct download → python.org is slow from China
+4. Solution: Download Python installer on fast machine → SCP → install
+```
+
+Python silent install on Windows:
+```cmd
+python-3.12.0-amd64.exe /quiet InstallAllUsers=1 PrependPath=1
+```
+
+### Node.js: npm not available on fresh machine
+
+```bash
+# Linux: install via package manager
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Or download binary and SCP
+curl -LO https://nodejs.org/dist/v22.22.2/node-v22.22.2-linux-x64.tar.xz
+scp node-v22.22.2-linux-x64.tar.xz user@target:/tmp/
+ssh user@target "cd /usr/local && tar xf /tmp/node-v22.22.2-linux-x64.tar.xz --strip-components=1"
+
+# Windows: download .msi and SCP
+curl -LO https://nodejs.org/dist/v22.22.2/node-v22.22.2-x64.msi
+scp node-v22.22.2-x64.msi Administrator@target:/tmp/
+ssh Administrator@target "msiexec /i C:\tmp\node-v22.22.2-x64.msi /quiet"
+```
+
+### Download priority order
+
+When a target machine has slow/no internet:
+1. **Try direct install** (`npm install -g <github-url>`) — works if network is OK
+2. **Try with proxy** (`npm config set registry https://registry.npmmirror.com`) — for China
+3. **SCP from fast machine** — download on Azure/fast VPS, transfer to target
+4. **Ask user to download manually** — last resort, give them the URL
