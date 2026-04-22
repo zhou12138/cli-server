@@ -119,19 +119,23 @@ function getManagedClientWebSocketOptions(
   token: string | null,
 ): (WebSocketClientOptions & tls.ConnectionOptions) | undefined {
   const tlsOptions = getManagedClientTlsOptions(wsUrl, config);
-  const headers = token
-    ? {
-        Authorization: `Bearer ${token}`,
-      }
-    : undefined;
+  const url = new URL(wsUrl);
+  const origin = `${url.protocol === 'wss:' ? 'https' : 'http'}://${url.host}`;
+  const headers: Record<string, string> = {
+    Origin: origin,
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   if (!tlsOptions) {
-    return headers ? ({ headers } as WebSocketClientOptions & tls.ConnectionOptions) : undefined;
+    return { headers, origin } as WebSocketClientOptions & tls.ConnectionOptions;
   }
 
   return {
     ...tlsOptions,
-    ...(headers ? { headers } : {}),
+    headers,
+    origin,
   } as WebSocketClientOptions & tls.ConnectionOptions;
 }
 
@@ -154,11 +158,11 @@ function getDesktopWebSocketUrl(baseUrl: string): string {
   }
 
   const normalizedPath = url.pathname.replace(/\/+$/, '');
-  if (!normalizedPath || normalizedPath === '/') {
-    url.pathname = '/api/mcphub/ws';
-  } else if (!normalizedPath.endsWith('/mcphub/ws') && !normalizedPath.endsWith('/desktop/ws')) {
+  // Keep the path as-is — LandGod Gateway listens on root '/'
+  // Only append /mcphub/ws if the path explicitly contains /api
+  if (normalizedPath && normalizedPath.startsWith('/api') && !normalizedPath.endsWith('/mcphub/ws') && !normalizedPath.endsWith('/desktop/ws')) {
     url.pathname = `${normalizedPath}/mcphub/ws`;
-  } else {
+  } else if (normalizedPath) {
     url.pathname = normalizedPath;
   }
 
