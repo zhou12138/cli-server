@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "landgod-computer-use"
+version = "0.1.0"
+description = "PyAutoGUI-based MCP server for LandGod — computer_screenshot, computer_click, computer_type, computer_scroll"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyautogui>=0.9.54",
+    "Pillow>=10.0",
+]
+
+[project.scripts]
+landgod-computer-use = "landgod_computer_use:main"
