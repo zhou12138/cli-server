@@ -273,3 +273,34 @@ If a worker has been failing for a while, it may take up to 60 seconds to retry.
 - [ ] `/clients` shows expected worker count
 - [ ] `/audit` shows recent activity (not stale)
 - [ ] No `rejected` entries in gateway.log
+
+## 👥 Team Collaboration Flow
+
+When multiple agents manage the same LandGod cluster:
+
+```
+Issue detected (夜游神 patrol)
+  │
+  ├─ Network/tunnel issue → @太白金星 (SSH credentials + tunnel rebuild)
+  ├─ Code/config bug     → @悟空 (development + deployment)
+  ├─ Security alert       → @夜游神 escalates to @zww
+  └─ Scheduling/routing   → @二郎神 (task coordination)
+```
+
+### Rules
+
+1. **夜游神 detects, doesn't fix** — patrol agent reports issues, doesn't modify systems
+2. **太白金星 owns credentials** — SSH keys, tokens, tunnel configs are managed by 太白金星
+3. **悟空 owns code** — code changes, package builds, Gateway/Worker restarts
+4. **Token changes must be coordinated** — changing Gateway token requires updating ALL workers
+5. **Always ack in channel** — when receiving a task, respond immediately, then work
+
+### Common Coordination Scenarios
+
+| Scenario | Who does what |
+|----------|--------------|
+| All workers offline | 夜游神 reports → 悟空 checks Gateway token → 太白金星 checks tunnels |
+| New worker deployment | 悟空 or 太白金星 deploys → 夜游神 verifies in next patrol |
+| Gateway restart needed | 悟空 restarts → all workers auto-reconnect → 夜游神 confirms |
+| Quick Tunnel URL changed | 悟空 restarts tunnel → 太白金星 updates remote worker configs |
+| Security incident | 夜游神 alerts → 悟空 investigates → escalate to zww if real threat |
