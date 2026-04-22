@@ -7,7 +7,6 @@ computer_type, and computer_scroll tools for Windows desktop automation.
 Install: pip install landgod-computer-use
 Run:     python -m landgod_computer_use
 """
-import asyncio
 import base64
 import io
 import json
@@ -331,20 +330,16 @@ def handle_message(msg: dict) -> dict | None:
     }
 
 
-async def main():
-    """Run the MCP server over stdio."""
+def main():
+    """Run the MCP server over stdio (Windows-compatible, synchronous stdin)."""
     logger.info("LandGod Computer Use MCP Server starting (stdio)...")
 
-    reader = asyncio.StreamReader()
-    protocol = asyncio.StreamReaderProtocol(reader)
-    await asyncio.get_event_loop().connect_read_pipe(lambda: protocol, sys.stdin)
+    import threading
 
-    while True:
-        line = await reader.readline()
-        if not line:
-            break
-
-        line_str = line.decode("utf-8").strip()
+    # Use synchronous stdin reading in a thread (Windows ProactorEventLoop
+    # does not support connect_read_pipe on stdin)
+    for line_bytes in sys.stdin.buffer:
+        line_str = line_bytes.decode("utf-8").strip()
         if not line_str:
             continue
 
@@ -360,4 +355,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
