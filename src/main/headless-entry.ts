@@ -62,6 +62,8 @@ console.log(`[headless] Config:`, {
   mode: config.mode,
   baseUrl: config.baseUrl,
   hasToken: !!config.token,
+  mcpServers: config.mcpServers.length,
+  mcpServerNames: config.mcpServers.map(s => s.name),
 });
 
 if (!config.enabled || !config.baseUrl) {
