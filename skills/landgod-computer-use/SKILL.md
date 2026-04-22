@@ -208,3 +208,68 @@ POST /tool_call {"labels":{"gui":true},"tool_name":"computer_screenshot","argume
 | **Reliability** | Lower (resolution-dependent) | Higher (DOM-based) |
 
 **Rule of thumb:** If it's in a browser, use Playwright. If it's a native desktop app, use Computer Use.
+
+## Windows Desktop Session Requirements
+
+### PyAutoGUI needs a REAL Windows desktop session
+
+PyAutoGUI uses Win32 GDI API (`BitBlt`) to capture the screen. This API requires a **real desktop session** — not all remote access methods create one.
+
+| Connection Method | Creates Real Desktop? | PyAutoGUI Works? |
+|---|---|---|
+| **Standard RDP** (mstsc.exe / Microsoft Remote Desktop) | ✅ Yes | ✅ Yes |
+| **RDP disconnected** (not logged out, just closed window) | ✅ Session persists | ✅ Yes |
+| **Alibaba Cloud VNC console** | ❌ Virtual framebuffer | ❌ `screen grab failed` |
+| **AWS EC2 Serial Console** | ❌ No desktop | ❌ |
+| **SSH** | ❌ No desktop | ❌ |
+| **RDP logged out** | ❌ Session destroyed | ❌ |
+
+### How to set up for Computer Use
+
+1. **Use a standard RDP client** to connect to the Windows machine (port 3389)
+2. Log in as Administrator
+3. You can **minimize or disconnect** the RDP window — the session stays alive
+4. **Do NOT log out** — logging out destroys the desktop session
+5. Start Worker in the RDP session (not via SSH)
+
+### Starting Worker in the correct session
+
+**Problem:** Worker started via SSH runs in Session 0 (services) — no desktop access.
+
+**Solution:** Use PsExec to start Worker in the RDP session:
+
+```cmd
+REM Find which session has the RDP desktop
+query session
+
+REM Start Worker in the interactive session (e.g. Session 2)
+PsExec64.exe -i 2 -d cmd /c "cd /d C:\...\landgod && node .vite\build\headless-entry.js"
+```
+
+Or use schtasks with `/IT` (interactive token):
+```cmd
+schtasks /Create /SC ONCE /ST 00:00 /TN "LandGodDesktop" /TR "cmd /c cd /d C:\...\landgod && node .vite\build\headless-entry.js" /RU Administrator /IT /F
+schtasks /Run /TN "LandGodDesktop"
+```
+
+### Cloud provider VNC vs RDP
+
+| Provider | VNC Console | RDP Works? |
+|----------|------------|------------|
+| Alibaba Cloud | Virtual framebuffer, no GDI | ✅ Use standard RDP to public IP:3389 |
+| AWS EC2 | Session Manager, no desktop | ✅ Use RDP to public IP:3389 |
+| Azure | Serial console, no desktop | ✅ Use RDP to public IP:3389 |
+
+**Key insight:** Cloud provider "consoles" are for emergency access (BIOS-level). They do NOT create Windows desktop sessions. Always use standard RDP for GUI automation.
+
+### Keeping RDP session alive
+
+Windows Server disconnects idle RDP sessions by default. To prevent this:
+
+```cmd
+REM Disable idle session timeout (run as admin)
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v MaxIdleTime /t REG_DWORD /d 0 /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v MaxDisconnectionTime /t REG_DWORD /d 0 /f
+```
+
+Or in Group Policy: Computer Configuration → Administrative Templates → Windows Components → Remote Desktop Services → Session Time Limits → set all to "Never".
