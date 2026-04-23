@@ -1,0 +1,16 @@
+{
+  "id": "landgod",
+  "name": "LandGod",
+  "description": "Remote device management — execute commands, browse files, take screenshots, and manage workers across distributed machines via LandGod Gateway",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "gatewayUrl": {
+        "type": "string",
+        "default": "http://localhost:8081",
+        "description": "LandGod Gateway HTTP API URL"
+      }
+    },
+    "additionalProperties": false
+  }
+}
