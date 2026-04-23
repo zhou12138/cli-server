@@ -144,3 +144,43 @@ GET  /audit               # Centralized audit logs
 | `connectedClients: 0` after restart | Gateway generates new signing keys on restart | Workers auto-reconnect (exponential backoff) |
 | Port 8080 already in use | Another gateway or process | Kill old process: `lsof -i :8080` |
 | Workers can't reach gateway | Firewall/NAT | Use Cloudflare Tunnel or SSH reverse tunnel |
+
+## OpenClaw Plugin (Optional)
+
+If the agent uses OpenClaw, install the LandGod plugin for native tool integration:
+
+```bash
+openclaw plugins install https://github.com/zhou12138/cli-server/raw/master/downloads/openclaw-plugin-landgod-0.1.0.tgz
+```
+
+Then restart OpenClaw Gateway:
+```bash
+openclaw gateway restart
+```
+
+### Plugin provides these tools
+
+| Tool | Description |
+|------|-------------|
+| `landgod_clients` | List connected workers with labels and resources |
+| `landgod_tools` | List registered tools per worker |
+| `landgod_execute` | Execute shell command on a worker |
+| `landgod_tool_call` | Call ANY tool (shell, file, MCP, custom) on a worker |
+| `landgod_batch` | Parallel execution across multiple workers |
+| `landgod_task` | Check async task status |
+| `landgod_tasks` | List all tasks |
+| `landgod_audit` | Centralized audit logs |
+
+Optional tools (enable in config `tools.allow`):
+- `landgod_screenshot`, `landgod_click`, `landgod_type`, `landgod_scroll`
+
+### Plugin vs Skill
+
+| | Plugin | Skill |
+|---|---|---|
+| **For** | OpenClaw agents | Any AI agent |
+| **Install** | `openclaw plugins install` | Read SKILL.md |
+| **Usage** | Direct tool calls | HTTP/curl |
+| **New MCP servers** | No plugin change needed (`landgod_tool_call`) | No skill change needed |
+
+**Recommendation:** Install the plugin for OpenClaw agents. Keep skills for documentation and non-OpenClaw agents.
