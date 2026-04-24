@@ -273,3 +273,69 @@ reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v MaxDi
 ```
 
 Or in Group Policy: Computer Configuration → Administrative Templates → Windows Components → Remote Desktop Services → Session Time Limits → set all to "Never".
+
+## Lessons Learned: Getting Screenshot to Work
+
+### The ONLY way that works on cloud VMs
+
+**Worker MUST be started by the user directly in the RDP desktop** — not via SSH, PsExec, or schtasks.
+
+```
+❌ SSH → PsExec -i 2 → node headless-entry.js     → screen grab failed
+❌ SSH → schtasks /IT → node headless-entry.js      → screen grab failed  
+❌ SSH → node headless-entry.js                      → screen grab failed (Session 0)
+❌ Alibaba Cloud VNC console → any method            → screen grab failed (Basic Display Adapter)
+✅ User opens cmd IN RDP desktop → node headless-entry.js → WORKS!
+```
+
+**Why:** Windows security requires the process to have "Interactive Desktop Access" — inherited only when launched directly from the desktop shell, not from remote services.
+
+### Cloud VM compatibility matrix
+
+| Cloud Provider | VNC Console | SSH-started Worker | RDP + User-started Worker |
+|---|---|---|---|
+| **Alibaba Cloud (no GPU)** | ❌ Basic Display Adapter, no BitBlt | ❌ Session 0 | ✅ **Only way** |
+| **Alibaba Cloud (with GPU)** | ❌ | ❌ | ✅ |
+| **Azure Windows VM** | ❌ Serial console | ❌ | ✅ |
+| **AWS EC2 Windows** | ❌ Session Manager | ❌ | ✅ |
+| **Physical Windows PC** | N/A | ❌ | ✅ (or direct login) |
+
+### Registry settings needed
+
+Before first use, run these on the Windows machine:
+```cmd
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v fDisableWallpaper /t REG_DWORD /d 0 /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v fEnableVirtualizedGraphics /t REG_DWORD /d 1 /f
+```
+
+### Screenshot transfer optimization
+
+Full-resolution screenshots (2560x1440 PNG) are too large for WebSocket transfer (timeout). Use this two-step approach:
+
+```
+Step 1: Save compressed JPEG on Windows
+  → pyautogui.screenshot() → resize to 600px → save as JPEG quality=40 → ~9KB
+
+Step 2: Read back as base64
+  → base64.b64encode(open("desktop.jpg","rb").read()) → transfer via tool_call
+```
+
+This avoids the MCP tool timeout issue with large base64 payloads.
+
+### Complete setup checklist for cloud Windows VMs
+
+1. [ ] **Standard RDP client** connected (mstsc.exe, NOT cloud VNC)
+2. [ ] **Registry settings** applied (fEnableVirtualizedGraphics=1)
+3. [ ] **RDP disconnected and reconnected** after registry change
+4. [ ] **Worker started by user in RDP cmd** (not SSH/PsExec)
+5. [ ] **RDP session kept alive** (don't log out, disconnect is OK)
+6. [ ] **computer-use MCP server** configured with trustLevel=trusted
+7. [ ] Verify: `python -c "import pyautogui;print(pyautogui.screenshot().size)"` returns resolution
+
+### Things that DON'T help
+
+- ❌ Virtual Display Driver (VDD/IddSampleDriver) — doesn't fix Basic Display Adapter
+- ❌ .NET Desktop Runtime — only needed for VDD control panel
+- ❌ PsExec -i <session> — runs in correct session but lacks desktop access
+- ❌ schtasks /IT — same problem as PsExec
+- ❌ Alibaba Cloud VNC — uses virtual framebuffer, not real GDI
