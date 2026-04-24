@@ -7,47 +7,54 @@ description: Deploy and use the LandGod Computer Use MCP server for Windows desk
 
 Control remote Windows (or Linux/Mac with display) desktops through LandGod workers.
 
-## What It Does
+## Quick Reference
 
-4 tools for GUI automation:
+| Tool | Action |
+|------|--------|
+| `computer-use.computer_screenshot` | Capture screen (JPEG, ~10KB) |
+| `computer-use.computer_click` | Click at x,y coordinates |
+| `computer-use.computer_type` | Type text, press keys, hotkeys |
+| `computer-use.computer_scroll` | Scroll up/down/left/right |
 
-| Tool | Action | Example |
-|------|--------|---------|
-| `computer_screenshot` | Capture screen (base64 image) | See what's on the desktop |
-| `computer_click` | Click at x,y coordinates | Click a button, icon, menu |
-| `computer_type` | Type text, press keys, hotkeys | Fill forms, Ctrl+C, Alt+F4 |
-| `computer_scroll` | Scroll up/down/left/right | Navigate long pages |
+## Environment Requirements
 
-## Prerequisites
+### GPU vs No-GPU Decision Tree
 
-- A LandGod Worker running on a machine **with a display** (Windows desktop, Linux with X11, macOS)
-- Python 3.10+ on the worker
-- Worker connected to Gateway (see `landgod-setup` skill)
-
-## Step 1: Install on Worker
-
-Via LandGod Gateway (remote install):
-```bash
-curl -X POST http://localhost:8081/tool_call \
-  -d '{"clientName":"<WINDOWS_WORKER>","tool_name":"shell_execute","arguments":{
-    "command":"pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_computer_use-0.1.0-py3-none-any.whl"
-  }}'
+```
+Target machine has GPU/display? 
+  ├─ YES → Install & use directly (no special setup)
+  └─ NO (cloud VM) → Must use standard RDP client
+       ├─ RDP connected → Start Worker IN RDP desktop → works
+       └─ Only VNC/SSH → ❌ Screenshot won't work
 ```
 
-Or directly on the worker:
+**One rule:** Has GPU = direct. No GPU = need RDP.
+
+### Cloud VM Compatibility
+
+| Setup | Screenshot | Click/Type/Scroll |
+|-------|-----------|-------------------|
+| Physical PC with display | ✅ | ✅ |
+| Cloud VM + standard RDP | ✅ (start Worker in RDP) | ✅ |
+| Cloud VM + VNC console only | ❌ | ✅ |
+| Cloud VM + SSH only | ❌ | ✅ |
+
+## Installation (Step by Step)
+
+### Step 1: Install Python package on Worker
+
 ```bash
 pip install https://github.com/zhou12138/cli-server/raw/master/downloads/landgod_computer_use-0.1.0-py3-none-any.whl
 ```
 
-Verify:
+China network? Use mirror:
 ```bash
-python -m landgod_computer_use  # Should start and wait for stdin
-# Ctrl+C to exit
+pip install <path-to-whl> -i https://mirrors.aliyun.com/pypi/simple/
 ```
 
-## Step 2: Configure MCP Server on Worker
+### Step 2: Configure MCP Server
 
-Edit or create `managed-client.mcp-servers.json` in the worker's landgod directory:
+In Worker's landgod directory, create `managed-client.mcp-servers.json`:
 
 ```json
 {
@@ -58,346 +65,155 @@ Edit or create `managed-client.mcp-servers.json` in the worker's landgod directo
     "args": ["-m", "landgod_computer_use"],
     "trustLevel": "trusted",
     "publishedRemotely": true,
-    "tools": [
-      "computer_screenshot",
-      "computer_click",
-      "computer_type",
-      "computer_scroll"
-    ]
+    "tools": ["computer_screenshot", "computer_click", "computer_type", "computer_scroll"]
   }
 }
 ```
 
-⚠️ **All 4 tool names must be listed exactly.** Missing names = tools won't appear in Gateway.
+⚠️ `trustLevel` MUST be `"trusted"`. `"experimental"` blocks remote publication.
 
-⚠️ **`trustLevel` must be `"trusted"`** (not `"experimental"`). Otherwise tools won't be published remotely.
+### Step 3: Registry settings (Windows Server only)
 
-## Step 3: Restart Worker
+```cmd
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v fDisableWallpaper /t REG_DWORD /d 0 /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v fEnableVirtualizedGraphics /t REG_DWORD /d 1 /f
+```
+
+### Step 4: Start Worker
+
+**With GPU/display (easy):**
+```bash
+landgod daemon start --headless
+```
+
+**Cloud VM without GPU (must use RDP):**
+1. Connect via standard RDP client (mstsc.exe, NOT cloud VNC)
+2. Open cmd IN the RDP desktop
+3. Run: `cd /d C:\...\landgod && node .vite\build\headless-entry.js`
+4. Keep RDP connected (disconnect OK, logout NOT OK)
+
+⚠️ PsExec/SSH/schtasks won't work for screenshot — Worker must be started directly by user in RDP desktop.
+
+### Step 5: Verify
 
 ```bash
-# Kill and restart the worker process
-# Windows:
-taskkill /F /IM node.exe & cd C:\...\landgod & node .vite\build\headless-entry.js
-
-# Linux:
-pkill -f headless-entry && cd <landgod-dir> && nohup node .vite/build/headless-entry.js &
+curl http://localhost:8081/tools
+# Should show computer-use.computer_screenshot, computer_click, computer_type, computer_scroll
 ```
 
-## Step 4: Verify
+## Usage
 
-From Gateway:
-```bash
-# Check tools are registered
-curl -s http://localhost:8081/tools | python3 -c "
-import sys,json
-for w in json.load(sys.stdin)['tools']:
-    cu = [t for t in w['tools'] if t.startswith('computer_')]
-    if cu: print(f\"{w['clientName']}: {cu}\")
-"
-```
-
-Expected: `WindowsPC: ['computer_screenshot', 'computer_click', 'computer_type', 'computer_scroll']`
-
-## Usage Patterns
-
-### Pattern 1: Screenshot → Analyze → Act
-
-The fundamental workflow for GUI automation:
-
-```
-1. computer_screenshot          → See what's on screen
-2. Agent analyzes the image     → Identify elements and coordinates
-3. computer_click / type        → Interact with the element
-4. computer_screenshot          → Verify the action worked
-```
-
-### Pattern 2: Open and Use an Application
+### Screenshot (MCP tool — preferred)
 
 ```bash
-# Step 1: Screenshot to see current state
-POST /tool_call {"clientName":"WinPC","tool_name":"computer_screenshot","arguments":{}}
-
-# Step 2: Open Start menu
-POST /tool_call {"clientName":"WinPC","tool_name":"computer_click","arguments":{"x":20,"y":1060}}
-
-# Step 3: Type app name
-POST /tool_call {"clientName":"WinPC","tool_name":"computer_type","arguments":{"text":"notepad"}}
-
-# Step 4: Press Enter to launch
-POST /tool_call {"clientName":"WinPC","tool_name":"computer_type","arguments":{"key":"enter"}}
-
-# Step 5: Wait and screenshot to verify
-POST /tool_call {"clientName":"WinPC","tool_name":"computer_screenshot","arguments":{}}
-
-# Step 6: Type in the app
-POST /tool_call {"clientName":"WinPC","tool_name":"computer_type","arguments":{"text":"Hello from LandGod!"}}
-
-# Step 7: Save (Ctrl+S)
-POST /tool_call {"clientName":"WinPC","tool_name":"computer_type","arguments":{"hotkey":["ctrl","s"]}}
+curl -X POST http://localhost:8081/tool_call \
+  -d '{"clientName":"WindowsPC","tool_name":"computer-use.computer_screenshot","arguments":{"max_width":800,"quality":40}}'
 ```
 
-### Pattern 3: Keyboard Shortcuts
+Returns JPEG base64, ~10KB. Default: 800px width, quality 40.
+
+### Screenshot (shell fallback — if MCP times out)
 
 ```bash
-# Copy
-{"tool_name":"computer_type","arguments":{"hotkey":["ctrl","c"]}}
+# Pre-encode python script as base64
+SCRIPT=$(echo 'import pyautogui,base64,io
+img=pyautogui.screenshot()
+r=800/img.width
+img=img.resize((800,int(img.height*r)))
+buf=io.BytesIO()
+img.save(buf,format="JPEG",quality=40)
+print(base64.b64encode(buf.getvalue()).decode())' | base64 -w0)
 
-# Paste
-{"tool_name":"computer_type","arguments":{"hotkey":["ctrl","v"]}}
-
-# Undo
-{"tool_name":"computer_type","arguments":{"hotkey":["ctrl","z"]}}
-
-# Close window
-{"tool_name":"computer_type","arguments":{"hotkey":["alt","f4"]}}
-
-# Switch window
-{"tool_name":"computer_type","arguments":{"hotkey":["alt","tab"]}}
-
-# Task Manager
-{"tool_name":"computer_type","arguments":{"hotkey":["ctrl","shift","escape"]}}
-
-# Windows Run
-{"tool_name":"computer_type","arguments":{"hotkey":["win","r"]}}
+curl -X POST http://localhost:8081/tool_call \
+  -d "{\"clientName\":\"WindowsPC\",\"tool_name\":\"shell_execute\",\"arguments\":{\"command\":\"python -c \\\"import base64 as b;exec(b.b64decode('$SCRIPT'))\\\"\"}}"
+# Decode stdout base64 → save as .jpg
 ```
 
-### Pattern 4: Scroll Through Content
+### Click
 
 ```bash
-# Scroll down 5 clicks
-{"tool_name":"computer_scroll","arguments":{"amount":-5}}
+# Single click
+{"tool_name":"computer-use.computer_click","arguments":{"x":500,"y":300}}
 
-# Scroll up 3 clicks
-{"tool_name":"computer_scroll","arguments":{"amount":3}}
+# Double click
+{"tool_name":"computer-use.computer_click","arguments":{"x":500,"y":300,"clicks":2}}
 
-# Scroll at specific position
-{"tool_name":"computer_scroll","arguments":{"amount":-5,"x":500,"y":400}}
+# Right click
+{"tool_name":"computer-use.computer_click","arguments":{"x":500,"y":300,"button":"right"}}
 ```
 
-### Pattern 5: Label-Based Routing
+### Type
 
-Configure the Windows worker with a label:
 ```bash
-landgod config set labels '{"gui":true,"platform":"windows"}'
+# Text
+{"tool_name":"computer-use.computer_type","arguments":{"text":"Hello World"}}
+
+# Single key
+{"tool_name":"computer-use.computer_type","arguments":{"key":"enter"}}
+
+# Hotkey
+{"tool_name":"computer-use.computer_type","arguments":{"hotkey":["ctrl","c"]}}
+{"tool_name":"computer-use.computer_type","arguments":{"hotkey":["alt","f4"]}}
+{"tool_name":"computer-use.computer_type","arguments":{"hotkey":["ctrl","shift","escape"]}}
 ```
 
-Then route GUI tasks by label:
+### Scroll
+
 ```bash
-POST /tool_call {"labels":{"gui":true},"tool_name":"computer_screenshot","arguments":{}}
+# Down
+{"tool_name":"computer-use.computer_scroll","arguments":{"amount":-5}}
+
+# Up
+{"tool_name":"computer-use.computer_scroll","arguments":{"amount":3}}
+```
+
+## Workflow: Screenshot → Analyze → Act
+
+```
+1. computer_screenshot          → Get screen image
+2. Analyze image (or send to user) → Find element coordinates
+3. computer_click/type/scroll   → Interact
+4. computer_screenshot          → Verify result
+```
+
+## Coordinate System
+
+Screenshots are resized (default 800px width). Screen coordinates are ORIGINAL resolution.
+
+```
+Screenshot 800x450 → element at pixel (200, 100)
+Screen is 2560x1440 → actual coordinate: (200 * 2560/800, 100 * 1440/450) = (640, 320)
+```
+
+⚠️ Always use screen coordinates for click, not screenshot coordinates.
+
+Use `screen_width` and `screen_height` from screenshot response to calculate.
+
+## Shell Escaping Tip
+
+Use base64 encoding for python scripts to avoid JSON → shell → python triple escaping:
+
+```bash
+SCRIPT=$(echo 'print("hello")' | base64 -w0)
+python -c "import base64 as b;exec(b.b64decode('$SCRIPT'))"
 ```
 
 ## Troubleshooting
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| Tools don't appear in `/tools` | MCP config missing or wrong tool names | Check `managed-client.mcp-servers.json`, verify all 4 names |
-| `trustLevel=experimental` blocks publication | Default from `remote_configure_mcp_server` | Manually set `"trustLevel": "trusted"` |
-| Screenshot returns black image | No display / RDP disconnected | Keep RDP session open, or use virtual display |
-| Click lands on wrong position | Screen resolution changed | Take fresh screenshot, coordinates are absolute |
-| `pyautogui` import error | Not installed on worker | `pip install pyautogui Pillow` |
-| Unicode text not typing | `typewrite` only supports ASCII | Use `pyautogui.write()` for Unicode (handled automatically) |
+| `screen grab failed` | No GPU + no RDP session | Connect via standard RDP, start Worker in RDP |
+| `screen grab failed` (with RDP) | Worker started via SSH/PsExec | Restart Worker directly in RDP cmd |
+| MCP tool timeout | Image too large | Use `max_width:800, quality:40` or shell fallback |
+| Tools not in `/tools` | MCP config missing or trustLevel wrong | Check `managed-client.mcp-servers.json`, set `trustLevel:"trusted"` |
+| `WinError 6` | Old version of computer-use | Update to latest whl |
+| Click lands wrong spot | Coordinate mismatch | Use screen resolution, not screenshot resolution |
 
 ## When to Use This vs Playwright
 
-| | Computer Use (this) | Playwright MCP |
+| | Computer Use | Playwright |
 |---|---|---|
-| **Target** | Any desktop application | Web browsers only |
-| **Input** | Screen coordinates | CSS selectors / DOM |
-| **Precision** | Approximate (pixel-based) | Exact (element-based) |
-| **Use case** | Excel, Notepad, native apps, OS dialogs | Web apps, forms, scraping |
-| **Reliability** | Lower (resolution-dependent) | Higher (DOM-based) |
-
-**Rule of thumb:** If it's in a browser, use Playwright. If it's a native desktop app, use Computer Use.
-
-## Windows Desktop Session Requirements
-
-### PyAutoGUI needs a REAL Windows desktop session
-
-PyAutoGUI uses Win32 GDI API (`BitBlt`) to capture the screen. This API requires a **real desktop session** — not all remote access methods create one.
-
-| Connection Method | Creates Real Desktop? | PyAutoGUI Works? |
-|---|---|---|
-| **Standard RDP** (mstsc.exe / Microsoft Remote Desktop) | ✅ Yes | ✅ Yes |
-| **RDP disconnected** (not logged out, just closed window) | ✅ Session persists | ✅ Yes |
-| **Alibaba Cloud VNC console** | ❌ Virtual framebuffer | ❌ `screen grab failed` |
-| **AWS EC2 Serial Console** | ❌ No desktop | ❌ |
-| **SSH** | ❌ No desktop | ❌ |
-| **RDP logged out** | ❌ Session destroyed | ❌ |
-
-### How to set up for Computer Use
-
-1. **Use a standard RDP client** to connect to the Windows machine (port 3389)
-2. Log in as Administrator
-3. You can **minimize or disconnect** the RDP window — the session stays alive
-4. **Do NOT log out** — logging out destroys the desktop session
-5. Start Worker in the RDP session (not via SSH)
-
-### Starting Worker in the correct session
-
-**Problem:** Worker started via SSH runs in Session 0 (services) — no desktop access.
-
-**Solution:** Use PsExec to start Worker in the RDP session:
-
-```cmd
-REM Find which session has the RDP desktop
-query session
-
-REM Start Worker in the interactive session (e.g. Session 2)
-PsExec64.exe -i 2 -d cmd /c "cd /d C:\...\landgod && node .vite\build\headless-entry.js"
-```
-
-Or use schtasks with `/IT` (interactive token):
-```cmd
-schtasks /Create /SC ONCE /ST 00:00 /TN "LandGodDesktop" /TR "cmd /c cd /d C:\...\landgod && node .vite\build\headless-entry.js" /RU Administrator /IT /F
-schtasks /Run /TN "LandGodDesktop"
-```
-
-### Cloud provider VNC vs RDP
-
-| Provider | VNC Console | RDP Works? |
-|----------|------------|------------|
-| Alibaba Cloud | Virtual framebuffer, no GDI | ✅ Use standard RDP to public IP:3389 |
-| AWS EC2 | Session Manager, no desktop | ✅ Use RDP to public IP:3389 |
-| Azure | Serial console, no desktop | ✅ Use RDP to public IP:3389 |
-
-**Key insight:** Cloud provider "consoles" are for emergency access (BIOS-level). They do NOT create Windows desktop sessions. Always use standard RDP for GUI automation.
-
-### Keeping RDP session alive
-
-Windows Server disconnects idle RDP sessions by default. To prevent this:
-
-```cmd
-REM Disable idle session timeout (run as admin)
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v MaxIdleTime /t REG_DWORD /d 0 /f
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v MaxDisconnectionTime /t REG_DWORD /d 0 /f
-```
-
-Or in Group Policy: Computer Configuration → Administrative Templates → Windows Components → Remote Desktop Services → Session Time Limits → set all to "Never".
-
-## Lessons Learned: Getting Screenshot to Work
-
-### The ONLY way that works on cloud VMs
-
-**Worker MUST be started by the user directly in the RDP desktop** — not via SSH, PsExec, or schtasks.
-
-```
-❌ SSH → PsExec -i 2 → node headless-entry.js     → screen grab failed
-❌ SSH → schtasks /IT → node headless-entry.js      → screen grab failed  
-❌ SSH → node headless-entry.js                      → screen grab failed (Session 0)
-❌ Alibaba Cloud VNC console → any method            → screen grab failed (Basic Display Adapter)
-✅ User opens cmd IN RDP desktop → node headless-entry.js → WORKS!
-```
-
-**Why:** Windows security requires the process to have "Interactive Desktop Access" — inherited only when launched directly from the desktop shell, not from remote services.
-
-### Cloud VM compatibility matrix
-
-| Cloud Provider | VNC Console | SSH-started Worker | RDP + User-started Worker |
-|---|---|---|---|
-| **Alibaba Cloud (no GPU)** | ❌ Basic Display Adapter, no BitBlt | ❌ Session 0 | ✅ **Only way** |
-| **Alibaba Cloud (with GPU)** | ❌ | ❌ | ✅ |
-| **Azure Windows VM** | ❌ Serial console | ❌ | ✅ |
-| **AWS EC2 Windows** | ❌ Session Manager | ❌ | ✅ |
-| **Physical Windows PC** | N/A | ❌ | ✅ (or direct login) |
-
-### Registry settings needed
-
-Before first use, run these on the Windows machine:
-```cmd
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v fDisableWallpaper /t REG_DWORD /d 0 /f
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v fEnableVirtualizedGraphics /t REG_DWORD /d 1 /f
-```
-
-### Screenshot transfer optimization
-
-Full-resolution screenshots (2560x1440 PNG) are too large for WebSocket transfer (timeout). Use this two-step approach:
-
-```
-Step 1: Save compressed JPEG on Windows
-  → pyautogui.screenshot() → resize to 600px → save as JPEG quality=40 → ~9KB
-
-Step 2: Read back as base64
-  → base64.b64encode(open("desktop.jpg","rb").read()) → transfer via tool_call
-```
-
-This avoids the MCP tool timeout issue with large base64 payloads.
-
-### Complete setup checklist for cloud Windows VMs
-
-1. [ ] **Standard RDP client** connected (mstsc.exe, NOT cloud VNC)
-2. [ ] **Registry settings** applied (fEnableVirtualizedGraphics=1)
-3. [ ] **RDP disconnected and reconnected** after registry change
-4. [ ] **Worker started by user in RDP cmd** (not SSH/PsExec)
-5. [ ] **RDP session kept alive** (don't log out, disconnect is OK)
-6. [ ] **computer-use MCP server** configured with trustLevel=trusted
-7. [ ] Verify: `python -c "import pyautogui;print(pyautogui.screenshot().size)"` returns resolution
-
-### Things that DON'T help
-
-- ❌ Virtual Display Driver (VDD/IddSampleDriver) — doesn't fix Basic Display Adapter
-- ❌ .NET Desktop Runtime — only needed for VDD control panel
-- ❌ PsExec -i <session> — runs in correct session but lacks desktop access
-- ❌ schtasks /IT — same problem as PsExec
-- ❌ Alibaba Cloud VNC — uses virtual framebuffer, not real GDI
-
-## Practical Screenshot Code (Copy-Paste Ready)
-
-The MCP tool `computer-use.computer_screenshot` may timeout with large images. Use this reliable two-step method instead:
-
-### Step 1: Save compressed screenshot on Windows
-
-```bash
-# Pre-encode the python script as base64 (avoids shell escaping hell)
-SCRIPT=$(echo 'import pyautogui
-img=pyautogui.screenshot()
-r=600/img.width
-img=img.resize((600,int(img.height*r)))
-img.save("C:/Users/Administrator/screen.jpg",quality=30)
-print("OK",img.size)' | base64 -w0)
-
-curl -X POST http://localhost:8081/tool_call \
-  -d "{\"clientName\":\"WindowsPC\",\"tool_name\":\"shell_execute\",\"arguments\":{\"command\":\"python -c \\\"import base64 as b;exec(b.b64decode('$SCRIPT'))\\\"\"}}"
-```
-
-### Step 2: Read back as base64
-
-```bash
-READ=$(echo 'import base64
-print(base64.b64encode(open("C:/Users/Administrator/screen.jpg","rb").read()).decode())' | base64 -w0)
-
-curl -X POST http://localhost:8081/tool_call \
-  -d "{\"clientName\":\"WindowsPC\",\"tool_name\":\"shell_execute\",\"arguments\":{\"command\":\"python -c \\\"import base64 as b;exec(b.b64decode('$READ'))\\\"\"}}"
-# Decode the stdout base64 → save as .jpg
-```
-
-### MCP tool vs shell_execute
-
-| Method | Default | Reliability | When to use |
-|--------|---------|-------------|-------------|
-| MCP `computer_screenshot` (v0.1.0+) | JPEG 800px q=40 ~10KB | ✅ **Primary** | Default, always try first |
-| shell_execute two-step | Any size | ✅ Fallback | If MCP times out (rare) |
-
-### Key parameters for keeping screenshots small
-
-```python
-# Resize: keep width under 600-800px
-ratio = 600 / img.width
-img = img.resize((600, int(img.height * ratio)))
-
-# JPEG quality 30-50 → 5-15KB (good enough to see UI elements)
-img.save("screen.jpg", quality=30)
-```
-
-### Shell escaping tip
-
-Use base64 encoding for python scripts to avoid JSON → shell → python triple escaping:
-
-```bash
-# Encode script
-SCRIPT=$(echo 'print("hello")' | base64 -w0)
-
-# Execute
-python -c "import base64 as b;exec(b.b64decode('$SCRIPT'))"
-```
-
-This avoids all backslash/quote escaping issues through Gateway → Worker → shell.
+| Target | Any desktop application | Web browsers only |
+| Input | Screen coordinates (x, y) | CSS selectors / DOM |
+| Use case | Excel, Notepad, OS dialogs, native apps | Web apps, forms, scraping |
+| Needs display | Yes | No |
