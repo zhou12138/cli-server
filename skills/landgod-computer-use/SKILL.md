@@ -339,3 +339,65 @@ This avoids the MCP tool timeout issue with large base64 payloads.
 - ❌ PsExec -i <session> — runs in correct session but lacks desktop access
 - ❌ schtasks /IT — same problem as PsExec
 - ❌ Alibaba Cloud VNC — uses virtual framebuffer, not real GDI
+
+## Practical Screenshot Code (Copy-Paste Ready)
+
+The MCP tool `computer-use.computer_screenshot` may timeout with large images. Use this reliable two-step method instead:
+
+### Step 1: Save compressed screenshot on Windows
+
+```bash
+# Pre-encode the python script as base64 (avoids shell escaping hell)
+SCRIPT=$(echo 'import pyautogui
+img=pyautogui.screenshot()
+r=600/img.width
+img=img.resize((600,int(img.height*r)))
+img.save("C:/Users/Administrator/screen.jpg",quality=30)
+print("OK",img.size)' | base64 -w0)
+
+curl -X POST http://localhost:8081/tool_call \
+  -d "{\"clientName\":\"WindowsPC\",\"tool_name\":\"shell_execute\",\"arguments\":{\"command\":\"python -c \\\"import base64 as b;exec(b.b64decode('$SCRIPT'))\\\"\"}}"
+```
+
+### Step 2: Read back as base64
+
+```bash
+READ=$(echo 'import base64
+print(base64.b64encode(open("C:/Users/Administrator/screen.jpg","rb").read()).decode())' | base64 -w0)
+
+curl -X POST http://localhost:8081/tool_call \
+  -d "{\"clientName\":\"WindowsPC\",\"tool_name\":\"shell_execute\",\"arguments\":{\"command\":\"python -c \\\"import base64 as b;exec(b.b64decode('$READ'))\\\"\"}}"
+# Decode the stdout base64 → save as .jpg
+```
+
+### Why not use the MCP tool directly?
+
+| Method | Max size | Reliability |
+|--------|----------|-------------|
+| MCP `computer_screenshot` | ~10KB before timeout | ⚠️ Unreliable for high-res |
+| shell_execute two-step | Any size (saved locally) | ✅ Reliable |
+
+### Key parameters for keeping screenshots small
+
+```python
+# Resize: keep width under 600-800px
+ratio = 600 / img.width
+img = img.resize((600, int(img.height * ratio)))
+
+# JPEG quality 30-50 → 5-15KB (good enough to see UI elements)
+img.save("screen.jpg", quality=30)
+```
+
+### Shell escaping tip
+
+Use base64 encoding for python scripts to avoid JSON → shell → python triple escaping:
+
+```bash
+# Encode script
+SCRIPT=$(echo 'print("hello")' | base64 -w0)
+
+# Execute
+python -c "import base64 as b;exec(b.b64decode('$SCRIPT'))"
+```
+
+This avoids all backslash/quote escaping issues through Gateway → Worker → shell.
