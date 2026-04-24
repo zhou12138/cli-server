@@ -37,8 +37,9 @@ except ImportError:
 def tool_screenshot(arguments: dict) -> dict:
     """Take a screenshot of the entire screen or a region."""
     region = arguments.get("region")  # [x, y, width, height] or None
-    max_width = arguments.get("max_width", 1280)
-    format_ = arguments.get("format", "png")
+    max_width = arguments.get("max_width", 800)
+    quality = arguments.get("quality", 40)
+    format_ = "jpeg"  # Always JPEG for smaller size
 
     try:
         if region and isinstance(region, list) and len(region) == 4:
@@ -46,7 +47,7 @@ def tool_screenshot(arguments: dict) -> dict:
         else:
             img = pyautogui.screenshot()
 
-        # Resize if too large
+        # Always resize to keep transfer small
         if img.width > max_width:
             ratio = max_width / img.width
             img = img.resize((max_width, int(img.height * ratio)), Image.LANCZOS)
@@ -54,9 +55,9 @@ def tool_screenshot(arguments: dict) -> dict:
         # Get screen size
         screen_w, screen_h = pyautogui.size()
 
-        # Encode to base64
+        # Encode to JPEG base64 (much smaller than PNG)
         buffer = io.BytesIO()
-        img.save(buffer, format=format_.upper())
+        img.save(buffer, format="JPEG", quality=quality)
         b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
         return {
@@ -165,7 +166,7 @@ def tool_scroll(arguments: dict) -> dict:
 TOOLS = {
     "computer_screenshot": {
         "name": "computer_screenshot",
-        "description": "Take a screenshot of the entire screen or a specific region. Returns base64-encoded image.",
+        "description": "Take a screenshot of the entire screen or a specific region. Returns base64-encoded JPEG image (compressed, max 800px width for fast transfer).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -176,14 +177,13 @@ TOOLS = {
                 },
                 "max_width": {
                     "type": "integer",
-                    "default": 1280,
-                    "description": "Maximum image width (auto-resize if larger).",
+                    "default": 800,
+                    "description": "Maximum image width (auto-resize if larger). Default 800 for fast transfer.",
                 },
-                "format": {
-                    "type": "string",
-                    "enum": ["png", "jpeg"],
-                    "default": "png",
-                    "description": "Image format.",
+                "quality": {
+                    "type": "integer",
+                    "default": 40,
+                    "description": "JPEG quality (1-100). Lower = smaller file. 40 is good for UI recognition.",
                 },
             },
         },
