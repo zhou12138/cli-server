@@ -217,3 +217,45 @@ python -c "import base64 as b;exec(b.b64decode('$SCRIPT'))"
 | Input | Screen coordinates (x, y) | CSS selectors / DOM |
 | Use case | Excel, Notepad, OS dialogs, native apps | Web apps, forms, scraping |
 | Needs display | Yes | No |
+
+## Chunked Transfer for HD Screenshots
+
+For high-resolution screenshots (>10KB), use chunked transfer to avoid timeout:
+
+### Step 1: Save full-res screenshot on Windows
+```bash
+SAVE=$(echo 'import pyautogui
+img=pyautogui.screenshot()
+img.save("C:/Users/Administrator/screen.jpg",quality=60)
+import os,math
+s=os.path.getsize("C:/Users/Administrator/screen.jpg")
+print(f"SIZE:{s} CHUNKS:{math.ceil(s/8000)}")' | base64 -w0)
+
+# Execute on worker
+shell_execute: python -c "import base64 as b;exec(b.b64decode('$SAVE'))"
+# → SIZE:323735 CHUNKS:41
+```
+
+### Step 2: Transfer chunks (8KB each)
+```bash
+for i in $(seq 0 <CHUNKS-1>); do
+  READ=$(printf "import base64\nf=open('C:/Users/Administrator/screen.jpg','rb')\nf.seek(%d)\nchunk=f.read(8000)\nprint(base64.b64encode(chunk).decode())" $((i*8000)) | base64 -w0)
+
+  shell_execute: python -c "import base64 as b;exec(b.b64decode('$READ'))"
+  # → decode stdout base64, append to local file
+done
+```
+
+### Step 3: Concatenate binary chunks locally
+Each chunk is independently base64-encoded. Decode each chunk separately, then concatenate the binary data.
+
+### Transfer speed reference (Cloudflare Tunnel cross-border)
+
+| Resolution | Quality | File size | Chunks (8KB) | Time |
+|-----------|---------|-----------|--------------|------|
+| 400px | q=20 | ~6KB | 1 (direct) | ~3s |
+| 600px | q=40 | ~18KB | 3 | ~10s |
+| 1024px | q=50 | ~52KB | 7 | ~20s |
+| 2560x1440 | q=60 | ~317KB | 41 | ~2min |
+
+**Recommendation:** Use 1024px q=50 for daily use (good clarity, 20s). Use full-res only when needed.
