@@ -370,12 +370,12 @@ curl -X POST http://localhost:8081/tool_call \
 # Decode the stdout base64 → save as .jpg
 ```
 
-### Why not use the MCP tool directly?
+### MCP tool vs shell_execute
 
-| Method | Max size | Reliability |
-|--------|----------|-------------|
-| MCP `computer_screenshot` | ~10KB before timeout | ⚠️ Unreliable for high-res |
-| shell_execute two-step | Any size (saved locally) | ✅ Reliable |
+| Method | Default | Reliability | When to use |
+|--------|---------|-------------|-------------|
+| MCP `computer_screenshot` (v0.1.0+) | JPEG 800px q=40 ~10KB | ✅ **Primary** | Default, always try first |
+| shell_execute two-step | Any size | ✅ Fallback | If MCP times out (rare) |
 
 ### Key parameters for keeping screenshots small
 
