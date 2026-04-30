@@ -198,6 +198,84 @@ SCRIPT=$(echo 'print("hello")' | base64 -w0)
 python -c "import base64 as b;exec(b.b64decode('$SCRIPT'))"
 ```
 
+## Pre-flight Checks (Run Before Every Screenshot)
+
+Before attempting any screenshot, run these checks in order. Stop at the first failure and report the issue.
+
+### Automated Checks (agent can fix)
+
+```
+Step 1: Gateway alive?
+  curl -s -m 5 http://localhost:8081/health
+  ├─ OK → continue
+  └─ FAIL (exit 7) → restart: landgod-link start --daemon --token <TOKEN>
+                      wait 3s, retry
+
+Step 2: Target Worker online?
+  curl -s http://localhost:8081/clients
+  ├─ clientName found + connected=true → continue
+  └─ NOT found → Worker is offline, cannot proceed
+       Possible causes:
+       - SSH reverse tunnel down (for cross-network workers)
+       - Worker process crashed
+       - Quick Tunnel address changed (if using trycloudflare.com)
+       Agent action: notify user or ask 太白金星 to rebuild tunnel
+
+Step 3: Active desktop session?
+  tool_call → shell_execute: "query user"
+  ├─ Shows active RDP session → continue
+  └─ Empty or only "console" with "Disc" status → NO desktop available
+       ❌ Screenshot will fail — user must RDP in first
+
+Step 4: Test screenshot (small, fast)
+  tool_call → shell_execute with PIL ImageGrab (100px, quality=20)
+  ├─ Returns base64 data → ✅ Ready to take real screenshot
+  └─ "screen grab failed" or "BitBlt" error → Worker not in desktop session
+       ❌ Worker was started via PsExec/SSH/schtasks, not from RDP desktop
+       User must manually restart Worker inside RDP (see below)
+```
+
+### Cannot Auto-fix (requires user action)
+
+| Problem | Why agent can't fix | User action needed |
+|---------|--------------------|--------------------|
+| No RDP session | Agent has no RDP client | User must RDP to the Windows machine |
+| Worker started via PsExec/SSH | Process lacks desktop handle even if in correct session | User opens CMD **inside RDP** and runs: `taskkill /F /IM node.exe` then `cd /d C:\...\landgod && node .vite\build\headless-entry.js` |
+| RDP disconnected (logged out) | Desktop destroyed on logout | User must RDP again (disconnect is OK, logout is NOT) |
+| Quick Tunnel address changed | New URL unknown until cloudflared restarts | Buy a domain + bind Cloudflare named tunnel (permanent fix) |
+
+### Recommended Pre-flight Script
+
+```bash
+# All-in-one pre-flight check
+echo "=== Pre-flight Check ==="
+
+# 1. Gateway
+GW=$(curl -s -m 5 http://localhost:8081/health 2>&1)
+if echo "$GW" | grep -q '"status":"ok"'; then
+  echo "✅ Gateway: OK"
+else
+  echo "❌ Gateway: DOWN — restarting..."
+  landgod-link start --daemon --token "$LANDGOD_TOKEN"
+  sleep 3
+fi
+
+# 2. Worker online
+CLIENTS=$(curl -s http://localhost:8081/clients)
+if echo "$CLIENTS" | grep -q '"WindowsServer"'; then
+  echo "✅ Worker: Online"
+else
+  echo "❌ Worker: Offline — check tunnel/worker process"
+  exit 1
+fi
+
+# 3. Desktop session (via tool_call)
+# query user → check for active RDP session
+
+# 4. Test grab (via tool_call)
+# PIL ImageGrab.grab() with tiny resolution → if fails, report
+```
+
 ## Troubleshooting
 
 | Problem | Cause | Fix |
